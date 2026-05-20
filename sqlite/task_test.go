@@ -157,6 +157,36 @@ func TestDB_UpdateTask(t *testing.T) {
 	}
 }
 
+func TestDB_DropTask(t *testing.T) {
+	t.Run("drops an existing task", func(t *testing.T) {
+		db := openTestDB(t)
+		c := ctx(t)
+
+		created, err := db.CreateTask(c, gtd.Task{Title: "To drop", Status: gtd.TaskStatusActive})
+		require.NoError(t, err)
+
+		dropped, err := db.DropTask(c, created.ID)
+		require.NoError(t, err)
+
+		assert.Equal(t, created.ID, dropped.ID)
+		assert.Equal(t, created.Title, dropped.Title)
+		assert.Equal(t, gtd.TaskStatusDropped, dropped.Status)
+		assert.False(t, dropped.UpdatedAt.Before(created.UpdatedAt))
+
+		fetched, err := db.Task(c, created.ID)
+		require.NoError(t, err)
+		assert.Equal(t, dropped, fetched)
+	})
+
+	t.Run("missing task returns error", func(t *testing.T) {
+		db := openTestDB(t)
+		c := ctx(t)
+
+		_, err := db.DropTask(c, 999)
+		assert.Error(t, err)
+	})
+}
+
 func TestDB_DeleteTask(t *testing.T) {
 	db := openTestDB(t)
 	c := ctx(t)

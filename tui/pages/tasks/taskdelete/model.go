@@ -21,7 +21,7 @@ type Model struct {
 	confirm  bool
 	err      error
 	form     *huh.Form
-	deleting bool
+	dropping bool
 }
 
 func New(task gtd.Task, svc gtd.TaskService) Model {
@@ -31,9 +31,9 @@ func New(task gtd.Task, svc gtd.TaskService) Model {
 	}
 
 	field := huh.NewConfirm().
-		Title("Delete task?").
-		Description(fmt.Sprintf("%q will be permanently deleted.", task.Title)).
-		Affirmative("Delete").
+		Title("Drop task?").
+		Description(fmt.Sprintf("%q will be moved to Dropped.", task.Title)).
+		Affirmative("Drop").
 		Negative("Cancel").
 		Value(&m.confirm)
 
@@ -53,16 +53,16 @@ func (m Model) Init() tea.Cmd {
 
 func (m Model) Update(msg tea.Msg) (screen.Screen, tea.Cmd) {
 	switch msg := msg.(type) {
-	case taskDeletedMsg:
+	case taskDroppedMsg:
 		if msg.err != nil {
 			m.err = msg.err
-			m.deleting = false
+			m.dropping = false
 			return m, nil
 		}
 		return m, tea.Batch(screen.HideOverlay(), tasks.TasksChanged())
 	}
 
-	if m.deleting {
+	if m.dropping {
 		return m, nil
 	}
 
@@ -78,21 +78,21 @@ func (m Model) Update(msg tea.Msg) (screen.Screen, tea.Cmd) {
 		if !m.confirm {
 			return m, tea.Batch(cmd, screen.HideOverlay())
 		}
-		m.deleting = true
-		return m, tea.Batch(cmd, m.deleteCmd())
+		m.dropping = true
+		return m, tea.Batch(cmd, m.dropCmd())
 	}
 	return m, cmd
 }
 
-func (m Model) deleteCmd() tea.Cmd {
+func (m Model) dropCmd() tea.Cmd {
 	id := m.task.ID
 	svc := m.svc
 	return func() tea.Msg {
-		err := svc.DeleteTask(context.Background(), id)
+		_, err := svc.DropTask(context.Background(), id)
 		if err != nil {
-			slog.Error("deleting task: " + err.Error())
+			slog.Error("dropping task: " + err.Error())
 		}
-		return taskDeletedMsg{err: err}
+		return taskDroppedMsg{err: err}
 	}
 }
 
@@ -107,6 +107,6 @@ func (m Model) KeyMap() help.KeyMap {
 	return KeyMap{m.form.KeyBinds()}
 }
 
-type taskDeletedMsg struct {
+type taskDroppedMsg struct {
 	err error
 }

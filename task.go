@@ -32,6 +32,7 @@ type TaskService interface {
 	Tasks(ctx context.Context, filter TaskFilter) ([]Task, error)
 	CreateTask(ctx context.Context, task Task) (Task, error)
 	UpdateTask(ctx context.Context, task Task) (Task, error)
+	DropTask(ctx context.Context, id int64) (Task, error)
 	DeleteTask(ctx context.Context, id int64) error
 }
 

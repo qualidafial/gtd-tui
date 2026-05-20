@@ -31,6 +31,10 @@ func (s *TaskService) UpdateTask(ctx context.Context, task gtd.Task) (gtd.Task, 
 	return s.db.UpdateTask(ctx, task)
 }
 
+func (s *TaskService) DropTask(ctx context.Context, id int64) (gtd.Task, error) {
+	return s.db.DropTask(ctx, id)
+}
+
 func (s *TaskService) DeleteTask(ctx context.Context, id int64) error {
 	return s.db.DeleteTask(ctx, id)
 }

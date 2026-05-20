@@ -112,6 +112,27 @@ func (d *DB) UpdateTask(ctx context.Context, task gtd.Task) (gtd.Task, error) {
 	return task, nil
 }
 
+func (d *DB) DropTask(ctx context.Context, id int64) (gtd.Task, error) {
+	now := time.Now().UTC()
+	query, args, err := sq.Update("tasks").
+		Set("status", string(gtd.TaskStatusDropped)).
+		Set("updated_at", now).
+		Where(sq.Eq{"id": id}).
+		Suffix("RETURNING id, title, description, status, due, defer_until, created_at, updated_at").
+		ToSql()
+	if err != nil {
+		return gtd.Task{}, err
+	}
+	task, err := scanTask(d.db.QueryRowContext(ctx, query, args...))
+	if err == sql.ErrNoRows {
+		return gtd.Task{}, fmt.Errorf("drop task %d: not found", id)
+	}
+	if err != nil {
+		return gtd.Task{}, fmt.Errorf("drop task %d: %w", id, err)
+	}
+	return task, nil
+}
+
 func (d *DB) DeleteTask(ctx context.Context, id int64) error {
 	query, args, err := sq.Delete("tasks").Where(sq.Eq{"id": id}).ToSql()
 	if err != nil {
