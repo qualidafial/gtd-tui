@@ -83,8 +83,8 @@ func (m Model) Update(msg tea.Msg) (screen.Screen, tea.Cmd) {
 		}
 		return m, m.list.SetItems(items)
 	case tea.KeyPressMsg:
-		switch msg.String() {
-		case "n":
+		switch {
+		case key.Matches(msg, KeyNew):
 			var status gtd.TaskStatus = gtd.TaskStatusInbox
 			if len(m.filter.Statuses) > 0 {
 				status = m.filter.Statuses[0]
@@ -93,11 +93,11 @@ func (m Model) Update(msg tea.Msg) (screen.Screen, tea.Cmd) {
 				Status: status,
 			}
 			return m, screen.ShowOverlay(taskedit.New(t, m.svc))
-		case "enter":
+		case key.Matches(msg, KeyEdit):
 			if ti, ok := m.list.SelectedItem().(Item); ok {
 				return m, screen.ShowOverlay(taskedit.New(ti.task, m.svc))
 			}
-		case "delete":
+		case key.Matches(msg, KeyDelete):
 			if ti, ok := m.list.SelectedItem().(Item); ok {
 				return m, screen.ShowOverlay(taskdelete.New(ti.task, m.svc))
 			}

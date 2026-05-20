@@ -6,7 +6,7 @@ import (
 )
 
 var (
-	KeyNew    = key.NewBinding(key.WithKeys("n"), key.WithHelp("n", "new task"))
+	KeyNew    = key.NewBinding(key.WithKeys("+", "insert"), key.WithHelp("+/insert", "new task"))
 	KeyEdit   = key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "edit"))
 	KeyDelete = key.NewBinding(key.WithKeys("delete"), key.WithHelp("delete", "drop task"))
 )

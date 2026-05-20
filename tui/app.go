@@ -107,20 +107,20 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, tea.Batch(cmds...)
 	case tea.KeyPressMsg:
-		switch msg.String() {
-		case "ctrl+c":
+		switch {
+		case key.Matches(msg, keyQuit):
 			return m, tea.Quit
-		case "tab":
+		case key.Matches(msg, keyTab):
 			if m.overlay == nil {
 				m.activeTab = (m.activeTab + 1) % len(m.tabs)
 				return m, m.tabs[m.activeTab].Init()
 			}
-		case "shift+tab":
+		case key.Matches(msg, keyShiftTab):
 			if m.overlay == nil {
 				m.activeTab = (m.activeTab + len(m.tabs) - 1) % len(m.tabs)
 				return m, nil
 			}
-		case "?":
+		case key.Matches(msg, keyToggleHelp):
 			if m.overlay == nil {
 				m.help.ShowAll = !m.help.ShowAll
 				return m.resizeScreens()

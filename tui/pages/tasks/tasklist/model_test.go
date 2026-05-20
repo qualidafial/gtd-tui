@@ -3,7 +3,10 @@ package tasklist
 import (
 	"testing"
 
+	tea "charm.land/bubbletea/v2"
+
 	"github.com/qualidafial/gtd-tui"
+	"github.com/qualidafial/gtd-tui/tui/components/screen"
 )
 
 // TestModel_TasksLoaded_IgnoresOtherFilter guards the startup bug where both
@@ -37,6 +40,42 @@ func TestModel_TasksLoaded_AppliesMatchingFilter(t *testing.T) {
 	got := updated.(Model).list.Items()
 	if len(got) != 1 {
 		t.Fatalf("expected 1 item when filter matches; got %d", len(got))
+	}
+}
+
+func TestModel_NewTaskKey_OpensEditor(t *testing.T) {
+	tests := []struct {
+		name string
+		key  tea.KeyPressMsg
+	}{
+		{name: "plus", key: tea.KeyPressMsg{Code: '+', Text: "+"}},
+		{name: "insert", key: tea.KeyPressMsg{Code: tea.KeyInsert}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m := New(nil, gtd.TaskFilter{}.Status(gtd.TaskStatusInbox))
+			_, cmd := m.Update(tt.key)
+			if cmd == nil {
+				t.Fatal("expected a cmd from new-task keybinding")
+			}
+			msg := cmd()
+			if _, ok := msg.(screen.ShowOverlayMsg); !ok {
+				t.Fatalf("expected ShowOverlayMsg, got %T", msg)
+			}
+		})
+	}
+}
+
+func TestModel_NKey_NoLongerOpensEditor(t *testing.T) {
+	m := New(nil, gtd.TaskFilter{}.Status(gtd.TaskStatusInbox))
+	_, cmd := m.Update(tea.KeyPressMsg{Code: 'n', Text: "n"})
+	if cmd != nil {
+		if msg := cmd(); msg != nil {
+			if _, ok := msg.(screen.ShowOverlayMsg); ok {
+				t.Fatal("'n' should no longer trigger the new-task overlay")
+			}
+		}
 	}
 }
 
