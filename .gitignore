@@ -1,0 +1,18 @@
+# Build output
+/gtd
+/dist/
+
+# Test cache and coverage
+*.test
+*.out
+
+# Editor
+.claude/
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
