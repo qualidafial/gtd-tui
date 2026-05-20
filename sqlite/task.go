@@ -7,16 +7,16 @@ import (
 	"time"
 
 	sq "github.com/Masterminds/squirrel"
-	gtd "github.com/qualidafial/gtd-tui"
+	"github.com/qualidafial/gtd-tui"
 )
 
 var taskColumns = []string{
-	"tasks.id", "tasks.title", "tasks.description", "tasks.status",
-	"tasks.due", "tasks.defer_until", "tasks.created_at", "tasks.updated_at",
+	"t.id", "t.title", "t.description", "t.status",
+	"t.due", "t.defer_until", "t.created_at", "t.updated_at",
 }
 
 func (d *DB) Task(ctx context.Context, id int64) (gtd.Task, error) {
-	query, args, err := sq.Select(taskColumns...).From("tasks").Where(sq.Eq{"id": id}).ToSql()
+	query, args, err := sq.Select(taskColumns...).From("tasks t").Where(sq.Eq{"id": id}).ToSql()
 	if err != nil {
 		return gtd.Task{}, err
 	}
@@ -31,20 +31,19 @@ func (d *DB) Task(ctx context.Context, id int64) (gtd.Task, error) {
 }
 
 func (d *DB) Tasks(ctx context.Context, filter gtd.TaskFilter) ([]gtd.Task, error) {
-	q := sq.Select(taskColumns...).From("tasks")
-	if filter.Status != nil {
-		q = q.Where(sq.Eq{"status": string(*filter.Status)})
+	q := sq.Select(taskColumns...).
+		From("tasks t")
+	if filter.Statuses != nil {
+		q = q.Where(sq.Eq{"status": filter.Statuses})
 	}
-	if len(filter.ProjectIDs) > 0 || len(filter.TaskIDs) > 0 {
-		q = q.Join("project_tasks pt ON tasks.id = pt.task_id")
-	}
-	if len(filter.ProjectIDs) > 0 {
-		q = q.Where(sq.Eq{"pt.project_id": filter.ProjectIDs})
-	}
+	// if len(filter.ProjectIDs) > 0 {
+	// 	q = q.Join("project_tasks pt ON tasks.id = pt.task_id")
+	// 	q = q.Where(sq.Eq{"pt.project_id": filter.ProjectIDs})
+	// }
 	if len(filter.TaskIDs) > 0 {
-		q = q.Where(sq.Eq{"pt.task_id": filter.TaskIDs})
+		q = q.Where(sq.Eq{"t.task_id": filter.TaskIDs})
 	}
-	q = q.OrderBy("tasks.created_at ASC")
+	q = q.OrderBy("t.created_at ASC")
 
 	query, args, err := q.ToSql()
 	if err != nil {

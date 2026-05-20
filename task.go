@@ -36,8 +36,18 @@ type TaskService interface {
 }
 
 type TaskFilter struct {
-	Status     *TaskStatus
-	ProjectIDs []int64
-	TaskIDs    []int64
-	Query      string
+	Statuses []TaskStatus
+	TaskIDs  []int64
+	// Query    string
+	// ProjectIDs []int64
+}
+
+func (f TaskFilter) Status(statuses ...TaskStatus) TaskFilter {
+	f.Statuses = statuses
+	return f
+}
+
+func (f TaskFilter) TaskID(ids ...int64) TaskFilter {
+	f.TaskIDs = ids
+	return f
 }

@@ -9,7 +9,7 @@ import (
 	"github.com/qualidafial/gtd-tui"
 )
 
-var tabLabels = []string{"Inbox", "Tasks", "Projects", "Notes", "Timeline"}
+var tabLabels = []string{"Inbox", "Tasks"}
 
 // Model is the root bubbletea model. It owns the tab screens and an optional
 // overlay screen (for edit views, etc.).
@@ -22,20 +22,13 @@ type Model struct {
 	height    int
 }
 
-func New(
-	projectSvc gtd.ProjectService,
-	taskSvc gtd.TaskService,
-	projectTaskSvc gtd.ProjectTaskService,
-) Model {
+func New(taskSvc gtd.TaskService) Model {
 	inbox, inboxCmd := newInboxScreen(taskSvc)
 	tasks, tasksCmd := newActiveTasksScreen(taskSvc)
-	projects, projectsCmd := newProjectListScreen()
-	notes, notesCmd := newNotesScreen()
-	timeline, timelineCmd := newTimelineScreen()
 
 	return Model{
-		tabs:    []Screen{inbox, tasks, projects, notes, timeline},
-		initCmd: tea.Batch(inboxCmd, tasksCmd, projectsCmd, notesCmd, timelineCmd),
+		tabs:    []Screen{inbox, tasks},
+		initCmd: tea.Batch(inboxCmd, tasksCmd),
 	}
 }
 

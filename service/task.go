@@ -3,7 +3,7 @@ package service
 import (
 	"context"
 
-	gtd "github.com/qualidafial/gtd-tui"
+	"github.com/qualidafial/gtd-tui"
 	"github.com/qualidafial/gtd-tui/sqlite"
 )
 

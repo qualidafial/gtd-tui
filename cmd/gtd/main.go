@@ -35,11 +35,15 @@ func run() error {
 	}
 	defer db.Close()
 
-	projects := service.NewProjectService(db)
+	// projects := service.NewProjectService(db)
 	tasks := service.NewTaskService(db)
-	projectTasks := service.NewProjectTaskService(db)
+	// projectTasks := service.NewProjectTaskService(db)
 
-	m := tui.New(projects, tasks, projectTasks)
+	m := tui.New(
+		// projects,
+		tasks,
+		// projectTasks,
+	)
 	p := tea.NewProgram(m)
 	if _, err := p.Run(); err != nil {
 		return fmt.Errorf("run: %w", err)

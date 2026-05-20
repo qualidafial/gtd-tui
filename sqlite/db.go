@@ -7,6 +7,8 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"log/slog"
+	"regexp"
 	"slices"
 	"strings"
 
@@ -94,6 +96,8 @@ func (d *DB) RunTx(ctx context.Context, f func(context.Context, *DB) error) (err
 	return tx.Commit()
 }
 
+var migrationFilename = regexp.MustCompile(`^\d+_([a-z_0-9]+)\.sql$`)
+
 func (d *DB) migrate(ctx context.Context) error {
 	if _, err := d.db.ExecContext(ctx, `CREATE TABLE IF NOT EXISTS migrations (name TEXT PRIMARY KEY)`); err != nil {
 		return err
@@ -109,6 +113,11 @@ func (d *DB) migrate(ctx context.Context) error {
 
 	for _, entry := range entries {
 		name := entry.Name()
+
+		if !migrationFilename.MatchString(name) {
+			slog.Debug("migrate: skipping non-migration file", "name", name)
+			continue
+		}
 
 		var exists bool
 		err := d.db.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM migrations WHERE name = ?)`, name).Scan(&exists)
@@ -131,6 +140,7 @@ func (d *DB) migrate(ctx context.Context) error {
 			if _, err := db.db.ExecContext(ctx, `INSERT INTO migrations (name) VALUES (?)`, name); err != nil {
 				return fmt.Errorf("record migration %s: %w", name, err)
 			}
+			slog.Info("migration: ran " + name)
 			return nil
 		})
 		if err != nil {

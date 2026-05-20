@@ -3,6 +3,7 @@ package tui
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	tea "charm.land/bubbletea/v2"
 
@@ -22,11 +23,11 @@ type tasksLoadedMsg struct {
 }
 
 func newInboxScreen(svc gtd.TaskService) (taskListScreen, tea.Cmd) {
-	return newTaskListScreen(svc, gtd.TaskFilter{Status: new(gtd.TaskStatusInbox)})
+	return newTaskListScreen(svc, gtd.TaskFilter{}.Status(gtd.TaskStatusInbox))
 }
 
 func newActiveTasksScreen(svc gtd.TaskService) (taskListScreen, tea.Cmd) {
-	return newTaskListScreen(svc, gtd.TaskFilter{Status: new(gtd.TaskStatusActive)})
+	return newTaskListScreen(svc, gtd.TaskFilter{}.Status(gtd.TaskStatusActive))
 }
 
 func newTaskListScreen(svc gtd.TaskService, filter gtd.TaskFilter) (taskListScreen, tea.Cmd) {
@@ -95,13 +96,9 @@ func (s taskListScreen) View() string {
 // filterKey produces a comparable key for a TaskFilter so loaded results can
 // be routed to the correct screen instance.
 func filterKey(f gtd.TaskFilter) string {
-	var status string
-	if f.Status != nil {
-		status = string(*f.Status)
+	parts := make([]string, len(f.Statuses))
+	for i, s := range f.Statuses {
+		parts[i] = string(s)
 	}
-	var project string
-	// if f.ProjectID != nil {
-	// 	project = fmt.Sprintf("%d", *f.ProjectID)
-	// }
-	return status + "|" + project
+	return strings.Join(parts, ",")
 }
