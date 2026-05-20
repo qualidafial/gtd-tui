@@ -6,6 +6,26 @@ All code modifications must be accompanied by appropriate test changes. When add
 When changing behavior, update or extend the affected tests. When removing behavior, remove the now-obsolete tests. Run
 the relevant tests before marking the task complete.
 
+## Avoid Refuctoring
+
+"Refuctoring" is letting several logically independent changes — a refactor, a feature, a rename, a scope change — pile
+up in the working tree until they can no longer be untangled into clean commits. Once a single file mixes two unrelated
+concerns, history-splitting requires authoring intermediate states by hand, and reviewers lose the ability to bisect or
+revert one concern without the others.
+
+While working, watch for these signals and warn me before continuing:
+
+- A pending change starts touching files that are already dirty for an unrelated reason (e.g. a feature edit lands in a
+  file mid-refactor).
+- The working tree spans more than one coherent commit subject — if the commit message would need "and" or a bulleted
+  list of unrelated topics, it's already too entangled.
+- A new concern modifies the same hunks as an in-progress concern, so the diffs can no longer be staged independently
+  with `git add -p`.
+- Cross-cutting renames, signature changes, or scope pivots are being layered on top of unfinished feature work.
+
+When this happens, stop and surface the entanglement. Offer to commit (or stash) the in-flight work first so the next
+change starts from a clean baseline. Don't silently absorb the new concern into the existing diff.
+
 ## Git Commit Messages
 
 Follow standard Git commit message conventions:
