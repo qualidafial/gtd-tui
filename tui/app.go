@@ -51,15 +51,15 @@ func New(
 	taskSvc gtd.TaskService,
 	// projectTaskSvc gtd.ProjectTaskService,
 ) Model {
-	inbox := tasklist.NewInbox(taskSvc)
-	tasks := tasklist.NewActive(taskSvc)
+	inbox := tasklist.New(taskSvc, gtd.TaskFilter{}.Status(gtd.TaskStatusInbox))
+	active := tasklist.New(taskSvc, gtd.TaskFilter{}.Status(gtd.TaskStatusActive))
 	// projects, projectsCmd := newProjectListScreen()
 	// notes, notesCmd := newNotesScreen()
 	// timeline, timelineCmd := newTimelineScreen()
 
 	screens := []screen.Screen{
 		inbox,
-		tasks,
+		active,
 		// projects,
 		// notes,
 		// timeline,
@@ -95,7 +95,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case screen.HideOverlayMsg:
 		m.overlay = nil
 		return m, nil
-	case tasks.TasksChangedMsg:
+	case tasks.TasksChangedMsg, tasklist.TasksLoadedMsg:
+		// Broadcast cross-tab task events so every tasklist tab gets a
+		// chance to react. Each tab filters TasksLoadedMsg by its own
+		// filter, so messages addressed to other tabs are ignored.
 		var cmds []tea.Cmd
 		var cmd tea.Cmd
 		for i := range m.tabs {

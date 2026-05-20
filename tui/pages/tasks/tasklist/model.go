@@ -3,6 +3,7 @@ package tasklist
 import (
 	"context"
 	"fmt"
+	"slices"
 
 	"charm.land/bubbles/v2/help"
 	"charm.land/bubbles/v2/key"
@@ -25,14 +26,6 @@ type Model struct {
 type TasksLoadedMsg struct {
 	filter gtd.TaskFilter
 	tasks  []gtd.Task
-}
-
-func NewInbox(svc gtd.TaskService) Model {
-	return New(svc, gtd.TaskFilter{}.Status(gtd.TaskStatusInbox))
-}
-
-func NewActive(svc gtd.TaskService) Model {
-	return New(svc, gtd.TaskFilter{}.Status(gtd.TaskStatusActive))
 }
 
 func New(svc gtd.TaskService, filter gtd.TaskFilter) Model {
@@ -78,6 +71,12 @@ func (m Model) Update(msg tea.Msg) (screen.Screen, tea.Cmd) {
 	case tasks.TasksChangedMsg:
 		return m, m.loadCmd()
 	case TasksLoadedMsg:
+		// TasksLoadedMsg is broadcast to every tasklist tab; only apply it
+		// when the loaded filter matches this tab's filter, otherwise an
+		// Active-tab load lands in the Inbox tab and vice versa.
+		if !filterMatches(msg.filter, m.filter) {
+			return m, nil
+		}
 		items := make([]list.Item, len(msg.tasks))
 		for i, t := range msg.tasks {
 			items[i] = Item{t}
@@ -116,4 +115,8 @@ func (m Model) KeyMap() help.KeyMap {
 
 func (m Model) View() string {
 	return m.list.View()
+}
+
+func filterMatches(a, b gtd.TaskFilter) bool {
+	return slices.Equal(a.Statuses, b.Statuses) && slices.Equal(a.TaskIDs, b.TaskIDs)
 }

@@ -8,7 +8,6 @@
 - defer until should only display when status is "deferred"
 - waiting does not capture who/what is being waited on.
 - ability to re-order tasks arbitrarily and have it stick
-- Sometimes when the app starts up it shows being in inbox but the listed tasks are those in Active status
 
 ## General
 
