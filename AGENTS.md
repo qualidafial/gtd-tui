@@ -6,6 +6,12 @@ All code modifications must be accompanied by appropriate test changes. When add
 When changing behavior, update or extend the affected tests. When removing behavior, remove the now-obsolete tests. Run
 the relevant tests before marking the task complete.
 
+## TODO.md Hygiene
+
+`TODO.md` tracks the running backlog. When a task in the file is completed by the current change, remove its entry (or
+check it off if the surrounding section uses checkboxes) as part of the same commit. Don't leave finished work listed —
+it makes the file lie about what's still pending.
+
 ## Avoid Refuctoring
 
 "Refuctoring" is letting several logically independent changes — a refactor, a feature, a rename, a scope change — pile
