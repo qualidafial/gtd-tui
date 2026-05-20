@@ -19,18 +19,21 @@ import (
 	"github.com/qualidafial/gtd-tui/tui/pages/tasks"
 )
 
-var (
-	taskStatusOptions = []huh.Option[gtd.TaskStatus]{
-		huh.NewOption("Inbox", gtd.TaskStatusInbox),
-		huh.NewOption("Active", gtd.TaskStatusActive),
-		huh.NewOption("Waiting", gtd.TaskStatusWaiting),
-		huh.NewOption("Deferred", gtd.TaskStatusDeferred),
-		huh.NewOption("Done", gtd.TaskStatusDone),
-		huh.NewOption("Dropped", gtd.TaskStatusDropped),
-	}
+var taskStatusOptions = []huh.Option[gtd.TaskStatus]{
+	huh.NewOption("Inbox", gtd.TaskStatusInbox),
+	huh.NewOption("Active", gtd.TaskStatusActive),
+	huh.NewOption("Waiting", gtd.TaskStatusWaiting),
+	huh.NewOption("Deferred", gtd.TaskStatusDeferred),
+	huh.NewOption("Done", gtd.TaskStatusDone),
+	huh.NewOption("Dropped", gtd.TaskStatusDropped),
+}
 
+var keyBack = key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "back"))
+
+var (
 	metaLabelStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
 	metaValueStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("245"))
+	errorStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("203")).Bold(true)
 )
 
 type Model struct {
@@ -77,7 +80,7 @@ func New(task gtd.Task, svc gtd.TaskService) Model {
 	// ctrl+c is intercepted at app level for whole-program quit; here esc
 	// aborts the form, which we translate into HideOverlay below.
 	keymap := huh.NewDefaultKeyMap()
-	keymap.Quit = key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "back"))
+	keymap.Quit = keyBack
 
 	m.form = huh.NewForm(group).
 		WithShowErrors(true).
@@ -99,6 +102,19 @@ func (m Model) Update(msg tea.Msg) (screen.Screen, tea.Cmd) {
 			return m, nil
 		}
 		return m, tea.Batch(screen.HideOverlay(), tasks.TasksChanged())
+	case tea.KeyPressMsg:
+		// After a save error the form is stuck in StateCompleted, so
+		// any key that fell through to the form would re-trigger the
+		// save loop. Esc clears the error and rewinds the form to
+		// StateNormal so the user can edit and retry; other keys are
+		// swallowed until the error is cleared.
+		if m.err != nil {
+			if key.Matches(msg, keyBack) {
+				m.err = nil
+				m.form.State = huh.StateNormal
+			}
+			return m, nil
+		}
 	}
 
 	if m.saving {
@@ -143,15 +159,20 @@ func (m Model) saveCmd() tea.Cmd {
 }
 
 func (m Model) View() string {
-	if m.task.ID == 0 {
-		return m.form.View()
+	var sections []string
+	if m.task.ID != 0 {
+		sections = append(sections,
+			m.metaLine("Task ID", fmt.Sprint(m.task.ID)),
+			m.metaLine("Created", m.task.CreatedAt.Local().Format(time.DateTime)),
+			m.metaLine("Updated", m.task.UpdatedAt.Local().Format(time.DateTime)),
+			"",
+		)
 	}
-	header := lipgloss.JoinVertical(lipgloss.Left,
-		m.metaLine("Task ID", fmt.Sprint(m.task.ID)),
-		m.metaLine("Created", m.task.CreatedAt.Local().Format(time.DateTime)),
-		m.metaLine("Updated", m.task.UpdatedAt.Local().Format(time.DateTime)),
-	)
-	return lipgloss.JoinVertical(lipgloss.Left, header, "", m.form.View())
+	sections = append(sections, m.form.View())
+	if m.err != nil {
+		sections = append(sections, "", errorStyle.Render("save failed: "+m.err.Error()))
+	}
+	return lipgloss.JoinVertical(lipgloss.Left, sections...)
 }
 
 func (m Model) metaLine(label, value string) string {

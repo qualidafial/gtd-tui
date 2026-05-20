@@ -13,13 +13,6 @@
 
 - How do we test UIs? How much is the effort worth?
 
-## Task editing
-
-- [x] Task ID, created, and updated fields take up too much space as notes
-- Delete tasks
-    - `DeleteTask` — commented out in `task.go` interface and `service/task.go`; no `d`/`x` binding in the list yet.
-- Save errors are captured into `m.err` in `tui/task.go` but never rendered — no UI feedback when a save fails (just a slog line, and there's no slog handler configured).
-
 ## Date field
 
 - Date entry: you have to backspace / delete out any current value to enter in something new
