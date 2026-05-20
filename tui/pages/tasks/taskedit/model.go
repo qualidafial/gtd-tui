@@ -11,6 +11,7 @@ import (
 	"charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/huh/v2"
+	"charm.land/lipgloss/v2"
 
 	"github.com/qualidafial/gtd-tui"
 	"github.com/qualidafial/gtd-tui/tui/components/date"
@@ -27,6 +28,9 @@ var (
 		huh.NewOption("Done", gtd.TaskStatusDone),
 		huh.NewOption("Dropped", gtd.TaskStatusDropped),
 	}
+
+	metaLabelStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
+	metaValueStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("245"))
 )
 
 type Model struct {
@@ -43,21 +47,7 @@ func New(task gtd.Task, svc gtd.TaskService) Model {
 		svc:  svc,
 	}
 
-	var fields []huh.Field
-	if task.ID != 0 {
-		fields = append(fields,
-			huh.NewNote().
-				Title("Task ID").
-				Description(fmt.Sprint(task.ID)),
-			huh.NewNote().
-				Title("Created").
-				Description(task.CreatedAt.Local().Format(time.DateTime)),
-			huh.NewNote().
-				Title("Updated").
-				Description(task.UpdatedAt.Local().Format(time.DateTime)),
-		)
-	}
-	fields = append(fields,
+	fields := []huh.Field{
 		huh.NewInput().
 			Title("Title").
 			Value(&task.Title).
@@ -80,7 +70,7 @@ func New(task gtd.Task, svc gtd.TaskService) Model {
 		date.NewField().
 			Title("Defer Until").
 			Value(&task.DeferUntil),
-	)
+	}
 	group := huh.NewGroup(fields...)
 
 	// Extend the form's Quit binding so esc aborts in addition to ctrl+c.
@@ -153,7 +143,19 @@ func (m Model) saveCmd() tea.Cmd {
 }
 
 func (m Model) View() string {
-	return m.form.View()
+	if m.task.ID == 0 {
+		return m.form.View()
+	}
+	header := lipgloss.JoinVertical(lipgloss.Left,
+		m.metaLine("Task ID", fmt.Sprint(m.task.ID)),
+		m.metaLine("Created", m.task.CreatedAt.Local().Format(time.DateTime)),
+		m.metaLine("Updated", m.task.UpdatedAt.Local().Format(time.DateTime)),
+	)
+	return lipgloss.JoinVertical(lipgloss.Left, header, "", m.form.View())
+}
+
+func (m Model) metaLine(label, value string) string {
+	return metaLabelStyle.Render(label+":") + " " + metaValueStyle.Render(value)
 }
 
 func (m Model) KeyMap() help.KeyMap {
