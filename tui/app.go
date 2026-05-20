@@ -3,51 +3,106 @@ package tui
 import (
 	"strings"
 
+	"charm.land/bubbles/v2/help"
+	"charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 
 	"github.com/qualidafial/gtd-tui"
+	"github.com/qualidafial/gtd-tui/tui/components/screen"
+	"github.com/qualidafial/gtd-tui/tui/pages/tasks"
+	"github.com/qualidafial/gtd-tui/tui/pages/tasks/tasklist"
 )
 
-var tabLabels = []string{"Inbox", "Tasks"}
+// app-level key bindings
+var (
+	keyTab        = key.NewBinding(key.WithKeys("tab"), key.WithHelp("tab", "next view"))
+	keyShiftTab   = key.NewBinding(key.WithKeys("shift+tab"), key.WithHelp("shift+tab", "prev view"))
+	keyToggleHelp = key.NewBinding(key.WithKeys("?"), key.WithHelp("?", "toggle help"))
+	keyQuit       = key.NewBinding(key.WithKeys("ctrl+c"), key.WithHelp("ctrl+c", "quit"))
+)
+
+var (
+	appStyle = lipgloss.NewStyle().Margin(1, 2)
+)
+
+var tabLabels = []string{
+	"Inbox",
+	"Tasks",
+	// "Projects",
+	// "Notes",
+	// "Timeline",
+}
 
 // Model is the root bubbletea model. It owns the tab screens and an optional
 // overlay screen (for edit views, etc.).
 type Model struct {
-	tabs      []Screen
+	tabs      []screen.Screen
 	activeTab int
-	overlay   Screen
+	overlay   screen.Screen
 	initCmd   tea.Cmd
+	help      help.Model
 	width     int
 	height    int
 }
 
-func New(taskSvc gtd.TaskService) Model {
-	inbox, inboxCmd := newInboxScreen(taskSvc)
-	tasks, tasksCmd := newActiveTasksScreen(taskSvc)
+func New(
+	// projectSvc gtd.ProjectService,
+	taskSvc gtd.TaskService,
+	// projectTaskSvc gtd.ProjectTaskService,
+) Model {
+	inbox := tasklist.NewInbox(taskSvc)
+	tasks := tasklist.NewActive(taskSvc)
+	// projects, projectsCmd := newProjectListScreen()
+	// notes, notesCmd := newNotesScreen()
+	// timeline, timelineCmd := newTimelineScreen()
+
+	screens := []screen.Screen{
+		inbox,
+		tasks,
+		// projects,
+		// notes,
+		// timeline,
+	}
 
 	return Model{
-		tabs:    []Screen{inbox, tasks},
-		initCmd: tea.Batch(inboxCmd, tasksCmd),
+		tabs: screens,
+		help: help.New(),
 	}
 }
 
 func (m Model) Init() tea.Cmd {
-	return m.initCmd
+	var cmds []tea.Cmd
+	for _, screen := range m.tabs {
+		cmds = append(cmds, screen.Init())
+	}
+	if m.overlay != nil {
+		cmds = append(cmds, m.overlay.Init())
+	}
+	return tea.Batch(cmds...)
 }
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
-		m.width = msg.Width
-		m.height = msg.Height
-		return m, nil
-	case ChangeScreenMsg:
-		m.overlay = msg.Screen
-		return m, nil
-	case CloseScreenMsg:
+		m.width = msg.Width - appStyle.GetHorizontalMargins()
+		m.height = msg.Height - appStyle.GetVerticalMargins()
+
+		return m.resizeScreens()
+	case screen.ShowOverlayMsg:
+		m.overlay = msg.Overlay
+		return m, m.overlay.Init()
+	case screen.HideOverlayMsg:
 		m.overlay = nil
 		return m, nil
+	case tasks.TasksChangedMsg:
+		var cmds []tea.Cmd
+		var cmd tea.Cmd
+		for i := range m.tabs {
+			m.tabs[i], cmd = m.tabs[i].Update(msg)
+			cmds = append(cmds, cmd)
+		}
+		return m, tea.Batch(cmds...)
 	case tea.KeyPressMsg:
 		switch msg.String() {
 		case "ctrl+c":
@@ -55,12 +110,17 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "tab":
 			if m.overlay == nil {
 				m.activeTab = (m.activeTab + 1) % len(m.tabs)
-				return m, nil
+				return m, m.tabs[m.activeTab].Init()
 			}
 		case "shift+tab":
 			if m.overlay == nil {
 				m.activeTab = (m.activeTab + len(m.tabs) - 1) % len(m.tabs)
 				return m, nil
+			}
+		case "?":
+			if m.overlay == nil {
+				m.help.ShowAll = !m.help.ShowAll
+				return m.resizeScreens()
 			}
 		}
 	}
@@ -76,12 +136,38 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, cmd
 }
 
+func (m Model) resizeScreens() (tea.Model, tea.Cmd) {
+	width, height := m.width, m.height
+
+	m.help.SetWidth(width)
+
+	height -= lipgloss.Height(m.renderHeader())
+	height -= lipgloss.Height(m.renderFooter())
+
+	msg := tea.WindowSizeMsg{
+		Width:  width,
+		Height: height,
+	}
+
+	var cmds []tea.Cmd
+	var cmd tea.Cmd
+	for i := range m.tabs {
+		m.tabs[i], cmd = m.tabs[i].Update(msg)
+		cmds = append(cmds, cmd)
+	}
+	if m.overlay != nil {
+		m.overlay, cmd = m.overlay.Update(msg)
+		cmds = append(cmds, cmd)
+	}
+
+	return m, tea.Batch(cmds...)
+}
+
 var (
 	logoStyle        = lipgloss.NewStyle().Bold(true).Padding(0, 1).Background(lipgloss.Color("62")).Foreground(lipgloss.Color("230"))
 	activeTabStyle   = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("212"))
 	inactiveTabStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
 	bulletStyle      = lipgloss.NewStyle().Foreground(lipgloss.Color("212"))
-	footerStyle      = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
 )
 
 func (m Model) View() tea.View {
@@ -92,10 +178,16 @@ func (m Model) View() tea.View {
 	if m.overlay != nil {
 		content = m.overlay.View()
 	} else {
-		content = m.tabs[m.activeTab].View()
+		content = lipgloss.JoinVertical(lipgloss.Left,
+			header,
+			m.tabs[m.activeTab].View(),
+			footer,
+		)
 	}
 
-	v := tea.NewView(strings.Join([]string{header, content, footer}, "\n"))
+	content = appStyle.Render(content)
+
+	v := tea.NewView(content)
 	v.AltScreen = true
 	return v
 }
@@ -113,13 +205,41 @@ func (m Model) renderHeader() string {
 	}
 	tabBar := strings.Join(tabs, "   ")
 
-	return logo + "\n" + tabBar
+	return logo + "\n\n" + tabBar + "\n"
 }
 
 func (m Model) renderFooter() string {
-	keys := "tab/shift+tab: switch view  ctrl+c: quit"
+	var screenKM help.KeyMap
 	if m.overlay != nil {
-		keys = "esc: back  ctrl+c: quit"
+		screenKM = m.overlay.KeyMap()
+	} else {
+		screenKM = m.tabs[m.activeTab].KeyMap()
 	}
-	return footerStyle.Render(keys)
+	return "\n" + m.help.View(mergedKeyMap{
+		screen:  screenKM,
+		overlay: m.overlay != nil,
+	})
+}
+
+// mergedKeyMap combines a screen's key map with app-level bindings.
+type mergedKeyMap struct {
+	screen  help.KeyMap
+	overlay bool
+}
+
+func (k mergedKeyMap) ShortHelp() []key.Binding {
+	keys := k.screen.ShortHelp()
+	if !k.overlay {
+		keys = append(keys, keyTab, keyToggleHelp)
+	}
+	return append(keys, keyQuit)
+}
+
+func (k mergedKeyMap) FullHelp() [][]key.Binding {
+	groups := k.screen.FullHelp()
+	var appKeys []key.Binding
+	if !k.overlay {
+		appKeys = append(appKeys, keyTab, keyShiftTab, keyToggleHelp)
+	}
+	return append(groups, append(appKeys, keyQuit))
 }
