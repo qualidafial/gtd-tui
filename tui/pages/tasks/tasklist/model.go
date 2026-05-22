@@ -28,6 +28,14 @@ type TasksLoadedMsg struct {
 	tasks  []gtd.Task
 }
 
+// tasksReorderedMsg is delivered after a Shift+Up/Down move so the tab
+// can refresh its items and keep the cursor on the moved task.
+type tasksReorderedMsg struct {
+	filter   gtd.TaskFilter
+	tasks    []gtd.Task
+	selectID int64
+}
+
 func New(svc gtd.TaskService, filter gtd.TaskFilter) Model {
 	delegate := list.NewDefaultDelegate()
 	delegate.ShowDescription = false
@@ -82,6 +90,21 @@ func (m Model) Update(msg tea.Msg) (screen.Screen, tea.Cmd) {
 			items[i] = Item{t}
 		}
 		return m, m.list.SetItems(items)
+	case tasksReorderedMsg:
+		if !filterMatches(msg.filter, m.filter) {
+			return m, nil
+		}
+		items := make([]list.Item, len(msg.tasks))
+		idx := m.list.Index()
+		for i, t := range msg.tasks {
+			items[i] = Item{t}
+			if t.ID == msg.selectID {
+				idx = i
+			}
+		}
+		cmd := m.list.SetItems(items)
+		m.list.Select(idx)
+		return m, cmd
 	case tea.KeyPressMsg:
 		switch {
 		case key.Matches(msg, KeyNew):
@@ -101,6 +124,14 @@ func (m Model) Update(msg tea.Msg) (screen.Screen, tea.Cmd) {
 			if ti, ok := m.list.SelectedItem().(Item); ok {
 				return m, screen.ShowOverlay(taskdelete.New(ti.task, m.svc))
 			}
+		case key.Matches(msg, KeyMoveUp):
+			if cmd := m.moveCmd(-1); cmd != nil {
+				return m, cmd
+			}
+		case key.Matches(msg, KeyMoveDown):
+			if cmd := m.moveCmd(+1); cmd != nil {
+				return m, cmd
+			}
 		}
 	}
 
@@ -119,4 +150,57 @@ func (m Model) View() string {
 
 func filterMatches(a, b gtd.TaskFilter) bool {
 	return slices.Equal(a.Statuses, b.Statuses) && slices.Equal(a.TaskIDs, b.TaskIDs)
+}
+
+// moveCmd reorders the selected task by one slot in the given direction
+// (-1 = up, +1 = down). Returns nil when the list is filtered, the
+// status is closed, or no task is selected.
+func (m Model) moveCmd(direction int) tea.Cmd {
+	if m.list.FilterState() != list.Unfiltered {
+		return nil
+	}
+	if isClosedFilter(m.filter) {
+		return nil
+	}
+	cur, ok := m.list.SelectedItem().(Item)
+	if !ok {
+		return nil
+	}
+
+	id := cur.task.ID
+	filter := m.filter
+	svc := m.svc
+
+	doMove := svc.MoveUp
+	if direction > 0 {
+		doMove = svc.MoveDown
+	}
+
+	return func() tea.Msg {
+		ctx := context.Background()
+		if err := doMove(ctx, id); err != nil {
+			return fmt.Errorf("move task: %w", err)
+		}
+		tasks, err := svc.Tasks(ctx, filter)
+		if err != nil {
+			return fmt.Errorf("reload tasks: %w", err)
+		}
+		return tasksReorderedMsg{
+			filter:   filter,
+			tasks:    tasks,
+			selectID: id,
+		}
+	}
+}
+
+func isClosedFilter(f gtd.TaskFilter) bool {
+	if len(f.Statuses) == 0 {
+		return false
+	}
+	for _, s := range f.Statuses {
+		if s != gtd.TaskStatusDone && s != gtd.TaskStatusDropped {
+			return false
+		}
+	}
+	return true
 }

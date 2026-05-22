@@ -6,9 +6,11 @@ import (
 )
 
 var (
-	KeyNew    = key.NewBinding(key.WithKeys("+", "insert"), key.WithHelp("+/insert", "new task"))
-	KeyEdit   = key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "edit"))
-	KeyDelete = key.NewBinding(key.WithKeys("delete"), key.WithHelp("delete", "drop task"))
+	KeyNew      = key.NewBinding(key.WithKeys("+", "insert"), key.WithHelp("+/insert", "new task"))
+	KeyEdit     = key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "edit"))
+	KeyDelete   = key.NewBinding(key.WithKeys("delete"), key.WithHelp("delete", "drop task"))
+	KeyMoveUp   = key.NewBinding(key.WithKeys("shift+up"), key.WithHelp("shift+↑", "move up"))
+	KeyMoveDown = key.NewBinding(key.WithKeys("shift+down"), key.WithHelp("shift+↓", "move down"))
 )
 
 type KeyMap struct {
@@ -22,6 +24,8 @@ func (k KeyMap) ShortHelp() []key.Binding {
 		KeyNew,
 		KeyEdit,
 		KeyDelete,
+		KeyMoveUp,
+		KeyMoveDown,
 	}
 }
 
@@ -45,6 +49,10 @@ func (k KeyMap) FullHelp() [][]key.Binding {
 			KeyNew,
 			KeyEdit,
 			KeyDelete,
+		},
+		{
+			KeyMoveUp,
+			KeyMoveDown,
 		},
 	}
 }

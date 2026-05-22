@@ -34,6 +34,8 @@ type TaskService interface {
 	UpdateTask(ctx context.Context, task Task) (Task, error)
 	DropTask(ctx context.Context, id int64) (Task, error)
 	DeleteTask(ctx context.Context, id int64) error
+	MoveUp(ctx context.Context, id int64) error
+	MoveDown(ctx context.Context, id int64) error
 }
 
 type TaskFilter struct {

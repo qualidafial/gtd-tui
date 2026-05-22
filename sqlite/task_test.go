@@ -1,6 +1,7 @@
 package sqlite_test
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -8,6 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/qualidafial/gtd-tui"
+	"github.com/qualidafial/gtd-tui/sqlite"
 )
 
 func TestDB_CreateTask(t *testing.T) {
@@ -213,10 +215,19 @@ func TestDB_Tasks(t *testing.T) {
 			name: "all tasks",
 			seed: []gtd.Task{
 				{Title: "Alpha", Status: gtd.TaskStatusInbox},
-				{Title: "Beta", Status: gtd.TaskStatusActive},
+				{Title: "Beta", Status: gtd.TaskStatusInbox},
 			},
 			filter: gtd.TaskFilter{},
 			want:   []string{"Alpha", "Beta"},
+		},
+		{
+			name: "closed tasks sort by updated_at desc",
+			seed: []gtd.Task{
+				{Title: "Older", Status: gtd.TaskStatusDone},
+				{Title: "Newer", Status: gtd.TaskStatusDone},
+			},
+			filter: gtd.TaskFilter{}.Status(gtd.TaskStatusDone),
+			want:   []string{"Newer", "Older"},
 		},
 		{
 			name: "filter by status",
@@ -255,6 +266,146 @@ func TestDB_Tasks(t *testing.T) {
 			assert.Equal(t, tt.want, titles)
 		})
 	}
+}
+
+func TestDB_MoveUp(t *testing.T) {
+	db := openTestDB(t)
+	c := ctx(t)
+
+	a := mustCreateTask(t, db, gtd.Task{Title: "A", Status: gtd.TaskStatusActive})
+	b := mustCreateTask(t, db, gtd.Task{Title: "B", Status: gtd.TaskStatusActive})
+	cTask := mustCreateTask(t, db, gtd.Task{Title: "C", Status: gtd.TaskStatusActive})
+	// Different status should be unaffected.
+	other := mustCreateTask(t, db, gtd.Task{Title: "X", Status: gtd.TaskStatusInbox})
+
+	// Initial: [A, B, C]. MoveUp(C) → [A, C, B].
+	require.NoError(t, db.MoveUp(c, cTask.ID))
+	assert.Equal(t, []int64{a.ID, cTask.ID, b.ID}, taskIDs(t, db, c, gtd.TaskStatusActive))
+
+	// MoveUp(C) again → [C, A, B].
+	require.NoError(t, db.MoveUp(c, cTask.ID))
+	assert.Equal(t, []int64{cTask.ID, a.ID, b.ID}, taskIDs(t, db, c, gtd.TaskStatusActive))
+
+	// MoveUp at the top is a silent no-op.
+	require.NoError(t, db.MoveUp(c, cTask.ID))
+	assert.Equal(t, []int64{cTask.ID, a.ID, b.ID}, taskIDs(t, db, c, gtd.TaskStatusActive))
+
+	// Other-status tasks are untouched.
+	assert.Equal(t, []int64{other.ID}, taskIDs(t, db, c, gtd.TaskStatusInbox))
+}
+
+func TestDB_MoveDown(t *testing.T) {
+	db := openTestDB(t)
+	c := ctx(t)
+
+	a := mustCreateTask(t, db, gtd.Task{Title: "A", Status: gtd.TaskStatusActive})
+	b := mustCreateTask(t, db, gtd.Task{Title: "B", Status: gtd.TaskStatusActive})
+	cTask := mustCreateTask(t, db, gtd.Task{Title: "C", Status: gtd.TaskStatusActive})
+
+	// Initial: [A, B, C]. MoveDown(A) → [B, A, C].
+	require.NoError(t, db.MoveDown(c, a.ID))
+	assert.Equal(t, []int64{b.ID, a.ID, cTask.ID}, taskIDs(t, db, c, gtd.TaskStatusActive))
+
+	// MoveDown(A) again → [B, C, A].
+	require.NoError(t, db.MoveDown(c, a.ID))
+	assert.Equal(t, []int64{b.ID, cTask.ID, a.ID}, taskIDs(t, db, c, gtd.TaskStatusActive))
+
+	// MoveDown at the bottom is a silent no-op.
+	require.NoError(t, db.MoveDown(c, a.ID))
+	assert.Equal(t, []int64{b.ID, cTask.ID, a.ID}, taskIDs(t, db, c, gtd.TaskStatusActive))
+}
+
+func TestDB_MoveUp_RejectsClosedTask(t *testing.T) {
+	db := openTestDB(t)
+	c := ctx(t)
+
+	a := mustCreateTask(t, db, gtd.Task{Title: "A", Status: gtd.TaskStatusDone})
+
+	assert.Error(t, db.MoveUp(c, a.ID))
+	assert.Error(t, db.MoveDown(c, a.ID))
+}
+
+func TestDB_MoveUp_RenumbersWhenKeysExhausted(t *testing.T) {
+	db := openTestDB(t)
+	c := ctx(t)
+
+	a := mustCreateTask(t, db, gtd.Task{Title: "A", Status: gtd.TaskStatusActive})
+	b := mustCreateTask(t, db, gtd.Task{Title: "B", Status: gtd.TaskStatusActive})
+	cTask := mustCreateTask(t, db, gtd.Task{Title: "C", Status: gtd.TaskStatusActive})
+
+	// Force the first two keys to the alphabet floor so MoveUp on C
+	// (landing it at position 0) cannot find space via Between and must
+	// fall back to renumbering the whole status group.
+	require.NoError(t, db.SetOrderKeyForTest(c, a.ID, "0"))
+	require.NoError(t, db.SetOrderKeyForTest(c, b.ID, "00"))
+	require.NoError(t, db.SetOrderKeyForTest(c, cTask.ID, "01"))
+
+	// Move C up from position 2 to position 1.
+	require.NoError(t, db.MoveUp(c, cTask.ID))
+	assert.Equal(t, []int64{a.ID, cTask.ID, b.ID}, taskIDs(t, db, c, gtd.TaskStatusActive))
+
+	// And up again — this is the move that previously errored.
+	require.NoError(t, db.MoveUp(c, cTask.ID))
+	assert.Equal(t, []int64{cTask.ID, a.ID, b.ID}, taskIDs(t, db, c, gtd.TaskStatusActive))
+}
+
+func TestDB_UpdateTask_StatusChangeAppendsToNewStatus(t *testing.T) {
+	db := openTestDB(t)
+	c := ctx(t)
+
+	a := mustCreateTask(t, db, gtd.Task{Title: "A", Status: gtd.TaskStatusActive})
+	b := mustCreateTask(t, db, gtd.Task{Title: "B", Status: gtd.TaskStatusActive})
+	cTask := mustCreateTask(t, db, gtd.Task{Title: "C", Status: gtd.TaskStatusInbox})
+
+	// Move C from Inbox to Active — should land at end of Active.
+	cTask.Status = gtd.TaskStatusActive
+	_, err := db.UpdateTask(c, cTask)
+	require.NoError(t, err)
+
+	assert.Equal(t, []int64{a.ID, b.ID, cTask.ID}, taskIDs(t, db, c, gtd.TaskStatusActive))
+}
+
+func TestDB_DropTask_SortsByUpdatedAtDesc(t *testing.T) {
+	db := openTestDB(t)
+	c := ctx(t)
+
+	a := mustCreateTask(t, db, gtd.Task{Title: "A", Status: gtd.TaskStatusDropped})
+	b := mustCreateTask(t, db, gtd.Task{Title: "B", Status: gtd.TaskStatusActive})
+
+	_, err := db.DropTask(c, b.ID)
+	require.NoError(t, err)
+
+	// b was just dropped, so it sorts ahead of the older a.
+	assert.Equal(t, []int64{b.ID, a.ID}, taskIDs(t, db, c, gtd.TaskStatusDropped))
+}
+
+func TestDB_CreateTask_AppendsWithinStatus(t *testing.T) {
+	db := openTestDB(t)
+	c := ctx(t)
+
+	a := mustCreateTask(t, db, gtd.Task{Title: "A", Status: gtd.TaskStatusActive})
+	b := mustCreateTask(t, db, gtd.Task{Title: "B", Status: gtd.TaskStatusActive})
+	cTask := mustCreateTask(t, db, gtd.Task{Title: "C", Status: gtd.TaskStatusActive})
+
+	assert.Equal(t, []int64{a.ID, b.ID, cTask.ID}, taskIDs(t, db, c, gtd.TaskStatusActive))
+}
+
+func mustCreateTask(t *testing.T, db *sqlite.DB, task gtd.Task) gtd.Task {
+	t.Helper()
+	created, err := db.CreateTask(context.Background(), task)
+	require.NoError(t, err)
+	return created
+}
+
+func taskIDs(t *testing.T, db *sqlite.DB, c context.Context, status gtd.TaskStatus) []int64 {
+	t.Helper()
+	tasks, err := db.Tasks(c, gtd.TaskFilter{}.Status(status))
+	require.NoError(t, err)
+	ids := make([]int64, len(tasks))
+	for i, task := range tasks {
+		ids[i] = task.ID
+	}
+	return ids
 }
 
 // func TestDB_FilterTasksByProject(t *testing.T) {
