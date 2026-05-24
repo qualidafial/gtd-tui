@@ -14,6 +14,7 @@ The GTD methodology requires multi-step outcomes (Projects) as a core organizati
   - UnparkProject: restores status to active
 - Enforce invariant: no pending tasks under closed (done/dropped) projects
 - Add ProjectID *int64 to Task struct and a new migration adding project_id column to tasks table (FK to projects with ON DELETE SET NULL)
+- Follow-on for `task-query-filter`: once tasks link to projects, widen the task-list free-text search to also match the linked project's name (JOIN projects in the sqlite `ListTasks` free-text clause). The query grammar needs no change — only the sqlite free-text clause widens. See task-query-filter design.md "Future Considerations".
 
 ## Capabilities
 
@@ -28,5 +29,5 @@ The GTD methodology requires multi-step outcomes (Projects) as a core organizati
 
 - Root package: new Project type and ProjectService interface in project.go; Task struct gains ProjectID *int64
 - sqlite/: new project.go, new migration for projects table and project_id column on tasks
-- sqlite/task.go: add ProjectID to column list and scan; query support for filtering by ProjectID and project status
+- sqlite/task.go: add ProjectID to column list and scan; query support for filtering by ProjectID and project status; widen free-text search to match linked project name (task-query-filter follow-on)
 - Tests: new project_test.go for service tests; update task tests for ProjectID
