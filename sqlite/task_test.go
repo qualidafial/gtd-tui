@@ -378,7 +378,7 @@ func TestDB_ListTasks(t *testing.T) {
 	}
 }
 
-func TestDB_ListTasks_DeferredFiltering(t *testing.T) {
+func TestDB_ListTasks_NoImplicitDeferralFiltering(t *testing.T) {
 	db := openTestDB(t)
 	c := ctx(t)
 
@@ -389,25 +389,110 @@ func TestDB_ListTasks_DeferredFiltering(t *testing.T) {
 	mustCreateTask(t, db, gtd.Task{Title: "Deferred", Kind: gtd.TaskKindNextAction, Status: gtd.TaskStatusPending, DeferUntil: &future})
 	mustCreateTask(t, db, gtd.Task{Title: "Past defer", Kind: gtd.TaskKindNextAction, Status: gtd.TaskStatusPending, DeferUntil: &past})
 
-	// Default excludes future deferred tasks
+	// With no Ready/Defer predicate, future-deferred tasks are returned.
 	got, err := db.ListTasks(c, gtd.TaskFilter{})
 	require.NoError(t, err)
 	var titles []string
 	for _, t := range got {
 		titles = append(titles, t.Title)
 	}
-	assert.NotContains(t, titles, "Deferred")
+	assert.Contains(t, titles, "Deferred")
 	assert.Contains(t, titles, "Visible")
 	assert.Contains(t, titles, "Past defer")
+}
 
-	// IncludeDeferred shows everything
-	all, err := db.ListTasks(c, gtd.TaskFilter{IncludeDeferred: true})
-	require.NoError(t, err)
-	var allTitles []string
-	for _, t := range all {
-		allTitles = append(allTitles, t.Title)
+func TestDB_ListTasks_TextAndDateFilters(t *testing.T) {
+	now := time.Now()
+	future := now.Add(48 * time.Hour)
+	past := now.Add(-48 * time.Hour)
+	dueSoon := now.Add(12 * time.Hour)
+	dueOverdue := now.Add(-12 * time.Hour)
+
+	availableAsOfNow := &gtd.DatePredicate{Kind: gtd.AvailableAsOf, Time: now.UTC()}
+
+	seed := func(db *sqlite.DB, c context.Context) {
+		mustCreateTask(t, db, gtd.Task{Title: "Write report", Description: "quarterly numbers", Kind: gtd.TaskKindDelegated, Status: gtd.TaskStatusPending, Assignee: "Bob"})
+		mustCreateTask(t, db, gtd.Task{Title: "Review report", Description: "for alice", Kind: gtd.TaskKindNextAction, Status: gtd.TaskStatusPending, Assignee: "Carol"})
+		mustCreateTask(t, db, gtd.Task{Title: "Call plumber", Kind: gtd.TaskKindNextAction, Status: gtd.TaskStatusPending})
+		mustCreateTask(t, db, gtd.Task{Title: "Deferred future", Kind: gtd.TaskKindNextAction, Status: gtd.TaskStatusPending, DeferUntil: &future})
+		mustCreateTask(t, db, gtd.Task{Title: "Deferred past", Kind: gtd.TaskKindNextAction, Status: gtd.TaskStatusPending, DeferUntil: &past})
+		mustCreateTask(t, db, gtd.Task{Title: "Due soon", Kind: gtd.TaskKindNextAction, Status: gtd.TaskStatusPending, Due: &dueSoon})
+		mustCreateTask(t, db, gtd.Task{Title: "Overdue", Kind: gtd.TaskKindNextAction, Status: gtd.TaskStatusPending, Due: &dueOverdue})
 	}
-	assert.Contains(t, allTitles, "Deferred")
+
+	tests := []struct {
+		name   string
+		filter gtd.TaskFilter
+		want   []string
+	}{
+		{
+			name:   "free-text single term across columns",
+			filter: gtd.TaskFilter{}.WithSearch("report"),
+			want:   []string{"Write report", "Review report"},
+		},
+		{
+			name:   "free-text matches description",
+			filter: gtd.TaskFilter{}.WithSearch("quarterly"),
+			want:   []string{"Write report"},
+		},
+		{
+			name:   "free-text matches assignee",
+			filter: gtd.TaskFilter{}.WithSearch("bob"),
+			want:   []string{"Write report"},
+		},
+		{
+			name:   "multiple terms ANDed",
+			filter: gtd.TaskFilter{}.WithSearch("report", "bob"),
+			want:   []string{"Write report"},
+		},
+		{
+			name:   "assignee filter case-insensitive",
+			filter: gtd.TaskFilter{}.WithAssignee("carol"),
+			want:   []string{"Review report"},
+		},
+		{
+			name:   "due cumulative includes overdue excludes null",
+			filter: gtd.TaskFilter{Due: &gtd.DatePredicate{Kind: gtd.OnOrBefore, Time: now.UTC()}},
+			want:   []string{"Overdue"},
+		},
+		{
+			name:   "ready includes null and passed gates",
+			filter: gtd.TaskFilter{Ready: availableAsOfNow},
+			want:   []string{"Write report", "Review report", "Call plumber", "Deferred past", "Due soon", "Overdue"},
+		},
+		{
+			name:   "defer strict lower bound excludes null",
+			filter: gtd.TaskFilter{Defer: &gtd.DatePredicate{Kind: gtd.After, Time: now.UTC()}},
+			want:   []string{"Deferred future"},
+		},
+		{
+			name:   "defer IsNull",
+			filter: gtd.TaskFilter{Defer: &gtd.DatePredicate{Kind: gtd.IsNull}, Search: []string{"deferred"}},
+			want:   nil,
+		},
+		{
+			name:   "defer IsNotNull",
+			filter: gtd.TaskFilter{Defer: &gtd.DatePredicate{Kind: gtd.IsNotNull}},
+			want:   []string{"Deferred future", "Deferred past"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			db := openTestDB(t)
+			c := ctx(t)
+			seed(db, c)
+
+			got, err := db.ListTasks(c, tt.filter)
+			require.NoError(t, err)
+
+			var titles []string
+			for _, task := range got {
+				titles = append(titles, task.Title)
+			}
+			assert.ElementsMatch(t, tt.want, titles)
+		})
+	}
 }
 
 func TestDB_MoveUp(t *testing.T) {

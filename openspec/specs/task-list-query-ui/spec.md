@@ -1,12 +1,21 @@
-## ADDED Requirements
+# task-list-query-ui Specification
+
+## Purpose
+TBD - created by syncing change task-query-filter. Update Purpose after archive.
+
+## Requirements
 
 ### Requirement: Query bar on the task list
-The task list SHALL display a query bar showing the active query string. The bar SHALL be seeded with the default query `status:pending ready:now` on startup.
+The task list SHALL display a query bar showing the active query string. The bar SHALL be seeded with the default query `status:pending ready:now` on startup. When the query is empty, the bar SHALL show a placeholder indicating that all tasks are shown.
 
 #### Scenario: Default query on startup
 - **WHEN** the task list first loads
 - **THEN** the query bar shows `status:pending ready:now`
 - **AND** only pending tasks that are available now (not deferred to the future) are listed
+
+#### Scenario: Empty query shows placeholder
+- **WHEN** the query bar is empty
+- **THEN** a placeholder indicating all tasks are shown (e.g. `(all tasks)`) is displayed in the bar
 
 ### Requirement: Focus and edit the query
 Pressing `/` SHALL focus the query bar for editing. The list's built-in filter keybinding SHALL be disabled so the query bar is the only filtering mechanism.
@@ -14,6 +23,29 @@ Pressing `/` SHALL focus the query bar for editing. The list's built-in filter k
 #### Scenario: Focus query bar
 - **WHEN** the user presses `/`
 - **THEN** the query bar becomes focused and editable
+
+### Requirement: Help bar reflects editing state
+While the query bar is focused for editing, the help bar SHALL show the editing actions (apply on Enter, cancel on Esc) instead of the list navigation bindings. When the query bar is not focused, the help bar SHALL show the list bindings.
+
+#### Scenario: Help bar while editing
+- **WHEN** the query bar is focused
+- **THEN** the help bar shows the apply (Enter) and cancel (Esc) bindings
+
+#### Scenario: Help bar while not editing
+- **WHEN** the query bar is not focused
+- **THEN** the help bar shows the list navigation and task-action bindings
+
+### Requirement: Global keys suppressed while editing
+While the query bar is focused, the application's global keybindings that conflict with text entry (tab/shift+tab to switch views, `?` to toggle help) SHALL be suppressed so the keystrokes reach the query bar, and SHALL NOT be advertised in the help bar. The quit binding (Ctrl+C) SHALL remain active.
+
+#### Scenario: Tab and help toggle are inert while editing
+- **WHEN** the query bar is focused and the user presses `tab` or `?`
+- **THEN** the view is not switched and help is not toggled
+- **AND** the character (where printable) is entered into the query
+
+#### Scenario: Quit still works while editing
+- **WHEN** the query bar is focused and the user presses Ctrl+C
+- **THEN** the application quits
 
 ### Requirement: Live parsing for validation feedback
 While the query bar is being edited, the query SHALL be parsed for validation feedback on Enter and on a debounce of 2 seconds after the last keystroke. Live parsing SHALL update only the error display; it SHALL NOT reload the list.

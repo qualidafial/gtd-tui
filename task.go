@@ -46,11 +46,38 @@ type TaskService interface {
 	MoveDown(ctx context.Context, id int64) error
 }
 
+// DatePredicateKind discriminates how a DatePredicate constrains a date column.
+type DatePredicateKind int
+
+const (
+	// OnOrBefore matches `column IS NOT NULL AND column <= Time` (used by Due).
+	OnOrBefore DatePredicateKind = iota
+	// AvailableAsOf matches `column IS NULL OR column <= Time` (used by Ready).
+	AvailableAsOf
+	// After matches `column > Time` (used by Defer).
+	After
+	// IsNull matches `column IS NULL`.
+	IsNull
+	// IsNotNull matches `column IS NOT NULL`.
+	IsNotNull
+)
+
+// DatePredicate constrains a date column. Time-based kinds (OnOrBefore,
+// AvailableAsOf, After) carry a resolved UTC time; IsNull/IsNotNull ignore Time.
+type DatePredicate struct {
+	Kind DatePredicateKind
+	Time time.Time
+}
+
 type TaskFilter struct {
-	Status          *TaskStatus
-	Kind            *TaskKind
-	IncludeDeferred bool
-	TaskIDs         []int64
+	Status   *TaskStatus
+	Kind     *TaskKind
+	Assignee *string
+	Due      *DatePredicate
+	Ready    *DatePredicate
+	Defer    *DatePredicate
+	Search   []string
+	TaskIDs  []int64
 }
 
 func (f TaskFilter) WithStatus(s TaskStatus) TaskFilter {
@@ -60,6 +87,16 @@ func (f TaskFilter) WithStatus(s TaskStatus) TaskFilter {
 
 func (f TaskFilter) WithKind(k TaskKind) TaskFilter {
 	f.Kind = &k
+	return f
+}
+
+func (f TaskFilter) WithAssignee(a string) TaskFilter {
+	f.Assignee = &a
+	return f
+}
+
+func (f TaskFilter) WithSearch(terms ...string) TaskFilter {
+	f.Search = terms
 	return f
 }
 

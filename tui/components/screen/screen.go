@@ -13,6 +13,19 @@ type Screen interface {
 	KeyMap() help.KeyMap
 }
 
+// InputCapturer is an optional Screen capability. When a screen reports that it
+// is capturing text input (e.g. a focused query bar), the app suppresses its
+// global keybindings (tab, help toggle) so the keystrokes reach the screen.
+type InputCapturer interface {
+	CapturingInput() bool
+}
+
+// CapturingInput reports whether s is currently capturing text input.
+func CapturingInput(s Screen) bool {
+	c, ok := s.(InputCapturer)
+	return ok && c.CapturingInput()
+}
+
 // ShowOverlayMsg signals a transition to a new screen.
 type ShowOverlayMsg struct {
 	Overlay Screen

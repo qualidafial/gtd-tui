@@ -6,21 +6,29 @@ import (
 )
 
 var (
-	KeyNew      = key.NewBinding(key.WithKeys("+", "insert"), key.WithHelp("+/insert", "new task"))
-	KeyEdit     = key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "edit"))
-	KeyDelete   = key.NewBinding(key.WithKeys("delete"), key.WithHelp("delete", "drop task"))
-	KeyMoveUp   = key.NewBinding(key.WithKeys("shift+up"), key.WithHelp("shift+↑", "move up"))
-	KeyMoveDown = key.NewBinding(key.WithKeys("shift+down"), key.WithHelp("shift+↓", "move down"))
+	KeyNew        = key.NewBinding(key.WithKeys("+", "insert"), key.WithHelp("+/insert", "new task"))
+	KeyEdit       = key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "edit"))
+	KeyDelete     = key.NewBinding(key.WithKeys("delete"), key.WithHelp("delete", "drop task"))
+	KeyMoveUp     = key.NewBinding(key.WithKeys("shift+up"), key.WithHelp("shift+↑", "move up"))
+	KeyMoveDown   = key.NewBinding(key.WithKeys("shift+down"), key.WithHelp("shift+↓", "move down"))
+	KeyFocusQuery = key.NewBinding(key.WithKeys("/"), key.WithHelp("/", "filter"))
+	KeyApply      = key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "apply"))
+	KeyCancel     = key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "cancel"))
 )
 
 type KeyMap struct {
-	km list.KeyMap
+	km      list.KeyMap
+	editing bool
 }
 
 func (k KeyMap) ShortHelp() []key.Binding {
+	if k.editing {
+		return []key.Binding{KeyApply, KeyCancel}
+	}
 	return []key.Binding{
 		k.km.CursorUp,
 		k.km.CursorDown,
+		KeyFocusQuery,
 		KeyNew,
 		KeyEdit,
 		KeyDelete,
@@ -30,6 +38,9 @@ func (k KeyMap) ShortHelp() []key.Binding {
 }
 
 func (k KeyMap) FullHelp() [][]key.Binding {
+	if k.editing {
+		return [][]key.Binding{{KeyApply, KeyCancel}}
+	}
 	return [][]key.Binding{
 		{
 			k.km.CursorUp,
@@ -42,8 +53,7 @@ func (k KeyMap) FullHelp() [][]key.Binding {
 			k.km.NextPage,
 		},
 		{
-			k.km.Filter,
-			k.km.ClearFilter,
+			KeyFocusQuery,
 		},
 		{
 			KeyNew,

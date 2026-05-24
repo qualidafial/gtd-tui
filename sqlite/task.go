@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	sq "github.com/Masterminds/squirrel"
@@ -44,9 +45,17 @@ func (d *DB) ListTasks(ctx context.Context, filter gtd.TaskFilter) ([]gtd.Task, 
 	if len(filter.TaskIDs) > 0 {
 		q = q.Where(sq.Eq{"t.id": filter.TaskIDs})
 	}
-	if !filter.IncludeDeferred {
-		q = q.Where("(t.defer_until IS NULL OR t.defer_until <= ?)", time.Now().UTC())
+	if filter.Assignee != nil {
+		q = q.Where("lower(t.assignee) LIKE ?", likeContains(*filter.Assignee))
 	}
+	for _, term := range filter.Search {
+		pattern := likeContains(term)
+		q = q.Where("(lower(t.title) LIKE ? OR lower(t.description) LIKE ? OR lower(t.assignee) LIKE ?)",
+			pattern, pattern, pattern)
+	}
+	q = applyDatePredicate(q, "t.due", filter.Due)
+	q = applyDatePredicate(q, "t.defer_until", filter.Ready)
+	q = applyDatePredicate(q, "t.defer_until", filter.Defer)
 
 	// Pending tasks sort by order_key; closed (done/dropped) tasks have a
 	// NULL order_key and fall through to updated_at descending.
@@ -75,6 +84,32 @@ func (d *DB) ListTasks(ctx context.Context, filter gtd.TaskFilter) ([]gtd.Task, 
 		tasks = append(tasks, task)
 	}
 	return tasks, rows.Err()
+}
+
+// likeContains builds a case-insensitive LIKE pattern matching term as a
+// substring. The column side is lowercased by the caller; term is lowercased here.
+func likeContains(term string) string {
+	return "%" + strings.ToLower(term) + "%"
+}
+
+// applyDatePredicate adds the SQL constraint for p against column, if non-nil.
+func applyDatePredicate(q sq.SelectBuilder, column string, p *gtd.DatePredicate) sq.SelectBuilder {
+	if p == nil {
+		return q
+	}
+	switch p.Kind {
+	case gtd.OnOrBefore:
+		return q.Where(fmt.Sprintf("(%s IS NOT NULL AND %s <= ?)", column, column), p.Time.UTC())
+	case gtd.AvailableAsOf:
+		return q.Where(fmt.Sprintf("(%s IS NULL OR %s <= ?)", column, column), p.Time.UTC())
+	case gtd.After:
+		return q.Where(fmt.Sprintf("%s > ?", column), p.Time.UTC())
+	case gtd.IsNull:
+		return q.Where(fmt.Sprintf("%s IS NULL", column))
+	case gtd.IsNotNull:
+		return q.Where(fmt.Sprintf("%s IS NOT NULL", column))
+	}
+	return q
 }
 
 func (d *DB) CreateTask(ctx context.Context, task gtd.Task) (gtd.Task, error) {

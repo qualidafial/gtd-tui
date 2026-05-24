@@ -63,16 +63,47 @@ Write operations that span multiple statements (Update, Complete, Drop, Reopen, 
 - **WHEN** CompleteTask reads the current status and writes the new one
 - **THEN** both occur in a single transaction so a concurrent change cannot slip between them
 
-### Requirement: Deferred task filtering in queries
-ListTasks queries SHALL exclude tasks where defer_until > current time by default. When IncludeDeferred is true, this filter SHALL be removed.
+### Requirement: Free-text LIKE filtering
+ListTasks SHALL apply each TaskFilter.Search term as a case-insensitive match against title, description, and assignee. A task matches a term when the term is a substring of any of those three columns. Multiple terms SHALL be ANDed.
 
-#### Scenario: Default query excludes deferred
-- **WHEN** ListTasks is called without IncludeDeferred
-- **THEN** SQL WHERE clause includes defer_until IS NULL OR defer_until <= now
+#### Scenario: Single term matches across columns
+- **WHEN** ListTasks is called with Search = ["bob"]
+- **THEN** the WHERE clause matches tasks where lower(title), lower(description), or lower(assignee) contains "bob"
 
-#### Scenario: Include deferred removes filter
-- **WHEN** ListTasks is called with IncludeDeferred = true
-- **THEN** SQL WHERE clause does not filter by defer_until
+#### Scenario: Multiple terms are ANDed
+- **WHEN** ListTasks is called with Search = ["report", "bob"]
+- **THEN** only tasks matching both terms are returned
+
+### Requirement: Assignee filtering
+ListTasks SHALL apply TaskFilter.Assignee as a case-insensitive substring match against the assignee column.
+
+#### Scenario: Assignee narrows results
+- **WHEN** ListTasks is called with Assignee = "bob"
+- **THEN** only tasks whose assignee contains "bob" (case-insensitive) are returned
+
+### Requirement: Date-predicate filtering
+ListTasks SHALL translate Due, Ready, and Defer DatePredicates into SQL constraints. Time-based predicates resolve to a UTC timestamp (end-of-local-day, except `now` which is the current instant). The mapping SHALL be:
+
+- Due (OnOrBefore): `due IS NOT NULL AND due <= t`
+- Ready (AvailableAsOf): `defer_until IS NULL OR defer_until <= t`
+- Defer (After): `defer_until > t`
+- IsNull: `column IS NULL`; IsNotNull: `column IS NOT NULL`
+
+#### Scenario: Due is cumulative
+- **WHEN** ListTasks is called with Due resolved to end-of-day today
+- **THEN** the WHERE clause selects rows where due IS NOT NULL AND due <= that UTC timestamp (overdue + due-today)
+
+#### Scenario: Ready includes null and opened gates
+- **WHEN** ListTasks is called with Ready resolved to now
+- **THEN** the WHERE clause selects rows where defer_until IS NULL OR defer_until <= now
+
+#### Scenario: Defer is strict lower bound
+- **WHEN** ListTasks is called with Defer resolved to end-of-day +2
+- **THEN** the WHERE clause selects rows where defer_until > that UTC timestamp
+
+#### Scenario: Null and not-null variants
+- **WHEN** ListTasks is called with Defer = IsNull (or IsNotNull)
+- **THEN** the WHERE clause selects rows where defer_until IS NULL (or IS NOT NULL)
 
 ### Requirement: Migration file
 The tasks table, all columns and constraints, and the order_key index SHALL all be created by a single migration, sqlite/migrations/0001_tasks.sql.

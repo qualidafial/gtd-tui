@@ -51,7 +51,7 @@ func New(
 	taskSvc gtd.TaskService,
 	// projectTaskSvc gtd.ProjectTaskService,
 ) Model {
-	pending := tasklist.New(taskSvc, gtd.TaskFilter{}.WithStatus(gtd.TaskStatusPending))
+	pending := tasklist.New(taskSvc, "status:pending ready:now")
 	// inbox := tasklist.New(inboxSvc, ...)
 	// projects, projectsCmd := newProjectListScreen()
 	// notes, notesCmd := newNotesScreen()
@@ -107,21 +107,25 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, tea.Batch(cmds...)
 	case tea.KeyPressMsg:
+		// While the active screen is capturing text input (e.g. a focused
+		// query bar), suppress global tab/help bindings so the keystrokes
+		// reach the screen. Quit stays active as an escape hatch.
+		capturing := m.overlay == nil && screen.CapturingInput(m.tabs[m.activeTab])
 		switch {
 		case key.Matches(msg, keyQuit):
 			return m, tea.Quit
 		case key.Matches(msg, keyTab):
-			if m.overlay == nil {
+			if m.overlay == nil && !capturing {
 				m.activeTab = (m.activeTab + 1) % len(m.tabs)
 				return m, m.tabs[m.activeTab].Init()
 			}
 		case key.Matches(msg, keyShiftTab):
-			if m.overlay == nil {
+			if m.overlay == nil && !capturing {
 				m.activeTab = (m.activeTab + len(m.tabs) - 1) % len(m.tabs)
 				return m, nil
 			}
 		case key.Matches(msg, keyToggleHelp):
-			if m.overlay == nil {
+			if m.overlay == nil && !capturing {
 				m.help.ShowAll = !m.help.ShowAll
 				return m.resizeScreens()
 			}
@@ -221,6 +225,8 @@ func (m Model) renderFooter() string {
 	return "\n" + m.help.View(mergedKeyMap{
 		screen:  screenKM,
 		overlay: m.overlay != nil,
+		// While capturing input, tab/help are suppressed, so don't advertise them.
+		appKeys: m.overlay == nil && !screen.CapturingInput(m.tabs[m.activeTab]),
 	})
 }
 
@@ -228,11 +234,12 @@ func (m Model) renderFooter() string {
 type mergedKeyMap struct {
 	screen  help.KeyMap
 	overlay bool
+	appKeys bool
 }
 
 func (k mergedKeyMap) ShortHelp() []key.Binding {
 	keys := k.screen.ShortHelp()
-	if !k.overlay {
+	if k.appKeys {
 		keys = append(keys, keyTab, keyToggleHelp)
 	}
 	return append(keys, keyQuit)
@@ -241,7 +248,7 @@ func (k mergedKeyMap) ShortHelp() []key.Binding {
 func (k mergedKeyMap) FullHelp() [][]key.Binding {
 	groups := k.screen.FullHelp()
 	var appKeys []key.Binding
-	if !k.overlay {
+	if k.appKeys {
 		appKeys = append(appKeys, keyTab, keyShiftTab, keyToggleHelp)
 	}
 	return append(groups, append(appKeys, keyQuit))

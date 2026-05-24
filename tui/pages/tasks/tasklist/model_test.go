@@ -14,7 +14,7 @@ import (
 // addressed to a different filter so results don't overwrite the wrong tab.
 func TestModel_TasksLoaded_IgnoresOtherFilter(t *testing.T) {
 	var svc gtd.TaskService = nil
-	pending := New(svc, gtd.TaskFilter{}.WithStatus(gtd.TaskStatusPending))
+	pending := New(svc, "status:pending")
 
 	updated, _ := pending.Update(TasksLoadedMsg{
 		filter: gtd.TaskFilter{}.WithStatus(gtd.TaskStatusDone),
@@ -29,7 +29,7 @@ func TestModel_TasksLoaded_IgnoresOtherFilter(t *testing.T) {
 
 func TestModel_TasksLoaded_AppliesMatchingFilter(t *testing.T) {
 	var svc gtd.TaskService = nil
-	pending := New(svc, gtd.TaskFilter{}.WithStatus(gtd.TaskStatusPending))
+	pending := New(svc, "status:pending")
 
 	updated, _ := pending.Update(TasksLoadedMsg{
 		filter: gtd.TaskFilter{}.WithStatus(gtd.TaskStatusPending),
@@ -53,7 +53,7 @@ func TestModel_NewTaskKey_OpensEditor(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			m := New(nil, gtd.TaskFilter{}.WithStatus(gtd.TaskStatusPending))
+			m := New(nil, "status:pending")
 			_, cmd := m.Update(tt.key)
 			if cmd == nil {
 				t.Fatal("expected a cmd from new-task keybinding")
@@ -67,7 +67,7 @@ func TestModel_NewTaskKey_OpensEditor(t *testing.T) {
 }
 
 func TestModel_NKey_NoLongerOpensEditor(t *testing.T) {
-	m := New(nil, gtd.TaskFilter{}.WithStatus(gtd.TaskStatusPending))
+	m := New(nil, "status:pending")
 	_, cmd := m.Update(tea.KeyPressMsg{Code: 'n', Text: "n"})
 	if cmd != nil {
 		if msg := cmd(); msg != nil {
