@@ -1,8 +1,7 @@
-package taskdelete
+package taskstatus
 
 import (
 	"context"
-	"fmt"
 	"log/slog"
 
 	"charm.land/bubbles/v2/help"
@@ -16,26 +15,33 @@ import (
 )
 
 type Model struct {
-	task     gtd.Task
-	svc      gtd.TaskService
-	confirm  bool
+	task       gtd.Task
+	svc        gtd.TaskService
+	transition Transition
+	// confirm is a pointer so the bound huh field and every Model copy that
+	// flows through the screen stack share one stable address; binding to a
+	// value field writes to a stale copy and the confirmation is lost.
+	confirm  *bool
 	err      error
 	form     *huh.Form
-	dropping bool
+	applying bool
 }
 
-func New(task gtd.Task, svc gtd.TaskService) Model {
+func New(task gtd.Task, svc gtd.TaskService, transition Transition) Model {
 	m := Model{
-		task: task,
-		svc:  svc,
+		task:       task,
+		svc:        svc,
+		transition: transition,
+		confirm:    new(true), // default selection is the affirmative button
 	}
 
+	s := specs[transition]
 	field := huh.NewConfirm().
-		Title("Drop task?").
-		Description(fmt.Sprintf("%q will be moved to Dropped.", task.Title)).
-		Affirmative("Drop").
+		Title(s.title).
+		Description(s.description(task.Title)).
+		Affirmative(s.affirmative).
 		Negative("Cancel").
-		Value(&m.confirm)
+		Value(m.confirm)
 
 	keymap := huh.NewDefaultKeyMap()
 	keymap.Quit = key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "cancel"))
@@ -47,22 +53,27 @@ func New(task gtd.Task, svc gtd.TaskService) Model {
 	return m
 }
 
+// Transition reports which status change this overlay will apply on confirm.
+func (m Model) Transition() Transition {
+	return m.transition
+}
+
 func (m Model) Init() tea.Cmd {
 	return m.form.Init()
 }
 
 func (m Model) Update(msg tea.Msg) (screen.Screen, tea.Cmd) {
 	switch msg := msg.(type) {
-	case taskDroppedMsg:
+	case taskTransitionedMsg:
 		if msg.err != nil {
 			m.err = msg.err
-			m.dropping = false
+			m.applying = false
 			return m, nil
 		}
 		return m, tea.Batch(screen.HideOverlay(), tasks.TasksChanged())
 	}
 
-	if m.dropping {
+	if m.applying {
 		return m, nil
 	}
 
@@ -75,24 +86,25 @@ func (m Model) Update(msg tea.Msg) (screen.Screen, tea.Cmd) {
 	case huh.StateAborted:
 		return m, tea.Batch(cmd, screen.HideOverlay())
 	case huh.StateCompleted:
-		if !m.confirm {
+		if !*m.confirm {
 			return m, tea.Batch(cmd, screen.HideOverlay())
 		}
-		m.dropping = true
-		return m, tea.Batch(cmd, m.dropCmd())
+		m.applying = true
+		return m, tea.Batch(cmd, m.applyCmd())
 	}
 	return m, cmd
 }
 
-func (m Model) dropCmd() tea.Cmd {
+func (m Model) applyCmd() tea.Cmd {
 	id := m.task.ID
 	svc := m.svc
+	apply := specs[m.transition].apply
 	return func() tea.Msg {
-		_, err := svc.DropTask(context.Background(), id)
+		_, err := apply(svc, context.Background(), id)
 		if err != nil {
-			slog.Error("dropping task: " + err.Error())
+			slog.Error("transitioning task: " + err.Error())
 		}
-		return taskDroppedMsg{err: err}
+		return taskTransitionedMsg{err: err}
 	}
 }
 
@@ -107,6 +119,6 @@ func (m Model) KeyMap() help.KeyMap {
 	return KeyMap{m.form.KeyBinds()}
 }
 
-type taskDroppedMsg struct {
+type taskTransitionedMsg struct {
 	err error
 }

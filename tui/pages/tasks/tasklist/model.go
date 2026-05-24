@@ -19,8 +19,8 @@ import (
 	"github.com/qualidafial/gtd-tui/internal/taskquery"
 	"github.com/qualidafial/gtd-tui/tui/components/screen"
 	"github.com/qualidafial/gtd-tui/tui/pages/tasks"
-	"github.com/qualidafial/gtd-tui/tui/pages/tasks/taskdelete"
 	"github.com/qualidafial/gtd-tui/tui/pages/tasks/taskedit"
+	"github.com/qualidafial/gtd-tui/tui/pages/tasks/taskstatus"
 )
 
 // queryAreaHeight is the fixed number of lines reserved above the list for the
@@ -42,6 +42,7 @@ type Model struct {
 	parseErr     *taskquery.ParseError
 	debounceSeq  int
 	list         list.Model
+	keys         keyMap
 	width        int
 }
 
@@ -63,10 +64,12 @@ type tasksReorderedMsg struct {
 type queryDebounceMsg struct{ seq int }
 
 func New(svc gtd.TaskService, query string) Model {
+	keys := defaultKeyMap()
+
 	delegate := list.NewDefaultDelegate()
 	delegate.ShowDescription = false
-	delegate.ShortHelpFunc = func() []key.Binding { return []key.Binding{KeyNew, KeyEdit} }
-	delegate.FullHelpFunc = func() [][]key.Binding { return [][]key.Binding{{KeyNew, KeyEdit}} }
+	delegate.ShortHelpFunc = func() []key.Binding { return []key.Binding{keys.New, keys.Edit} }
+	delegate.FullHelpFunc = func() [][]key.Binding { return [][]key.Binding{{keys.New, keys.Edit}} }
 
 	l := list.New(nil, delegate, 0, 0)
 	l.SetStatusBarItemName("task", "tasks")
@@ -86,13 +89,16 @@ func New(svc gtd.TaskService, query string) Model {
 	// Best-effort initial parse; an invalid seed query yields a zero filter.
 	filter, _ := taskquery.Parse(query)
 
-	return Model{
+	m := Model{
 		svc:          svc,
 		filter:       filter,
 		appliedQuery: query,
 		query:        ti,
 		list:         l,
+		keys:         keys,
 	}
+	m.updateKeybindings()
+	return m
 }
 
 func (m Model) Init() tea.Cmd {
@@ -134,7 +140,9 @@ func (m Model) Update(msg tea.Msg) (screen.Screen, tea.Cmd) {
 		for i, t := range msg.tasks {
 			items[i] = Item{t}
 		}
-		return m, m.list.SetItems(items)
+		cmd := m.list.SetItems(items)
+		m.updateKeybindings()
+		return m, cmd
 	case tasksReorderedMsg:
 		if !filterMatches(msg.filter, m.filter) {
 			return m, nil
@@ -149,6 +157,7 @@ func (m Model) Update(msg tea.Msg) (screen.Screen, tea.Cmd) {
 		}
 		cmd := m.list.SetItems(items)
 		m.list.Select(idx)
+		m.updateKeybindings()
 		return m, cmd
 	case queryDebounceMsg:
 		if msg.seq == m.debounceSeq && m.editing {
@@ -160,29 +169,38 @@ func (m Model) Update(msg tea.Msg) (screen.Screen, tea.Cmd) {
 			return m.updateEditing(msg)
 		}
 		switch {
-		case key.Matches(msg, KeyFocusQuery):
+		case key.Matches(msg, m.keys.FocusQuery):
 			m.editing = true
 			m.parseErr = nil
 			return m, m.query.Focus()
-		case key.Matches(msg, KeyNew):
+		case key.Matches(msg, m.keys.New):
 			t := gtd.Task{
 				Status: gtd.TaskStatusPending,
 				Kind:   gtd.TaskKindNextAction,
 			}
 			return m, screen.ShowOverlay(taskedit.New(t, m.svc))
-		case key.Matches(msg, KeyEdit):
+		case key.Matches(msg, m.keys.Edit):
 			if ti, ok := m.list.SelectedItem().(Item); ok {
 				return m, screen.ShowOverlay(taskedit.New(ti.task, m.svc))
 			}
-		case key.Matches(msg, KeyDelete):
+		case key.Matches(msg, m.keys.Toggle):
 			if ti, ok := m.list.SelectedItem().(Item); ok {
-				return m, screen.ShowOverlay(taskdelete.New(ti.task, m.svc))
+				transition := taskstatus.Complete
+				if ti.task.Status != gtd.TaskStatusPending {
+					transition = taskstatus.Reopen
+				}
+				return m, screen.ShowOverlay(taskstatus.New(ti.task, m.svc, transition))
 			}
-		case key.Matches(msg, KeyMoveUp):
+		case key.Matches(msg, m.keys.Drop):
+			// Drop is enabled only for pending tasks, so a match implies pending.
+			if ti, ok := m.list.SelectedItem().(Item); ok {
+				return m, screen.ShowOverlay(taskstatus.New(ti.task, m.svc, taskstatus.Drop))
+			}
+		case key.Matches(msg, m.keys.MoveUp):
 			if cmd := m.moveCmd(-1); cmd != nil {
 				return m, cmd
 			}
-		case key.Matches(msg, KeyMoveDown):
+		case key.Matches(msg, m.keys.MoveDown):
 			if cmd := m.moveCmd(+1); cmd != nil {
 				return m, cmd
 			}
@@ -198,13 +216,16 @@ func (m Model) Update(msg tea.Msg) (screen.Screen, tea.Cmd) {
 
 	var cmd tea.Cmd
 	m.list, cmd = m.list.Update(msg)
+	// Navigation may have moved the cursor to a task with a different status;
+	// refresh the per-selection binding state so help and key.Matches agree.
+	m.updateKeybindings()
 	return m, cmd
 }
 
 // updateEditing handles key presses while the query bar is focused.
 func (m Model) updateEditing(msg tea.KeyPressMsg) (screen.Screen, tea.Cmd) {
 	switch {
-	case key.Matches(msg, KeyApply):
+	case key.Matches(msg, m.keys.Apply):
 		filter, err := taskquery.Parse(m.query.Value())
 		if err != nil {
 			m.setParseErr(err)
@@ -216,7 +237,7 @@ func (m Model) updateEditing(msg tea.KeyPressMsg) (screen.Screen, tea.Cmd) {
 		m.appliedQuery = m.query.Value()
 		m.filter = filter
 		return m, m.loadCmd()
-	case key.Matches(msg, KeyCancel):
+	case key.Matches(msg, m.keys.Cancel):
 		m.editing = false
 		m.query.Blur()
 		m.query.SetValue(m.appliedQuery)
@@ -252,7 +273,43 @@ func (m *Model) setParseErr(err error) {
 }
 
 func (m Model) KeyMap() help.KeyMap {
-	return KeyMap{km: m.list.KeyMap, editing: m.editing}
+	k := m.keys
+	k.nav = m.list.KeyMap
+	k.editing = m.editing
+	return k
+}
+
+// updateKeybindings reconciles the per-selection action bindings with the
+// currently-selected task. Call it after anything that changes the selection or
+// the item set. Disabling a binding both hides it from the help bar and makes
+// key.Matches reject it, so the bound action becomes inert.
+func (m *Model) updateKeybindings() {
+	status, selected := gtd.TaskStatus(""), false
+	if ti, ok := m.list.SelectedItem().(Item); ok {
+		status, selected = ti.task.Status, true
+	}
+	pending := selected && status == gtd.TaskStatusPending
+
+	label := "toggle"
+	switch {
+	case !selected:
+	case status == gtd.TaskStatusPending:
+		label = "complete"
+	default:
+		label = "reopen"
+	}
+	m.keys.Toggle.SetHelp("space", label)
+
+	// Drop is valid only for pending tasks: the service rejects dropping a
+	// done/dropped task (it must be reopened first).
+	m.keys.Drop.SetEnabled(pending)
+
+	// Reorder is limited to pending tasks, which sort above closed ones. Move
+	// up is disabled on the first task; move down is disabled on the last
+	// pending task (the next item is closed or there is none).
+	idx := m.list.Index()
+	m.keys.MoveUp.SetEnabled(pending && idx > 0)
+	m.keys.MoveDown.SetEnabled(pending && statusAt(m.list, idx+1) == gtd.TaskStatusPending)
 }
 
 // CapturingInput reports that the query bar is focused, so the app should not
@@ -291,6 +348,19 @@ func promptWidth(ti textinput.Model) int {
 	return len([]rune(ti.Prompt))
 }
 
+// statusAt returns the status of the task at index i, or the empty status if i
+// is out of range or the item is not a task.
+func statusAt(l list.Model, i int) gtd.TaskStatus {
+	items := l.Items()
+	if i < 0 || i >= len(items) {
+		return ""
+	}
+	if it, ok := items[i].(Item); ok {
+		return it.task.Status
+	}
+	return ""
+}
+
 func filterMatches(a, b gtd.TaskFilter) bool {
 	statusMatch := (a.Status == nil && b.Status == nil) ||
 		(a.Status != nil && b.Status != nil && *a.Status == *b.Status)
@@ -298,12 +368,10 @@ func filterMatches(a, b gtd.TaskFilter) bool {
 }
 
 // moveCmd reorders the selected task by one slot in the given direction
-// (-1 = up, +1 = down). Returns nil when the status is closed or no task is
-// selected.
+// (-1 = up, +1 = down). The move bindings are enabled only for a pending
+// selection (see updateKeybindings), so reaching here implies a movable task;
+// the guard below only covers an empty list.
 func (m Model) moveCmd(direction int) tea.Cmd {
-	if isClosedFilter(m.filter) {
-		return nil
-	}
 	cur, ok := m.list.SelectedItem().(Item)
 	if !ok {
 		return nil
@@ -333,8 +401,4 @@ func (m Model) moveCmd(direction int) tea.Cmd {
 			selectID: id,
 		}
 	}
-}
-
-func isClosedFilter(f gtd.TaskFilter) bool {
-	return f.Status != nil && (*f.Status == gtd.TaskStatusDone || *f.Status == gtd.TaskStatusDropped)
 }
