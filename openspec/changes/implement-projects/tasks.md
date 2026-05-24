@@ -10,7 +10,7 @@
 
 ## 2. Database Schema
 
-- [ ] 2.1 Create migration 0003_projects.sql with projects table and status CHECK constraint
+- [ ] 2.1 Create migration 0002_projects.sql with projects table and status CHECK constraint
 - [ ] 2.2 Add project_id column to tasks table with FK to projects(id) ON DELETE SET NULL
 - [ ] 2.3 Add index on tasks.project_id for reverse queries
 - [ ] 2.4 Remove future.sql scaffolding (project_tasks join table not needed)
@@ -19,20 +19,20 @@
 
 - [ ] 3.1 Uncomment and update sqlite/project.go: remove DeleteProject, update status values
 - [ ] 3.2 Update CreateProject to default status to active if not specified
-- [ ] 3.3 Update UpdateProject to take comment parameter and create Comment atomically
+- [ ] 3.3 Implement UpdateProject (comment support added in implement-comments)
 - [ ] 3.4 Rename Project method to GetProject for consistency with specs
 - [ ] 3.5 Add scanProject function with proper nullable field handling
 - [ ] 3.6 Update sqlite/task.go to include project_id in taskColumns and scanTask
 
 ## 4. SQLite Implementation - Status Transitions
 
-- [ ] 4.1 Implement CompleteProject(id, cascade, comment) with transaction
-- [ ] 4.2 Implement DropProject(id, cascade, comment) with transaction
-- [ ] 4.3 Implement ParkProject(id, comment) with transaction
-- [ ] 4.4 Implement UnparkProject(id, comment) with transaction
+- [ ] 4.1 Implement CompleteProject(id, cascade) with transaction
+- [ ] 4.2 Implement DropProject(id, cascade) with transaction
+- [ ] 4.3 Implement ParkProject(id) with transaction
+- [ ] 4.4 Implement UnparkProject(id) with transaction
 - [ ] 4.5 Add helper to cascade status to pending tasks (mark done/dropped)
 - [ ] 4.6 Add helper to detach pending tasks (set project_id = NULL)
-- [ ] 4.7 Create Comment entity when comment parameter is non-empty in transitions
+- [ ] 4.7 (comment parameter on transitions added in implement-comments)
 
 ## 5. Task Filtering by Project Status
 
@@ -49,7 +49,7 @@
 - [ ] 6.4 Add test for CreateProject validation (invalid status rejected)
 - [ ] 6.5 Add test for GetProject returns error for non-existent ID
 - [ ] 6.6 Add test for ListProjects by status filter
-- [ ] 6.7 Add test for UpdateProject with comment creates Comment atomically
+- [ ] 6.7 Add test for UpdateProject (comment atomicity tested in implement-comments)
 
 ## 7. Tests - Status Transitions
 
@@ -60,7 +60,7 @@
 - [ ] 7.5 Add test for DropProject with cascade=false detaches pending tasks
 - [ ] 7.6 Add test for ParkProject sets status to someday without changing tasks
 - [ ] 7.7 Add test for UnparkProject sets status to active
-- [ ] 7.8 Add test for transition with comment creates Comment
+- [ ] 7.8 (transition comment tests added in implement-comments)
 
 ## 8. Tests - Task-Project Relationship
 

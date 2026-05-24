@@ -1,7 +1,12 @@
-## ADDED Requirements
+# task-entity Specification
+
+## Purpose
+TBD - created by syncing change implement-tasks. Update Purpose after archive.
+
+## Requirements
 
 ### Requirement: Task struct definition
-The Task struct SHALL be defined in the root package (`gtd`) with the following fields: ID (int64), Title (string), Description (string), Kind (TaskKind), Status (TaskStatus), Assignee (string), Due (*time.Time), DeferUntil (*time.Time), ProjectID (*int64), CreatedAt (time.Time), UpdatedAt (time.Time).
+The Task struct SHALL be defined in the root package (`gtd`) with the following fields: ID (int64), Title (string), Description (string), Kind (TaskKind), Status (TaskStatus), Assignee (string), Due (*time.Time), DeferUntil (*time.Time), CreatedAt (time.Time), UpdatedAt (time.Time). (The ProjectID field is added by `implement-projects`, not this change.)
 
 #### Scenario: Task struct has all fields
 - **WHEN** defining a Task
@@ -43,15 +48,15 @@ Task SHALL use value semantics throughout service interfaces. No *Task pointers 
 - **THEN** it returns Task, not *Task
 
 ### Requirement: Task nullable fields
-Due, DeferUntil, and ProjectID fields SHALL be pointer types to represent optional values. Nil indicates not set.
+Due and DeferUntil fields SHALL be pointer types to represent optional values. Nil indicates not set.
 
 #### Scenario: Task without due date
 - **WHEN** creating a task without a due date
 - **THEN** Due is nil
 
-#### Scenario: Standalone task
-- **WHEN** creating a task not assigned to a project
-- **THEN** ProjectID is nil
+#### Scenario: Task without defer date
+- **WHEN** creating a task without a defer-until date
+- **THEN** DeferUntil is nil
 
 ### Requirement: Task timestamps
 CreatedAt and UpdatedAt SHALL be time.Time values stored as UTC. CreatedAt is set on creation. UpdatedAt is set on creation and updated on every modification.

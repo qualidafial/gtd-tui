@@ -1,7 +1,12 @@
-## ADDED Requirements
+# task-sqlite Specification
+
+## Purpose
+TBD - created by syncing change implement-tasks. Update Purpose after archive.
+
+## Requirements
 
 ### Requirement: Tasks table schema
-The tasks table SHALL have columns: id (INTEGER PRIMARY KEY), title (TEXT NOT NULL), description (TEXT NOT NULL DEFAULT ''), kind (TEXT NOT NULL), status (TEXT NOT NULL DEFAULT 'pending'), assignee (TEXT NOT NULL DEFAULT ''), due (DATETIME), defer_until (DATETIME), project_id (INTEGER REFERENCES projects(id)), created_at (DATETIME NOT NULL), updated_at (DATETIME NOT NULL).
+The tasks table SHALL have columns: id (INTEGER PRIMARY KEY), title (TEXT NOT NULL), description (TEXT NOT NULL DEFAULT ''), kind (TEXT NOT NULL DEFAULT 'next_action'), status (TEXT NOT NULL DEFAULT 'pending'), assignee (TEXT NOT NULL DEFAULT ''), due (DATETIME), defer_until (DATETIME), order_key (TEXT), created_at (DATETIME NOT NULL), updated_at (DATETIME NOT NULL). (The project_id column is added by `implement-projects`.)
 
 #### Scenario: Create tasks table
 - **WHEN** migration runs
@@ -40,21 +45,6 @@ A CHECK constraint SHALL enforce title != '' (non-empty titles).
 - **WHEN** inserting a task with empty title
 - **THEN** the insert fails with CHECK constraint violation
 
-### Requirement: Project foreign key
-The project_id column SHALL be a foreign key referencing projects(id). It SHALL allow NULL for standalone tasks. It SHALL NOT cascade on delete (tasks remain when projects are modified).
-
-#### Scenario: Task references valid project
-- **WHEN** inserting a task with a valid project_id
-- **THEN** the insert succeeds
-
-#### Scenario: Task references invalid project
-- **WHEN** inserting a task with a non-existent project_id
-- **THEN** the insert fails with foreign key violation
-
-#### Scenario: Standalone task
-- **WHEN** inserting a task with NULL project_id
-- **THEN** the insert succeeds
-
 ### Requirement: TaskStore type
 TaskStore SHALL be defined in the sqlite package implementing TaskService interface. It SHALL use squirrel for query construction.
 
@@ -63,15 +53,15 @@ TaskStore SHALL be defined in the sqlite package implementing TaskService interf
 - **THEN** it satisfies the TaskService interface
 
 ### Requirement: Transactional write operations
-All write operations (Create, Update, Complete, Drop, Reopen) SHALL execute within a transaction. If any part fails, the entire operation SHALL roll back.
+Write operations that span multiple statements (Update, Complete, Drop, Reopen, and reordering) SHALL execute within a transaction. If any part fails, the entire operation SHALL roll back.
 
-#### Scenario: Failed create rolls back
-- **WHEN** CreateTask fails mid-operation
+#### Scenario: Failed transition rolls back
+- **WHEN** a status transition fails mid-operation
 - **THEN** no partial data is persisted
 
-#### Scenario: Update with comment is atomic
-- **WHEN** UpdateTask with comment is called
-- **THEN** both task update and comment creation succeed or fail together
+#### Scenario: Status validation and write are atomic
+- **WHEN** CompleteTask reads the current status and writes the new one
+- **THEN** both occur in a single transaction so a concurrent change cannot slip between them
 
 ### Requirement: Deferred task filtering in queries
 ListTasks queries SHALL exclude tasks where defer_until > current time by default. When IncludeDeferred is true, this filter SHALL be removed.
@@ -85,15 +75,15 @@ ListTasks queries SHALL exclude tasks where defer_until > current time by defaul
 - **THEN** SQL WHERE clause does not filter by defer_until
 
 ### Requirement: Migration file
-Migration SHALL be in sqlite/migrations/0002_tasks.sql. It SHALL create the tasks table with all columns and constraints in a single migration.
+The tasks table, all columns and constraints, and the order_key index SHALL all be created by a single migration, sqlite/migrations/0001_tasks.sql.
 
 #### Scenario: Migration file location
-- **WHEN** looking for tasks migration
-- **THEN** it is at sqlite/migrations/0002_tasks.sql
+- **WHEN** looking for the tasks table migration
+- **THEN** it is at sqlite/migrations/0001_tasks.sql
 
 #### Scenario: Migration creates complete table
-- **WHEN** migration runs
-- **THEN** tasks table has all columns and constraints
+- **WHEN** the migration runs
+- **THEN** tasks table has all columns, constraints, and the order_key index
 
 ### Requirement: Timestamp handling
 Timestamps SHALL be stored as UTC. The store SHALL convert time.Time values to UTC on write and parse as UTC on read.

@@ -11,15 +11,14 @@ import (
 
 // TestModel_TasksLoaded_IgnoresOtherFilter guards the startup bug where both
 // tasklist tabs receive every TasksLoadedMsg broadcast: a tab must ignore loads
-// addressed to a different filter so Active-tab results don't overwrite the
-// Inbox tab's items (and vice versa).
+// addressed to a different filter so results don't overwrite the wrong tab.
 func TestModel_TasksLoaded_IgnoresOtherFilter(t *testing.T) {
 	var svc gtd.TaskService = nil
-	inbox := New(svc, gtd.TaskFilter{}.Status(gtd.TaskStatusInbox))
+	pending := New(svc, gtd.TaskFilter{}.WithStatus(gtd.TaskStatusPending))
 
-	updated, _ := inbox.Update(TasksLoadedMsg{
-		filter: gtd.TaskFilter{}.Status(gtd.TaskStatusActive),
-		tasks:  []gtd.Task{{ID: 1, Title: "active task", Status: gtd.TaskStatusActive}},
+	updated, _ := pending.Update(TasksLoadedMsg{
+		filter: gtd.TaskFilter{}.WithStatus(gtd.TaskStatusDone),
+		tasks:  []gtd.Task{{ID: 1, Title: "done task", Status: gtd.TaskStatusDone}},
 	})
 
 	got := updated.(Model).list.Items()
@@ -30,11 +29,11 @@ func TestModel_TasksLoaded_IgnoresOtherFilter(t *testing.T) {
 
 func TestModel_TasksLoaded_AppliesMatchingFilter(t *testing.T) {
 	var svc gtd.TaskService = nil
-	inbox := New(svc, gtd.TaskFilter{}.Status(gtd.TaskStatusInbox))
+	pending := New(svc, gtd.TaskFilter{}.WithStatus(gtd.TaskStatusPending))
 
-	updated, _ := inbox.Update(TasksLoadedMsg{
-		filter: gtd.TaskFilter{}.Status(gtd.TaskStatusInbox),
-		tasks:  []gtd.Task{{ID: 1, Title: "inbox task", Status: gtd.TaskStatusInbox}},
+	updated, _ := pending.Update(TasksLoadedMsg{
+		filter: gtd.TaskFilter{}.WithStatus(gtd.TaskStatusPending),
+		tasks:  []gtd.Task{{ID: 1, Title: "pending task", Status: gtd.TaskStatusPending}},
 	})
 
 	got := updated.(Model).list.Items()
@@ -54,7 +53,7 @@ func TestModel_NewTaskKey_OpensEditor(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			m := New(nil, gtd.TaskFilter{}.Status(gtd.TaskStatusInbox))
+			m := New(nil, gtd.TaskFilter{}.WithStatus(gtd.TaskStatusPending))
 			_, cmd := m.Update(tt.key)
 			if cmd == nil {
 				t.Fatal("expected a cmd from new-task keybinding")
@@ -68,7 +67,7 @@ func TestModel_NewTaskKey_OpensEditor(t *testing.T) {
 }
 
 func TestModel_NKey_NoLongerOpensEditor(t *testing.T) {
-	m := New(nil, gtd.TaskFilter{}.Status(gtd.TaskStatusInbox))
+	m := New(nil, gtd.TaskFilter{}.WithStatus(gtd.TaskStatusPending))
 	_, cmd := m.Update(tea.KeyPressMsg{Code: 'n', Text: "n"})
 	if cmd != nil {
 		if msg := cmd(); msg != nil {
@@ -87,20 +86,20 @@ func TestFilterMatches(t *testing.T) {
 	}{
 		{
 			name: "same single status",
-			a:    gtd.TaskFilter{}.Status(gtd.TaskStatusInbox),
-			b:    gtd.TaskFilter{}.Status(gtd.TaskStatusInbox),
+			a:    gtd.TaskFilter{}.WithStatus(gtd.TaskStatusPending),
+			b:    gtd.TaskFilter{}.WithStatus(gtd.TaskStatusPending),
 			want: true,
 		},
 		{
 			name: "different status",
-			a:    gtd.TaskFilter{}.Status(gtd.TaskStatusInbox),
-			b:    gtd.TaskFilter{}.Status(gtd.TaskStatusActive),
+			a:    gtd.TaskFilter{}.WithStatus(gtd.TaskStatusPending),
+			b:    gtd.TaskFilter{}.WithStatus(gtd.TaskStatusDone),
 			want: false,
 		},
 		{
 			name: "different task ids",
-			a:    gtd.TaskFilter{}.TaskID(1),
-			b:    gtd.TaskFilter{}.TaskID(2),
+			a:    gtd.TaskFilter{}.WithTaskIDs(1),
+			b:    gtd.TaskFilter{}.WithTaskIDs(2),
 			want: false,
 		},
 		{

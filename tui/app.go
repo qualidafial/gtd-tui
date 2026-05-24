@@ -27,8 +27,8 @@ var (
 )
 
 var tabLabels = []string{
-	"Inbox",
 	"Tasks",
+	// "Inbox",
 	// "Projects",
 	// "Notes",
 	// "Timeline",
@@ -51,15 +51,15 @@ func New(
 	taskSvc gtd.TaskService,
 	// projectTaskSvc gtd.ProjectTaskService,
 ) Model {
-	inbox := tasklist.New(taskSvc, gtd.TaskFilter{}.Status(gtd.TaskStatusInbox))
-	active := tasklist.New(taskSvc, gtd.TaskFilter{}.Status(gtd.TaskStatusActive))
+	pending := tasklist.New(taskSvc, gtd.TaskFilter{}.WithStatus(gtd.TaskStatusPending))
+	// inbox := tasklist.New(inboxSvc, ...)
 	// projects, projectsCmd := newProjectListScreen()
 	// notes, notesCmd := newNotesScreen()
 	// timeline, timelineCmd := newTimelineScreen()
 
 	screens := []screen.Screen{
-		inbox,
-		active,
+		pending,
+		// inbox,
 		// projects,
 		// notes,
 		// timeline,

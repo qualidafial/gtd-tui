@@ -13,17 +13,17 @@ import (
 )
 
 var taskColumns = []string{
-	"t.id", "t.title", "t.description", "t.status",
+	"t.id", "t.title", "t.description", "t.kind", "t.status", "t.assignee",
 	"t.due", "t.defer_until", "t.created_at", "t.updated_at",
 }
 
-func (d *DB) Task(ctx context.Context, id int64) (gtd.Task, error) {
-	query, args, err := sq.Select(taskColumns...).From("tasks t").Where(sq.Eq{"id": id}).ToSql()
+func (d *DB) GetTask(ctx context.Context, id int64) (gtd.Task, error) {
+	query, args, err := sq.Select(taskColumns...).From("tasks t").Where(sq.Eq{"t.id": id}).ToSql()
 	if err != nil {
 		return gtd.Task{}, err
 	}
 	task, err := scanTask(d.db.QueryRowContext(ctx, query, args...))
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		return gtd.Task{}, fmt.Errorf("task %d: not found", id)
 	}
 	if err != nil {
@@ -32,20 +32,23 @@ func (d *DB) Task(ctx context.Context, id int64) (gtd.Task, error) {
 	return task, nil
 }
 
-func (d *DB) Tasks(ctx context.Context, filter gtd.TaskFilter) ([]gtd.Task, error) {
-	q := sq.Select(taskColumns...).
-		From("tasks t")
-	if filter.Statuses != nil {
-		q = q.Where(sq.Eq{"status": filter.Statuses})
+func (d *DB) ListTasks(ctx context.Context, filter gtd.TaskFilter) ([]gtd.Task, error) {
+	q := sq.Select(taskColumns...).From("tasks t")
+
+	if filter.Status != nil {
+		q = q.Where(sq.Eq{"t.status": string(*filter.Status)})
 	}
-	// if len(filter.ProjectIDs) > 0 {
-	// 	q = q.Join("project_tasks pt ON tasks.id = pt.task_id")
-	// 	q = q.Where(sq.Eq{"pt.project_id": filter.ProjectIDs})
-	// }
+	if filter.Kind != nil {
+		q = q.Where(sq.Eq{"t.kind": string(*filter.Kind)})
+	}
 	if len(filter.TaskIDs) > 0 {
-		q = q.Where(sq.Eq{"t.task_id": filter.TaskIDs})
+		q = q.Where(sq.Eq{"t.id": filter.TaskIDs})
 	}
-	// Open tasks sort by order_key; closed (done/dropped) tasks have a
+	if !filter.IncludeDeferred {
+		q = q.Where("(t.defer_until IS NULL OR t.defer_until <= ?)", time.Now().UTC())
+	}
+
+	// Pending tasks sort by order_key; closed (done/dropped) tasks have a
 	// NULL order_key and fall through to updated_at descending.
 	q = q.OrderBy(
 		"t.order_key ASC NULLS LAST",
@@ -81,7 +84,7 @@ func (d *DB) CreateTask(ctx context.Context, task gtd.Task) (gtd.Task, error) {
 
 	var key any
 	if !isClosedStatus(task.Status) {
-		k, err := d.nextOrderKey(ctx, task.Status)
+		k, err := d.nextOrderKey(ctx)
 		if err != nil {
 			return gtd.Task{}, fmt.Errorf("create task: %w", err)
 		}
@@ -89,8 +92,8 @@ func (d *DB) CreateTask(ctx context.Context, task gtd.Task) (gtd.Task, error) {
 	}
 
 	query, args, err := sq.Insert("tasks").
-		Columns("title", "description", "status", "due", "defer_until", "created_at", "updated_at", "order_key").
-		Values(task.Title, task.Description, string(task.Status),
+		Columns("title", "description", "kind", "status", "assignee", "due", "defer_until", "created_at", "updated_at", "order_key").
+		Values(task.Title, task.Description, string(task.Kind), string(task.Status), task.Assignee,
 			nullTime(task.Due), nullTime(task.DeferUntil),
 			task.CreatedAt, task.UpdatedAt, key).
 		ToSql()
@@ -112,30 +115,83 @@ func (d *DB) UpdateTask(ctx context.Context, task gtd.Task) (gtd.Task, error) {
 	task.UpdatedAt = time.Now().UTC()
 
 	err := d.RunTx(ctx, func(ctx context.Context, tx *DB) error {
-		currentStatus, _, err := tx.taskStatusAndKey(ctx, task.ID)
+		current, err := tx.GetTask(ctx, task.ID)
 		if err != nil {
 			return err
 		}
+		if task.Status != current.Status {
+			return fmt.Errorf("task %d: UpdateTask cannot change status; use CompleteTask/DropTask/ReopenTask", task.ID)
+		}
 
-		update := sq.Update("tasks").
+		query, args, err := sq.Update("tasks").
 			Set("title", task.Title).
 			Set("description", task.Description).
-			Set("status", string(task.Status)).
+			Set("kind", string(task.Kind)).
+			Set("assignee", task.Assignee).
 			Set("due", nullTime(task.Due)).
 			Set("defer_until", nullTime(task.DeferUntil)).
 			Set("updated_at", task.UpdatedAt).
-			Where(sq.Eq{"id": task.ID})
+			Where(sq.Eq{"id": task.ID}).
+			ToSql()
+		if err != nil {
+			return err
+		}
+		_, err = tx.db.ExecContext(ctx, query, args...)
+		return err
+	})
+	if err != nil {
+		return gtd.Task{}, fmt.Errorf("update task %d: %w", task.ID, err)
+	}
+	return task, nil
+}
 
-		if task.Status != currentStatus {
-			if isClosedStatus(task.Status) {
-				update = update.Set("order_key", nil)
-			} else {
-				key, err := tx.nextOrderKey(ctx, task.Status)
-				if err != nil {
-					return err
-				}
-				update = update.Set("order_key", key)
+func (d *DB) CompleteTask(ctx context.Context, id int64) (gtd.Task, error) {
+	return d.transitionTask(ctx, id, gtd.TaskStatusDone, gtd.TaskStatusPending)
+}
+
+func (d *DB) DropTask(ctx context.Context, id int64) (gtd.Task, error) {
+	return d.transitionTask(ctx, id, gtd.TaskStatusDropped, gtd.TaskStatusPending)
+}
+
+func (d *DB) ReopenTask(ctx context.Context, id int64) (gtd.Task, error) {
+	return d.transitionTask(ctx, id, gtd.TaskStatusPending, gtd.TaskStatusDone, gtd.TaskStatusDropped)
+}
+
+// transitionTask atomically validates the current status is one of allowedFrom,
+// then sets it to newStatus. Clears order_key for closed transitions; assigns
+// a fresh key when reopening to pending.
+func (d *DB) transitionTask(ctx context.Context, id int64, newStatus gtd.TaskStatus, allowedFrom ...gtd.TaskStatus) (gtd.Task, error) {
+	var task gtd.Task
+	err := d.RunTx(ctx, func(ctx context.Context, tx *DB) error {
+		current, err := tx.GetTask(ctx, id)
+		if err != nil {
+			return err
+		}
+		var allowed bool
+		for _, s := range allowedFrom {
+			if current.Status == s {
+				allowed = true
+				break
 			}
+		}
+		if !allowed {
+			return fmt.Errorf("task %d: cannot transition from %s to %s", id, current.Status, newStatus)
+		}
+
+		now := time.Now().UTC()
+		update := sq.Update("tasks").
+			Set("status", string(newStatus)).
+			Set("updated_at", now).
+			Where(sq.Eq{"id": id})
+
+		if isClosedStatus(newStatus) {
+			update = update.Set("order_key", nil)
+		} else {
+			key, err := tx.nextOrderKey(ctx)
+			if err != nil {
+				return err
+			}
+			update = update.Set("order_key", key)
 		}
 
 		query, args, err := update.ToSql()
@@ -145,32 +201,14 @@ func (d *DB) UpdateTask(ctx context.Context, task gtd.Task) (gtd.Task, error) {
 		if _, err := tx.db.ExecContext(ctx, query, args...); err != nil {
 			return err
 		}
+
+		current.Status = newStatus
+		current.UpdatedAt = now
+		task = current
 		return nil
 	})
 	if err != nil {
-		return gtd.Task{}, fmt.Errorf("update task %d: %w", task.ID, err)
-	}
-	return task, nil
-}
-
-func (d *DB) DropTask(ctx context.Context, id int64) (gtd.Task, error) {
-	now := time.Now().UTC()
-	query, args, err := sq.Update("tasks").
-		Set("status", string(gtd.TaskStatusDropped)).
-		Set("updated_at", now).
-		Set("order_key", nil).
-		Where(sq.Eq{"id": id}).
-		Suffix("RETURNING id, title, description, status, due, defer_until, created_at, updated_at").
-		ToSql()
-	if err != nil {
-		return gtd.Task{}, err
-	}
-	task, err := scanTask(d.db.QueryRowContext(ctx, query, args...))
-	if errors.Is(err, sql.ErrNoRows) {
-		return gtd.Task{}, fmt.Errorf("drop task %d: not found", id)
-	}
-	if err != nil {
-		return gtd.Task{}, fmt.Errorf("drop task %d: %w", id, err)
+		return gtd.Task{}, fmt.Errorf("transition task %d: %w", id, err)
 	}
 	return task, nil
 }
@@ -194,7 +232,7 @@ func scanTask(s scanner) (gtd.Task, error) {
 	var task gtd.Task
 	var due, deferUntil sql.NullTime
 	err := s.Scan(
-		&task.ID, &task.Title, &task.Description, &task.Status,
+		&task.ID, &task.Title, &task.Description, &task.Kind, &task.Status, &task.Assignee,
 		&due, &deferUntil, &task.CreatedAt, &task.UpdatedAt,
 	)
 	if err != nil {
@@ -209,7 +247,7 @@ func scanTask(s scanner) (gtd.Task, error) {
 	return task, nil
 }
 
-// MoveUp shifts the task one slot earlier within its status group.
+// MoveUp shifts the task one slot earlier within pending tasks.
 // No-op when already at the top.
 func (d *DB) MoveUp(ctx context.Context, id int64) error {
 	return d.RunTx(ctx, func(ctx context.Context, tx *DB) error {
@@ -217,7 +255,7 @@ func (d *DB) MoveUp(ctx context.Context, id int64) error {
 	})
 }
 
-// MoveDown shifts the task one slot later within its status group.
+// MoveDown shifts the task one slot later within pending tasks.
 // No-op when already at the bottom.
 func (d *DB) MoveDown(ctx context.Context, id int64) error {
 	return d.RunTx(ctx, func(ctx context.Context, tx *DB) error {
@@ -225,23 +263,26 @@ func (d *DB) MoveDown(ctx context.Context, id int64) error {
 	})
 }
 
-// shiftTask moves id by delta slots within its status group. The fast
-// path swaps a single key via orderkey.Between; on exhaustion the whole
-// status group is renumbered with id placed at its new index.
+// shiftTask moves id by delta slots within pending tasks. The fast path swaps
+// a single key via orderkey.Between; on exhaustion the whole group is renumbered.
 func (d *DB) shiftTask(ctx context.Context, id int64, delta int) error {
-	status, key, err := d.taskStatusAndKey(ctx, id)
+	task, err := d.GetTask(ctx, id)
 	if err != nil {
 		return err
 	}
-	if isClosedStatus(status) {
-		return fmt.Errorf("task %d: cannot reorder %s tasks", id, status)
+	if isClosedStatus(task.Status) {
+		return fmt.Errorf("task %d: cannot reorder %s tasks", id, task.Status)
 	}
-	others, err := d.statusOrder(ctx, status, id)
+
+	key, err := d.taskOrderKey(ctx, id)
+	if err != nil {
+		return err
+	}
+	others, err := d.pendingOrder(ctx, id)
 	if err != nil {
 		return err
 	}
 
-	// Position of id among all peers = count of peers with smaller key.
 	pos := 0
 	for _, o := range others {
 		if o.key < key {
@@ -250,7 +291,7 @@ func (d *DB) shiftTask(ctx context.Context, id int64, delta int) error {
 	}
 	newPos := pos + delta
 	if newPos < 0 || newPos > len(others) {
-		return nil // already at the edge
+		return nil
 	}
 
 	var prevKey, nextKey string
@@ -291,12 +332,12 @@ type statusEntry struct {
 	key string
 }
 
-// statusOrder returns id/order_key pairs for every task in the given
-// status, ordered by order_key, excluding excludeID when non-zero.
-func (d *DB) statusOrder(ctx context.Context, status gtd.TaskStatus, excludeID int64) ([]statusEntry, error) {
+// pendingOrder returns id/order_key pairs for all pending tasks ordered by
+// order_key, excluding excludeID.
+func (d *DB) pendingOrder(ctx context.Context, excludeID int64) ([]statusEntry, error) {
 	q := sq.Select("id", "order_key").
 		From("tasks").
-		Where(sq.Eq{"status": string(status)}).
+		Where(sq.Eq{"status": string(gtd.TaskStatusPending)}).
 		OrderBy("order_key ASC", "id ASC")
 	if excludeID != 0 {
 		q = q.Where(sq.NotEq{"id": excludeID})
@@ -321,10 +362,10 @@ func (d *DB) statusOrder(ctx context.Context, status gtd.TaskStatus, excludeID i
 	return entries, rows.Err()
 }
 
-func (d *DB) nextOrderKey(ctx context.Context, status gtd.TaskStatus) (string, error) {
+func (d *DB) nextOrderKey(ctx context.Context) (string, error) {
 	var maxKey sql.NullString
 	query, args, err := sq.Select("MAX(order_key)").From("tasks").
-		Where(sq.Eq{"status": string(status)}).ToSql()
+		Where(sq.Eq{"status": string(gtd.TaskStatusPending)}).ToSql()
 	if err != nil {
 		return "", err
 	}
@@ -333,26 +374,25 @@ func (d *DB) nextOrderKey(ctx context.Context, status gtd.TaskStatus) (string, e
 	}
 	key, ok := orderkey.Between(maxKey.String, "")
 	if !ok {
-		return "", fmt.Errorf("order keys exhausted for status %q", status)
+		return "", fmt.Errorf("order keys exhausted")
 	}
 	return key, nil
 }
 
-func (d *DB) taskStatusAndKey(ctx context.Context, id int64) (gtd.TaskStatus, string, error) {
-	query, args, err := sq.Select("status", "order_key").From("tasks").Where(sq.Eq{"id": id}).ToSql()
+func (d *DB) taskOrderKey(ctx context.Context, id int64) (string, error) {
+	query, args, err := sq.Select("order_key").From("tasks").Where(sq.Eq{"id": id}).ToSql()
 	if err != nil {
-		return "", "", err
+		return "", err
 	}
-	var status string
 	var key sql.NullString
-	err = d.db.QueryRowContext(ctx, query, args...).Scan(&status, &key)
+	err = d.db.QueryRowContext(ctx, query, args...).Scan(&key)
 	if errors.Is(err, sql.ErrNoRows) {
-		return "", "", fmt.Errorf("task %d: not found", id)
+		return "", fmt.Errorf("task %d: not found", id)
 	}
 	if err != nil {
-		return "", "", err
+		return "", err
 	}
-	return gtd.TaskStatus(status), key.String, nil
+	return key.String, nil
 }
 
 func (d *DB) setOrderKey(ctx context.Context, id int64, key string) error {

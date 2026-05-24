@@ -13,7 +13,7 @@ The GTD methodology requires multi-step outcomes (Projects) as a core organizati
   - ParkProject: sets status to someday, filters tasks from default views (no task status change)
   - UnparkProject: restores status to active
 - Enforce invariant: no pending tasks under closed (done/dropped) projects
-- Support Task.ProjectID relationship for task-to-project linking
+- Add ProjectID *int64 to Task struct and a new migration adding project_id column to tasks table (FK to projects with ON DELETE SET NULL)
 
 ## Capabilities
 
@@ -26,7 +26,7 @@ The GTD methodology requires multi-step outcomes (Projects) as a core organizati
 
 ## Impact
 
-- Root package: new Project type and ProjectService interface in project.go
-- sqlite/: new project.go with SQLite implementation, new migration for projects table
-- sqlite/task.go: query support for filtering tasks by project status (someday filtering)
-- Tests: new project_test.go for service tests
+- Root package: new Project type and ProjectService interface in project.go; Task struct gains ProjectID *int64
+- sqlite/: new project.go, new migration for projects table and project_id column on tasks
+- sqlite/task.go: add ProjectID to column list and scan; query support for filtering by ProjectID and project status
+- Tests: new project_test.go for service tests; update task tests for ProjectID

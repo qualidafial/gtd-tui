@@ -63,7 +63,7 @@ func (m Model) Init() tea.Cmd {
 
 func (m Model) loadCmd() tea.Cmd {
 	return func() tea.Msg {
-		tasks, err := m.svc.Tasks(context.Background(), m.filter)
+		tasks, err := m.svc.ListTasks(context.Background(), m.filter)
 		if err != nil {
 			return fmt.Errorf("load tasks: %w", err)
 		}
@@ -108,12 +108,9 @@ func (m Model) Update(msg tea.Msg) (screen.Screen, tea.Cmd) {
 	case tea.KeyPressMsg:
 		switch {
 		case key.Matches(msg, KeyNew):
-			var status gtd.TaskStatus = gtd.TaskStatusInbox
-			if len(m.filter.Statuses) > 0 {
-				status = m.filter.Statuses[0]
-			}
 			t := gtd.Task{
-				Status: status,
+				Status: gtd.TaskStatusPending,
+				Kind:   gtd.TaskKindNextAction,
 			}
 			return m, screen.ShowOverlay(taskedit.New(t, m.svc))
 		case key.Matches(msg, KeyEdit):
@@ -149,7 +146,9 @@ func (m Model) View() string {
 }
 
 func filterMatches(a, b gtd.TaskFilter) bool {
-	return slices.Equal(a.Statuses, b.Statuses) && slices.Equal(a.TaskIDs, b.TaskIDs)
+	statusMatch := (a.Status == nil && b.Status == nil) ||
+		(a.Status != nil && b.Status != nil && *a.Status == *b.Status)
+	return statusMatch && slices.Equal(a.TaskIDs, b.TaskIDs)
 }
 
 // moveCmd reorders the selected task by one slot in the given direction
@@ -181,7 +180,7 @@ func (m Model) moveCmd(direction int) tea.Cmd {
 		if err := doMove(ctx, id); err != nil {
 			return fmt.Errorf("move task: %w", err)
 		}
-		tasks, err := svc.Tasks(ctx, filter)
+		tasks, err := svc.ListTasks(ctx, filter)
 		if err != nil {
 			return fmt.Errorf("reload tasks: %w", err)
 		}
@@ -194,13 +193,5 @@ func (m Model) moveCmd(direction int) tea.Cmd {
 }
 
 func isClosedFilter(f gtd.TaskFilter) bool {
-	if len(f.Statuses) == 0 {
-		return false
-	}
-	for _, s := range f.Statuses {
-		if s != gtd.TaskStatusDone && s != gtd.TaskStatusDropped {
-			return false
-		}
-	}
-	return true
+	return f.Status != nil && (*f.Status == gtd.TaskStatusDone || *f.Status == gtd.TaskStatusDropped)
 }

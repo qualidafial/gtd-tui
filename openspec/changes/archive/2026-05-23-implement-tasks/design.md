@@ -3,7 +3,7 @@
 The GTD TUI requires Task entity implementation as defined in the foundation specs (`domain-model` and `architecture`). Tasks are the core actionable unit in GTD - they represent single-step work items that can be next actions (do ASAP) or delegated (waiting on someone else).
 
 The foundation specs already define:
-- Task fields: Kind, Status, Due, DeferUntil, ProjectID, Assignee
+- Task fields: Kind, Status, Due, DeferUntil, Assignee (ProjectID deferred to `implement-projects`)
 - Service pattern: value semantics, dedicated transition methods
 - SQLite conventions: squirrel queries, CHECK constraints, transactions
 
@@ -28,9 +28,9 @@ This design implements those requirements with specific technical decisions.
 
 ### Decision 1: Task struct field layout
 
-Task fields in order: ID, Title, Description, Kind, Status, Assignee, Due, DeferUntil, ProjectID, CreatedAt, UpdatedAt.
+Task fields in order: ID, Title, Description, Kind, Status, Assignee, Due, DeferUntil, CreatedAt, UpdatedAt.
 
-**Rationale:** Group identity (ID), content (Title, Description), GTD semantics (Kind, Status, Assignee), scheduling (Due, DeferUntil), relationships (ProjectID), and timestamps together. Assignee follows Status since it's only relevant for delegated tasks.
+**Rationale:** Group identity (ID), content (Title, Description), GTD semantics (Kind, Status, Assignee), scheduling (Due, DeferUntil), and timestamps together. Assignee follows Status since it's only relevant for delegated tasks. ProjectID is intentionally NOT part of this change — the task-to-project relationship (field, column, FK) lands in `implement-projects` alongside the projects table it references.
 
 **Alternatives:**
 - Alphabetical order: rejected - harder to read and understand field relationships
@@ -55,31 +55,36 @@ Implement CompleteTask, DropTask, ReopenTask as separate methods rather than all
 **Alternatives:**
 - Status field in UpdateTask params: rejected - violates architecture spec, spreads transition logic
 
-### Decision 4: List filtering via ListOptions struct
+### Decision 4: List filtering via TaskFilter with builder methods
 
 ```go
-type TaskListOptions struct {
-    Status     *TaskStatus
-    Kind       *TaskKind
-    ProjectID  *int64
+type TaskFilter struct {
+    Status          *TaskStatus
+    Kind            *TaskKind
     IncludeDeferred bool // default false
+    TaskIDs         []int64
 }
+
+func (f TaskFilter) WithStatus(s TaskStatus) TaskFilter { f.Status = &s; return f }
+func (f TaskFilter) WithKind(k TaskKind) TaskFilter     { f.Kind = &k; return f }
+func (f TaskFilter) WithTaskIDs(ids ...int64) TaskFilter { f.TaskIDs = ids; return f }
 ```
 
-**Rationale:** Pointer fields allow distinguishing "not specified" from "filter by nil ProjectID". IncludeDeferred defaults to false so deferred tasks are hidden in normal views.
+**Rationale:** Kept the pre-existing `TaskFilter` name rather than introducing `TaskListOptions`. Pointer fields distinguish "not specified" from "filter by this value". Chained builder methods (`gtd.TaskFilter{}.WithStatus(...)`) read cleanly at call sites and were already the convention in the TUI. `ProjectID` is omitted — it arrives with `implement-projects`. IncludeDeferred defaults to false so deferred tasks are hidden in normal views.
 
 **Alternatives:**
+- `TaskListOptions` struct (original plan): rejected - duplicated the existing `TaskFilter` type with a new name
 - Multiple List method variants (ListPending, ListByProject): rejected - combinatorial explosion
 - Filter callback function: rejected - can't push filtering to database
 
-### Decision 5: Migration file naming
+### Decision 5: Migration strategy — update 0001 in-place
 
-Use `0002_tasks.sql` following existing `0001_*.sql` pattern.
+Consolidate the tasks schema into a single migration, `0001_tasks.sql`: corrected status enum (pending/done/dropped), kind + assignee columns, order_key column, and the order_key index. The previously separate `0002_task_order_key.sql` is deleted — its column and index fold into 0001.
 
-**Rationale:** Lexicographic ordering ensures proper sequence. Single migration creates tasks table with all constraints.
+**Rationale:** No valuable data exists yet, so the original wrong schema and the separate order_key migration never need to have existed as far as the migration trail is concerned. A single migration keeps the history honest rather than encoding a wrong schema in 0001 and patching it across later files.
 
 **Alternatives:**
-- Separate migrations for table/indexes/constraints: rejected - unnecessary for initial creation
+- New `0002_tasks.sql` / `0003` revision migration: rejected - would leave 0001 encoding the wrong schema permanently, with no data-preservation benefit to justify it
 
 ## Risks / Trade-offs
 
@@ -87,4 +92,6 @@ Use `0002_tasks.sql` following existing `0001_*.sql` pattern.
 
 **[Risk] DeferUntil filtering adds complexity to List queries** → Worth it for GTD workflow; keep default behavior (exclude deferred) and explicit opt-in flag.
 
-**[Risk] No cascade on ProjectID foreign key** → Tasks should not be deleted when Project is deleted; Project completion/dropping will handle task status separately.
+**[Deferred] ProjectID and its foreign key** → Not part of this change. The field, column, FK (no cascade on delete), and project-status filtering all land in `implement-projects` together with the projects table.
+
+**[Deferred] Comment parameter on UpdateTask and transition methods** → Not part of this change. `UpdateTask`, `CompleteTask`, `DropTask`, and `ReopenTask` ship without a comment parameter; `implement-comments` will modify the task-service capability to add it.

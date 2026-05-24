@@ -29,6 +29,38 @@ note — in chronological order — without hunting through separate logs.
 
 ### Clarify (Process Inbox)
 
+```
+	                       [ RANDOM INPUT ]
+	                              │
+	                        What is it?
+	                              │
+	            ┌─────────────────┴─────────────────┐
+	            ▼                                   ▼
+	      Is it Actionable?                    NOT Actionable?
+	            │                                   │
+	            ├───────┐                           ├───────┐
+	           Yes      No                         No      Yes
+	            │       │                           │       │
+	            ▼       ▼                           ▼       ▼
+	     [ Multi-step? ] │                    [ Trash ]   [ Someday / Maybe ]
+	      (Yes: Project) │                    (Discard)   (Incubate for later)
+	            │       │                           │
+	            ▼       ▼                           ▼
+	  [ What's the Next Action? ]             [ Reference Material ]
+	            │                             (Keep for easy retrieval)
+	            ├───────┬─────────────┐
+	          < 2 min   > 2 min       │
+	            │       │             ▼
+	            ▼       ▼     [ Delegate to someone else ]
+	      [ DO IT ]  [ Defer / ]
+	      (Do now)   [ Postpone ]
+	                     │
+	         ┌───────────┴───────────┐
+	         ▼                       ▼
+	  [ Calendar ]             [ Next Actions ]
+	(Specific date/time)     (Do as soon as possible)
+```
+
 - Review inbox items one at a time with a detail panel
 - Promote an item to a task with full metadata (kind, due date, defer-until, project)
 - Assign a task to a project, or create the project inline

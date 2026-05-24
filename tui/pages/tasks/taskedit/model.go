@@ -19,13 +19,9 @@ import (
 	"github.com/qualidafial/gtd-tui/tui/pages/tasks"
 )
 
-var taskStatusOptions = []huh.Option[gtd.TaskStatus]{
-	huh.NewOption("Inbox", gtd.TaskStatusInbox),
-	huh.NewOption("Active", gtd.TaskStatusActive),
-	huh.NewOption("Waiting", gtd.TaskStatusWaiting),
-	huh.NewOption("Deferred", gtd.TaskStatusDeferred),
-	huh.NewOption("Done", gtd.TaskStatusDone),
-	huh.NewOption("Dropped", gtd.TaskStatusDropped),
+var taskKindOptions = []huh.Option[gtd.TaskKind]{
+	huh.NewOption("Next Action", gtd.TaskKindNextAction),
+	huh.NewOption("Delegated", gtd.TaskKindDelegated),
 }
 
 var keyBack = key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "back"))
@@ -45,6 +41,12 @@ type Model struct {
 }
 
 func New(task gtd.Task, svc gtd.TaskService) Model {
+	if task.ID == 0 {
+		task.Status = gtd.TaskStatusPending
+		if task.Kind == "" {
+			task.Kind = gtd.TaskKindNextAction
+		}
+	}
 	m := Model{
 		task: &task,
 		svc:  svc,
@@ -63,10 +65,13 @@ func New(task gtd.Task, svc gtd.TaskService) Model {
 		huh.NewText().
 			Title("Description").
 			Value(&task.Description),
-		huh.NewSelect[gtd.TaskStatus]().
-			Title("Status").
-			Options(taskStatusOptions...).
-			Value(&task.Status),
+		huh.NewSelect[gtd.TaskKind]().
+			Title("Kind").
+			Options(taskKindOptions...).
+			Value(&task.Kind),
+		huh.NewInput().
+			Title("Assignee").
+			Value(&task.Assignee),
 		date.NewField().
 			Title("Due").
 			Value(&task.Due),
