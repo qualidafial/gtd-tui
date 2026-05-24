@@ -72,7 +72,7 @@ func New(
 }
 
 func (m Model) Init() tea.Cmd {
-	var cmds []tea.Cmd
+	cmds := []tea.Cmd{tea.RequestBackgroundColor}
 	for _, screen := range m.tabs {
 		cmds = append(cmds, screen.Init())
 	}

@@ -124,19 +124,19 @@ func applyKeyValue(filter *gtd.TaskFilter, key, value string, tok token, now tim
 		v := value
 		filter.Assignee = &v
 	case "due":
-		p, err := parseDatePredicate(value, gtd.OnOrBefore, true, now, loc)
+		p, err := parseDatePredicate(value, gtd.OnOrBefore, true, boundaryEndOfDay, now, loc)
 		if err != nil {
 			return tokenError(tok)
 		}
 		filter.Due = p
 	case "defer":
-		p, err := parseDatePredicate(value, gtd.After, true, now, loc)
+		p, err := parseDatePredicate(value, gtd.After, true, boundaryStartOfDay, now, loc)
 		if err != nil {
 			return tokenError(tok)
 		}
 		filter.Defer = p
 	case "ready":
-		p, err := parseDatePredicate(value, gtd.AvailableAsOf, false, now, loc)
+		p, err := parseDatePredicate(value, gtd.AvailableAsOf, false, boundaryStartOfDay, now, loc)
 		if err != nil {
 			return tokenError(tok)
 		}
@@ -175,10 +175,21 @@ func parseKind(v string) (gtd.TaskKind, error) {
 	return "", fmt.Errorf("invalid kind %q", v)
 }
 
+// dayBoundary selects how a day-granularity value is resolved within its
+// calendar day: endOfDay (used by due) or startOfDay (used by defer/ready).
+type dayBoundary int
+
+const (
+	boundaryEndOfDay dayBoundary = iota
+	boundaryStartOfDay
+)
+
 // parseDatePredicate resolves a date value into a *gtd.DatePredicate. thresholdKind
 // is the time-based kind for this key (OnOrBefore/After/AvailableAsOf).
 // allowNullVariants enables none/any (IsNull/IsNotNull); ready disallows them.
-func parseDatePredicate(v string, thresholdKind gtd.DatePredicateKind, allowNullVariants bool, now time.Time, loc *time.Location) (*gtd.DatePredicate, error) {
+// boundary controls day-granularity resolution: due thresholds at end-of-day,
+// defer/ready at start-of-day, so the live filter agrees with the displayed chip.
+func parseDatePredicate(v string, thresholdKind gtd.DatePredicateKind, allowNullVariants bool, boundary dayBoundary, now time.Time, loc *time.Location) (*gtd.DatePredicate, error) {
 	switch v {
 	case "none":
 		if !allowNullVariants {
@@ -192,7 +203,7 @@ func parseDatePredicate(v string, thresholdKind gtd.DatePredicateKind, allowNull
 		return &gtd.DatePredicate{Kind: gtd.IsNotNull}, nil
 	}
 
-	t, err := resolveTime(v, now, loc)
+	t, err := resolveTime(v, boundary, now, loc)
 	if err != nil {
 		return nil, err
 	}
@@ -200,10 +211,16 @@ func parseDatePredicate(v string, thresholdKind gtd.DatePredicateKind, allowNull
 }
 
 // resolveTime resolves a date value to a time. `now` is the current instant;
-// every other form resolves to end-of-day in loc.
-func resolveTime(v string, now time.Time, loc *time.Location) (time.Time, error) {
+// every day-granularity form resolves to the start or end of its day in loc per
+// boundary.
+func resolveTime(v string, boundary dayBoundary, now time.Time, loc *time.Location) (time.Time, error) {
 	if v == "now" {
 		return now, nil
+	}
+
+	resolveDay := endOfLocalDay
+	if boundary == boundaryStartOfDay {
+		resolveDay = startOfLocalDay
 	}
 
 	// Keyword aliases over relative durations.
@@ -220,12 +237,12 @@ func resolveTime(v string, now time.Time, loc *time.Location) (time.Time, error)
 		return time.Time{}, err
 	} else if ok {
 		day := now.In(loc).AddDate(0, 0, days)
-		return endOfLocalDay(day, loc), nil
+		return resolveDay(day, loc), nil
 	}
 
 	// ISO date.
 	if t, err := time.ParseInLocation("2006-01-02", v, loc); err == nil {
-		return endOfLocalDay(t, loc), nil
+		return resolveDay(t, loc), nil
 	}
 
 	return time.Time{}, fmt.Errorf("invalid date %q", v)
@@ -256,4 +273,10 @@ func parseRelative(v string) (days int, ok bool, err error) {
 func endOfLocalDay(t time.Time, loc *time.Location) time.Time {
 	local := t.In(loc)
 	return time.Date(local.Year(), local.Month(), local.Day(), 23, 59, 59, int(time.Second-time.Nanosecond), loc)
+}
+
+// startOfLocalDay returns 00:00:00 of t's calendar day in loc.
+func startOfLocalDay(t time.Time, loc *time.Location) time.Time {
+	local := t.In(loc)
+	return time.Date(local.Year(), local.Month(), local.Day(), 0, 0, 0, 0, loc)
 }

@@ -66,12 +66,7 @@ type queryDebounceMsg struct{ seq int }
 func New(svc gtd.TaskService, query string) Model {
 	keys := defaultKeyMap()
 
-	delegate := list.NewDefaultDelegate()
-	delegate.ShowDescription = false
-	delegate.ShortHelpFunc = func() []key.Binding { return []key.Binding{keys.New, keys.Edit} }
-	delegate.FullHelpFunc = func() [][]key.Binding { return [][]key.Binding{{keys.New, keys.Edit}} }
-
-	l := list.New(nil, delegate, 0, 0)
+	l := list.New(nil, newDelegate(keys), 0, 0)
 	l.SetStatusBarItemName("task", "tasks")
 	l.SetShowTitle(false)
 	l.SetShowHelp(false) // app renders help via mergedKeyMap

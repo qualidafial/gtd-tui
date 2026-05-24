@@ -18,6 +18,10 @@ func endOfDay(year int, month time.Month, day int) time.Time {
 	return time.Date(year, month, day, 23, 59, 59, int(time.Second-time.Nanosecond), time.Local).UTC()
 }
 
+func startOfDay(year int, month time.Month, day int) time.Time {
+	return time.Date(year, month, day, 0, 0, 0, 0, time.Local).UTC()
+}
+
 func TestParse_StructuredKeys(t *testing.T) {
 	pending := gtd.TaskStatusPending
 	done := gtd.TaskStatusDone
@@ -50,7 +54,7 @@ func TestParse_StructuredKeys(t *testing.T) {
 		{
 			"defer threshold",
 			"defer:0d",
-			gtd.TaskFilter{Defer: &gtd.DatePredicate{Kind: gtd.After, Time: endOfDay(2026, 5, 24)}},
+			gtd.TaskFilter{Defer: &gtd.DatePredicate{Kind: gtd.After, Time: startOfDay(2026, 5, 24)}},
 		},
 		{
 			"due none",
@@ -114,13 +118,21 @@ func TestParse_DateValues(t *testing.T) {
 		query string
 		want  time.Time
 	}{
-		{"relative future days", "due:7d", endOfDay(2026, 5, 31)},
-		{"relative past days", "due:-5d", endOfDay(2026, 5, 19)},
-		{"week unit", "defer:2w", endOfDay(2026, 6, 7)},
-		{"overdue alias", "due:overdue", endOfDay(2026, 5, 23)},
-		{"today alias", "due:today", endOfDay(2026, 5, 24)},
-		{"week alias", "due:week", endOfDay(2026, 5, 31)},
-		{"iso date", "due:2026-06-01", endOfDay(2026, 6, 1)},
+		// due thresholds at end-of-day.
+		{"due relative future days", "due:7d", endOfDay(2026, 5, 31)},
+		{"due relative past days", "due:-5d", endOfDay(2026, 5, 19)},
+		{"due overdue alias", "due:overdue", endOfDay(2026, 5, 23)},
+		{"due today alias", "due:today", endOfDay(2026, 5, 24)},
+		{"due week alias", "due:week", endOfDay(2026, 5, 31)},
+		{"due iso date", "due:2026-06-01", endOfDay(2026, 6, 1)},
+		// defer/ready threshold at start-of-day.
+		{"defer week unit", "defer:2w", startOfDay(2026, 6, 7)},
+		{"defer today alias", "defer:today", startOfDay(2026, 5, 24)},
+		{"defer relative future days", "defer:7d", startOfDay(2026, 5, 31)},
+		{"defer iso date", "defer:2026-06-01", startOfDay(2026, 6, 1)},
+		{"ready today alias", "ready:today", startOfDay(2026, 5, 24)},
+		{"ready relative past days", "ready:-3d", startOfDay(2026, 5, 21)},
+		{"ready iso date", "ready:2026-06-01", startOfDay(2026, 6, 1)},
 	}
 
 	for _, tt := range tests {
@@ -133,6 +145,8 @@ func TestParse_DateValues(t *testing.T) {
 				pred = got.Due
 			case got.Defer != nil:
 				pred = got.Defer
+			case got.Ready != nil:
+				pred = got.Ready
 			}
 			require.NotNil(t, pred)
 			assert.True(t, pred.Time.Equal(tt.want), "got %v want %v", pred.Time, tt.want)
