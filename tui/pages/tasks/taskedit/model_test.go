@@ -4,12 +4,46 @@ import (
 	"errors"
 	"strings"
 	"testing"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/huh/v2"
+	"github.com/charmbracelet/x/ansi"
 
 	"github.com/qualidafial/gtd-tui"
 )
+
+func TestModel_StatusLine(t *testing.T) {
+	tests := []struct {
+		name   string
+		status gtd.TaskStatus
+		at     time.Time
+		want   string
+	}{
+		{
+			name:   "pending changed three days ago",
+			status: gtd.TaskStatusPending,
+			at:     time.Now().AddDate(0, 0, -3),
+			want:   "Status:  Pending (3d)",
+		},
+		{
+			name:   "done changed today",
+			status: gtd.TaskStatusDone,
+			at:     time.Date(time.Now().Year(), time.Now().Month(), time.Now().Day(), 0, 0, 0, 0, time.Local),
+			want:   "Status:  Done (today)",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m := New(gtd.Task{ID: 1, Title: "Existing", Status: tt.status, StatusChangedAt: tt.at}, nil)
+			view := ansi.Strip(m.View())
+			if !strings.Contains(view, tt.want) {
+				t.Fatalf("expected status line %q in view, got:\n%s", tt.want, view)
+			}
+		})
+	}
+}
 
 func TestModel_SaveError_RendersInView(t *testing.T) {
 	m := New(gtd.Task{ID: 1, Title: "Existing"}, nil)

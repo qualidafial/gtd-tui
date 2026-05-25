@@ -15,7 +15,7 @@ import (
 
 var taskColumns = []string{
 	"t.id", "t.title", "t.description", "t.kind", "t.status", "t.assignee",
-	"t.due", "t.defer_until", "t.created_at", "t.updated_at",
+	"t.due", "t.defer_until", "t.created_at", "t.updated_at", "t.status_changed_at",
 }
 
 func (d *DB) GetTask(ctx context.Context, id int64) (gtd.Task, error) {
@@ -116,6 +116,7 @@ func (d *DB) CreateTask(ctx context.Context, task gtd.Task) (gtd.Task, error) {
 	now := time.Now().UTC()
 	task.CreatedAt = now
 	task.UpdatedAt = now
+	task.StatusChangedAt = now
 
 	var key any
 	if !isClosedStatus(task.Status) {
@@ -127,10 +128,10 @@ func (d *DB) CreateTask(ctx context.Context, task gtd.Task) (gtd.Task, error) {
 	}
 
 	query, args, err := sq.Insert("tasks").
-		Columns("title", "description", "kind", "status", "assignee", "due", "defer_until", "created_at", "updated_at", "order_key").
+		Columns("title", "description", "kind", "status", "assignee", "due", "defer_until", "created_at", "updated_at", "status_changed_at", "order_key").
 		Values(task.Title, task.Description, string(task.Kind), string(task.Status), task.Assignee,
 			nullTime(task.Due), nullTime(task.DeferUntil),
-			task.CreatedAt, task.UpdatedAt, key).
+			task.CreatedAt, task.UpdatedAt, task.StatusChangedAt, key).
 		ToSql()
 	if err != nil {
 		return gtd.Task{}, err
@@ -180,22 +181,23 @@ func (d *DB) UpdateTask(ctx context.Context, task gtd.Task) (gtd.Task, error) {
 	return task, nil
 }
 
-func (d *DB) CompleteTask(ctx context.Context, id int64) (gtd.Task, error) {
-	return d.transitionTask(ctx, id, gtd.TaskStatusDone, gtd.TaskStatusPending)
+func (d *DB) CompleteTask(ctx context.Context, id int64, at time.Time) (gtd.Task, error) {
+	return d.transitionTask(ctx, id, at, gtd.TaskStatusDone, gtd.TaskStatusPending)
 }
 
-func (d *DB) DropTask(ctx context.Context, id int64) (gtd.Task, error) {
-	return d.transitionTask(ctx, id, gtd.TaskStatusDropped, gtd.TaskStatusPending)
+func (d *DB) DropTask(ctx context.Context, id int64, at time.Time) (gtd.Task, error) {
+	return d.transitionTask(ctx, id, at, gtd.TaskStatusDropped, gtd.TaskStatusPending)
 }
 
-func (d *DB) ReopenTask(ctx context.Context, id int64) (gtd.Task, error) {
-	return d.transitionTask(ctx, id, gtd.TaskStatusPending, gtd.TaskStatusDone, gtd.TaskStatusDropped)
+func (d *DB) ReopenTask(ctx context.Context, id int64, at time.Time) (gtd.Task, error) {
+	return d.transitionTask(ctx, id, at, gtd.TaskStatusPending, gtd.TaskStatusDone, gtd.TaskStatusDropped)
 }
 
 // transitionTask atomically validates the current status is one of allowedFrom,
-// then sets it to newStatus. Clears order_key for closed transitions; assigns
-// a fresh key when reopening to pending.
-func (d *DB) transitionTask(ctx context.Context, id int64, newStatus gtd.TaskStatus, allowedFrom ...gtd.TaskStatus) (gtd.Task, error) {
+// then sets it to newStatus. updated_at tracks record time (now); the supplied
+// at is the event time stored in status_changed_at. Clears order_key for closed
+// transitions; assigns a fresh key when reopening to pending.
+func (d *DB) transitionTask(ctx context.Context, id int64, at time.Time, newStatus gtd.TaskStatus, allowedFrom ...gtd.TaskStatus) (gtd.Task, error) {
 	var task gtd.Task
 	err := d.RunTx(ctx, func(ctx context.Context, tx *DB) error {
 		current, err := tx.GetTask(ctx, id)
@@ -214,9 +216,11 @@ func (d *DB) transitionTask(ctx context.Context, id int64, newStatus gtd.TaskSta
 		}
 
 		now := time.Now().UTC()
+		statusChangedAt := at.UTC()
 		update := sq.Update("tasks").
 			Set("status", string(newStatus)).
 			Set("updated_at", now).
+			Set("status_changed_at", statusChangedAt).
 			Where(sq.Eq{"id": id})
 
 		if isClosedStatus(newStatus) {
@@ -239,6 +243,7 @@ func (d *DB) transitionTask(ctx context.Context, id int64, newStatus gtd.TaskSta
 
 		current.Status = newStatus
 		current.UpdatedAt = now
+		current.StatusChangedAt = statusChangedAt
 		task = current
 		return nil
 	})
@@ -268,7 +273,7 @@ func scanTask(s scanner) (gtd.Task, error) {
 	var due, deferUntil sql.NullTime
 	err := s.Scan(
 		&task.ID, &task.Title, &task.Description, &task.Kind, &task.Status, &task.Assignee,
-		&due, &deferUntil, &task.CreatedAt, &task.UpdatedAt,
+		&due, &deferUntil, &task.CreatedAt, &task.UpdatedAt, &task.StatusChangedAt,
 	)
 	if err != nil {
 		return gtd.Task{}, err

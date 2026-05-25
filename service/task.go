@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"time"
 
 	"github.com/qualidafial/gtd-tui"
 	"github.com/qualidafial/gtd-tui/sqlite"
@@ -31,16 +32,16 @@ func (s *TaskService) UpdateTask(ctx context.Context, task gtd.Task) (gtd.Task, 
 	return s.db.UpdateTask(ctx, task)
 }
 
-func (s *TaskService) CompleteTask(ctx context.Context, id int64) (gtd.Task, error) {
-	return s.db.CompleteTask(ctx, id)
+func (s *TaskService) CompleteTask(ctx context.Context, id int64, at time.Time) (gtd.Task, error) {
+	return s.db.CompleteTask(ctx, id, at)
 }
 
-func (s *TaskService) DropTask(ctx context.Context, id int64) (gtd.Task, error) {
-	return s.db.DropTask(ctx, id)
+func (s *TaskService) DropTask(ctx context.Context, id int64, at time.Time) (gtd.Task, error) {
+	return s.db.DropTask(ctx, id, at)
 }
 
-func (s *TaskService) ReopenTask(ctx context.Context, id int64) (gtd.Task, error) {
-	return s.db.ReopenTask(ctx, id)
+func (s *TaskService) ReopenTask(ctx context.Context, id int64, at time.Time) (gtd.Task, error) {
+	return s.db.ReopenTask(ctx, id, at)
 }
 
 func (s *TaskService) DeleteTask(ctx context.Context, id int64) error {

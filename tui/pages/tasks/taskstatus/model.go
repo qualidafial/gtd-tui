@@ -3,6 +3,7 @@ package taskstatus
 import (
 	"context"
 	"log/slog"
+	"time"
 
 	"charm.land/bubbles/v2/help"
 	"charm.land/bubbles/v2/key"
@@ -10,6 +11,7 @@ import (
 	"charm.land/huh/v2"
 
 	"github.com/qualidafial/gtd-tui"
+	"github.com/qualidafial/gtd-tui/tui/components/date"
 	"github.com/qualidafial/gtd-tui/tui/components/screen"
 	"github.com/qualidafial/gtd-tui/tui/pages/tasks"
 )
@@ -18,10 +20,14 @@ type Model struct {
 	task       gtd.Task
 	svc        gtd.TaskService
 	transition Transition
-	// confirm is a pointer so the bound huh field and every Model copy that
-	// flows through the screen stack share one stable address; binding to a
-	// value field writes to a stale copy and the confirmation is lost.
+	// confirm and at are pointers so the bound huh fields and every Model copy
+	// that flows through the screen stack share one stable address; binding to
+	// a value field writes to a stale copy and the input is lost. at is a
+	// **time.Time because the date field reassigns the *time.Time it edits
+	// (to nil when cleared, or to a fresh parsed time), so the shared storage
+	// must be a stable slot holding that pointer, not the pointer itself.
 	confirm  *bool
+	at       **time.Time
 	err      error
 	form     *huh.Form
 	applying bool
@@ -32,11 +38,15 @@ func New(task gtd.Task, svc gtd.TaskService, transition Transition) Model {
 		task:       task,
 		svc:        svc,
 		transition: transition,
-		confirm:    new(true), // default selection is the affirmative button
+		confirm:    new(true),            // default selection is the affirmative button
+		at:         new(new(time.Now())), // transition timestamp defaults to now
 	}
 
 	s := specs[transition]
-	field := huh.NewConfirm().
+	when := date.NewField().
+		Title("When").
+		Value(m.at)
+	confirm := huh.NewConfirm().
 		Title(s.title).
 		Description(s.description(task.Title)).
 		Affirmative(s.affirmative).
@@ -46,7 +56,7 @@ func New(task gtd.Task, svc gtd.TaskService, transition Transition) Model {
 	keymap := huh.NewDefaultKeyMap()
 	keymap.Quit = key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "cancel"))
 
-	m.form = huh.NewForm(huh.NewGroup(field)).
+	m.form = huh.NewForm(huh.NewGroup(when, confirm)).
 		WithShowErrors(true).
 		WithShowHelp(false).
 		WithKeyMap(keymap)
@@ -99,8 +109,14 @@ func (m Model) applyCmd() tea.Cmd {
 	id := m.task.ID
 	svc := m.svc
 	apply := specs[m.transition].apply
+	// A cleared timestamp field leaves the slot nil; fall back to now so the
+	// instant is never null and the Enter-Enter path needs no special value.
+	at := time.Now()
+	if m.at != nil && *m.at != nil {
+		at = **m.at
+	}
 	return func() tea.Msg {
-		_, err := apply(svc, context.Background(), id)
+		_, err := apply(svc, context.Background(), id, at)
 		if err != nil {
 			slog.Error("transitioning task: " + err.Error())
 		}

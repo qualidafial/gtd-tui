@@ -31,6 +31,10 @@ type Task struct {
 	DeferUntil  *time.Time
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
+	// StatusChangedAt records when the task last entered its current status:
+	// equal to CreatedAt on creation (the transition into pending), then
+	// overwritten by the supplied instant on every Complete/Drop/Reopen.
+	StatusChangedAt time.Time
 }
 
 type TaskService interface {
@@ -38,9 +42,9 @@ type TaskService interface {
 	ListTasks(ctx context.Context, filter TaskFilter) ([]Task, error)
 	CreateTask(ctx context.Context, task Task) (Task, error)
 	UpdateTask(ctx context.Context, task Task) (Task, error)
-	CompleteTask(ctx context.Context, id int64) (Task, error)
-	DropTask(ctx context.Context, id int64) (Task, error)
-	ReopenTask(ctx context.Context, id int64) (Task, error)
+	CompleteTask(ctx context.Context, id int64, at time.Time) (Task, error)
+	DropTask(ctx context.Context, id int64, at time.Time) (Task, error)
+	ReopenTask(ctx context.Context, id int64, at time.Time) (Task, error)
 	DeleteTask(ctx context.Context, id int64) error
 	MoveUp(ctx context.Context, id int64) error
 	MoveDown(ctx context.Context, id int64) error

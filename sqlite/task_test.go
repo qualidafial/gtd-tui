@@ -2,11 +2,13 @@ package sqlite_test
 
 import (
 	"context"
+	"database/sql"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	_ "modernc.org/sqlite"
 
 	"github.com/qualidafial/gtd-tui"
 	"github.com/qualidafial/gtd-tui/sqlite"
@@ -193,7 +195,7 @@ func TestDB_CompleteTask(t *testing.T) {
 		created, err := db.CreateTask(c, gtd.Task{Title: "To complete", Kind: gtd.TaskKindNextAction, Status: gtd.TaskStatusPending})
 		require.NoError(t, err)
 
-		done, err := db.CompleteTask(c, created.ID)
+		done, err := db.CompleteTask(c, created.ID, time.Now())
 		require.NoError(t, err)
 
 		assert.Equal(t, gtd.TaskStatusDone, done.Status)
@@ -211,7 +213,7 @@ func TestDB_CompleteTask(t *testing.T) {
 		created, err := db.CreateTask(c, gtd.Task{Title: "Already done", Kind: gtd.TaskKindNextAction, Status: gtd.TaskStatusDone})
 		require.NoError(t, err)
 
-		_, err = db.CompleteTask(c, created.ID)
+		_, err = db.CompleteTask(c, created.ID, time.Now())
 		assert.Error(t, err)
 	})
 }
@@ -224,7 +226,7 @@ func TestDB_DropTask(t *testing.T) {
 		created, err := db.CreateTask(c, gtd.Task{Title: "To drop", Kind: gtd.TaskKindNextAction, Status: gtd.TaskStatusPending})
 		require.NoError(t, err)
 
-		dropped, err := db.DropTask(c, created.ID)
+		dropped, err := db.DropTask(c, created.ID, time.Now())
 		require.NoError(t, err)
 
 		assert.Equal(t, gtd.TaskStatusDropped, dropped.Status)
@@ -242,7 +244,7 @@ func TestDB_DropTask(t *testing.T) {
 		created, err := db.CreateTask(c, gtd.Task{Title: "Already done", Kind: gtd.TaskKindNextAction, Status: gtd.TaskStatusDone})
 		require.NoError(t, err)
 
-		_, err = db.DropTask(c, created.ID)
+		_, err = db.DropTask(c, created.ID, time.Now())
 		assert.Error(t, err)
 	})
 
@@ -250,7 +252,7 @@ func TestDB_DropTask(t *testing.T) {
 		db := openTestDB(t)
 		c := ctx(t)
 
-		_, err := db.DropTask(c, 999)
+		_, err := db.DropTask(c, 999, time.Now())
 		assert.Error(t, err)
 	})
 }
@@ -263,7 +265,7 @@ func TestDB_ReopenTask(t *testing.T) {
 		created, err := db.CreateTask(c, gtd.Task{Title: "Done task", Kind: gtd.TaskKindNextAction, Status: gtd.TaskStatusDone})
 		require.NoError(t, err)
 
-		reopened, err := db.ReopenTask(c, created.ID)
+		reopened, err := db.ReopenTask(c, created.ID, time.Now())
 		require.NoError(t, err)
 		assert.Equal(t, gtd.TaskStatusPending, reopened.Status)
 	})
@@ -275,7 +277,7 @@ func TestDB_ReopenTask(t *testing.T) {
 		created, err := db.CreateTask(c, gtd.Task{Title: "Dropped task", Kind: gtd.TaskKindNextAction, Status: gtd.TaskStatusDropped})
 		require.NoError(t, err)
 
-		reopened, err := db.ReopenTask(c, created.ID)
+		reopened, err := db.ReopenTask(c, created.ID, time.Now())
 		require.NoError(t, err)
 		assert.Equal(t, gtd.TaskStatusPending, reopened.Status)
 	})
@@ -287,9 +289,89 @@ func TestDB_ReopenTask(t *testing.T) {
 		created, err := db.CreateTask(c, gtd.Task{Title: "Pending task", Kind: gtd.TaskKindNextAction, Status: gtd.TaskStatusPending})
 		require.NoError(t, err)
 
-		_, err = db.ReopenTask(c, created.ID)
+		_, err = db.ReopenTask(c, created.ID, time.Now())
 		assert.Error(t, err)
 	})
+}
+
+func TestDB_StatusChangedAt(t *testing.T) {
+	t.Run("CreateTask sets status_changed_at to created_at", func(t *testing.T) {
+		db := openTestDB(t)
+		c := ctx(t)
+
+		created, err := db.CreateTask(c, gtd.Task{Title: "New", Kind: gtd.TaskKindNextAction, Status: gtd.TaskStatusPending})
+		require.NoError(t, err)
+		assert.Equal(t, created.CreatedAt, created.StatusChangedAt)
+
+		fetched, err := db.GetTask(c, created.ID)
+		require.NoError(t, err)
+		assert.WithinDuration(t, created.CreatedAt, fetched.StatusChangedAt, time.Second)
+	})
+
+	t.Run("backdated transition stores the instant while updated_at advances", func(t *testing.T) {
+		db := openTestDB(t)
+		c := ctx(t)
+
+		created, err := db.CreateTask(c, gtd.Task{Title: "To complete", Kind: gtd.TaskKindNextAction, Status: gtd.TaskStatusPending})
+		require.NoError(t, err)
+
+		backdate := time.Now().Add(-72 * time.Hour)
+		done, err := db.CompleteTask(c, created.ID, backdate)
+		require.NoError(t, err)
+
+		assert.WithinDuration(t, backdate.UTC(), done.StatusChangedAt, time.Second)
+		assert.False(t, done.UpdatedAt.Before(created.UpdatedAt))
+		assert.True(t, done.StatusChangedAt.Before(done.UpdatedAt))
+
+		fetched, err := db.GetTask(c, created.ID)
+		require.NoError(t, err)
+		assert.WithinDuration(t, backdate, fetched.StatusChangedAt, time.Second)
+	})
+
+	t.Run("non-status UpdateTask leaves status_changed_at unchanged", func(t *testing.T) {
+		db := openTestDB(t)
+		c := ctx(t)
+
+		created, err := db.CreateTask(c, gtd.Task{Title: "Original", Kind: gtd.TaskKindNextAction, Status: gtd.TaskStatusPending})
+		require.NoError(t, err)
+		orig := created.StatusChangedAt
+
+		created.Title = "Renamed"
+		_, err = db.UpdateTask(c, created)
+		require.NoError(t, err)
+
+		fetched, err := db.GetTask(c, created.ID)
+		require.NoError(t, err)
+		assert.WithinDuration(t, orig, fetched.StatusChangedAt, time.Second)
+	})
+}
+
+func TestMigration_StatusChangedAtBackfill(t *testing.T) {
+	conn, err := sql.Open("sqlite", ":memory:")
+	require.NoError(t, err)
+	t.Cleanup(func() { conn.Close() })
+
+	m1, err := sqlite.MigrationSQL("0001_tasks.sql")
+	require.NoError(t, err)
+	_, err = conn.Exec(m1)
+	require.NoError(t, err)
+
+	const updated = "2026-01-02T03:04:05.000Z"
+	_, err = conn.Exec(
+		`INSERT INTO tasks (title, status, created_at, updated_at) VALUES ('old', 'done', ?, ?)`,
+		"2026-01-01T00:00:00.000Z", updated,
+	)
+	require.NoError(t, err)
+
+	m2, err := sqlite.MigrationSQL("0002_task_status_changed_at.sql")
+	require.NoError(t, err)
+	_, err = conn.Exec(m2)
+	require.NoError(t, err)
+
+	var gotStatusChangedAt, gotUpdatedAt string
+	err = conn.QueryRow(`SELECT status_changed_at, updated_at FROM tasks`).Scan(&gotStatusChangedAt, &gotUpdatedAt)
+	require.NoError(t, err)
+	assert.Equal(t, gotUpdatedAt, gotStatusChangedAt)
 }
 
 func TestDB_DeleteTask(t *testing.T) {
@@ -584,7 +666,7 @@ func TestDB_DropTask_SortsByUpdatedAtDesc(t *testing.T) {
 	a := mustCreateTask(t, db, gtd.Task{Title: "A", Kind: gtd.TaskKindNextAction, Status: gtd.TaskStatusDropped})
 	b := mustCreateTask(t, db, gtd.Task{Title: "B", Kind: gtd.TaskKindNextAction, Status: gtd.TaskStatusPending})
 
-	_, err := db.DropTask(c, b.ID)
+	_, err := db.DropTask(c, b.ID, time.Now())
 	require.NoError(t, err)
 
 	// b was just dropped, so it sorts ahead of the older a.

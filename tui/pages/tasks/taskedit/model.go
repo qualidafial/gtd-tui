@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"strings"
 	"time"
 
 	"charm.land/bubbles/v2/help"
@@ -14,6 +15,7 @@ import (
 	"charm.land/lipgloss/v2"
 
 	"github.com/qualidafial/gtd-tui"
+	"github.com/qualidafial/gtd-tui/internal/reltime"
 	"github.com/qualidafial/gtd-tui/tui/components/date"
 	"github.com/qualidafial/gtd-tui/tui/components/screen"
 	"github.com/qualidafial/gtd-tui/tui/pages/tasks"
@@ -27,7 +29,7 @@ var taskKindOptions = []huh.Option[gtd.TaskKind]{
 var keyBack = key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "back"))
 
 var (
-	metaLabelStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
+	metaLabelStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("240")).Width(8)
 	metaValueStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("245"))
 	errorStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("203")).Bold(true)
 )
@@ -170,6 +172,7 @@ func (m Model) View() string {
 			m.metaLine("Task ID", fmt.Sprint(m.task.ID)),
 			m.metaLine("Created", m.task.CreatedAt.Local().Format(time.DateTime)),
 			m.metaLine("Updated", m.task.UpdatedAt.Local().Format(time.DateTime)),
+			m.metaLine("Status", m.statusValue()),
 			"",
 		)
 	}
@@ -182,6 +185,23 @@ func (m Model) View() string {
 
 func (m Model) metaLine(label, value string) string {
 	return metaLabelStyle.Render(label+":") + " " + metaValueStyle.Render(value)
+}
+
+// statusValue renders the status name (first letter capitalized) followed by a
+// relative WHEN of the last status change: "Pending (3d)", "Done (today)".
+func (m Model) statusValue() string {
+	when := reltime.Format(m.task.StatusChangedAt, time.Now())
+	return fmt.Sprintf("%s (%s)", titleStatus(m.task.Status), when)
+}
+
+// titleStatus maps a lowercase TaskStatus to a display form with its first
+// letter capitalized (e.g. "pending" -> "Pending").
+func titleStatus(s gtd.TaskStatus) string {
+	str := string(s)
+	if str == "" {
+		return ""
+	}
+	return strings.ToUpper(str[:1]) + str[1:]
 }
 
 func (m Model) KeyMap() help.KeyMap {
