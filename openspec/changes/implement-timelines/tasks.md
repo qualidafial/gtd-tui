@@ -33,7 +33,7 @@
 - [ ] 5.3 Emit "status_changed" entry in CompleteProject with from/to details
 - [ ] 5.4 Emit "status_changed" entry in DropProject with from/to details
 - [ ] 5.5 Emit "status_changed" entry in ParkProject with from/to details
-- [ ] 5.6 Emit "status_changed" entry in UnparkProject with from/to details
+- [ ] 5.6 Emit "status_changed" entry in ReopenProject with from/to details (from someday/done/dropped to active)
 - [ ] 5.7 Add tests verifying timeline entries for project operations
 
 ## 6. Integrate Timeline into Inbox/Clarify Operations

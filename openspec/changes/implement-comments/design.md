@@ -80,9 +80,8 @@ Tasks do not currently have a comment mechanism. The `UpdateTask` method takes o
 
 ## Risks / Trade-offs
 
-**[Risk] Project entity not yet implemented** 
-The Project table and ProjectService don't exist yet (commented out in code). Comments with ProjectID FK will fail until projects are implemented.
--> Mitigation: Either implement projects first, or make project_id FK deferrable and handle gracefully in tests. The migration can still be written with the FK; it will error on insert until projects table exists.
+**[Resolved] Sequenced after implement-projects**
+This change is sequenced to land after `implement-projects`, which creates the projects table and ProjectService. The comments migration therefore declares its `project_id` FK against an existing table, and this change re-breaks the project-service signatures (UpdateProject and transitions) to add the optional comment parameter that implement-projects deliberately omitted.
 
 **[Risk] Migration ordering with future project migration**
 If projects migration runs after comments migration, the FK will fail.
@@ -98,8 +97,5 @@ UpdateComment overwrites the body; previous versions are lost.
 
 ## Open Questions
 
-1. **Order of implementation vs. projects**: Should this change block on implement-projects, or can they proceed in parallel with deferred FK? 
-   - Recommendation: Implement projects first; sequencing is simpler than dealing with deferred constraints.
-
-2. **Maximum comment length**: Should we enforce a CHECK constraint on body length?
+1. **Maximum comment length**: Should we enforce a CHECK constraint on body length?
    - Recommendation: No constraint initially. Let usage patterns inform limits. SQLite handles TEXT efficiently.

@@ -30,7 +30,7 @@
 
 ## 5. Edit-with-Comment - Project Integration
 
-- [ ] 5.1 Modify ProjectService.UpdateProject signature to accept comment string parameter (when ProjectService is implemented)
+- [ ] 5.1 Modify ProjectService.UpdateProject signature to accept comment string parameter (ProjectService exists as of implement-projects)
 - [ ] 5.2 Update sqlite/project.go UpdateProject to create Comment within transaction when comment is non-empty
 - [ ] 5.3 Add comment parameter to CompleteProject, DropProject, ParkProject, ReopenProject methods
 

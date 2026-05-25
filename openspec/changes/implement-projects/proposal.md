@@ -11,10 +11,14 @@ The GTD methodology requires multi-step outcomes (Projects) as a core organizati
   - CompleteProject: marks project done, cascades or detaches pending tasks based on flag
   - DropProject: marks project dropped, cascades or detaches pending tasks based on flag
   - ParkProject: sets status to someday, filters tasks from default views (no task status change)
-  - UnparkProject: restores status to active
+  - ReopenProject: restores a someday/done/dropped project to active (mirrors ReopenTask; no task status change)
 - Enforce invariant: no pending tasks under closed (done/dropped) projects
 - Add ProjectID *int64 to Task struct and a new migration adding project_id column to tasks table (FK to projects with ON DELETE SET NULL)
 - Follow-on for `task-query-filter`: once tasks link to projects, widen the task-list free-text search to also match the linked project's name (JOIN projects in the sqlite `ListTasks` free-text clause). The query grammar needs no change — only the sqlite free-text clause widens. See task-query-filter design.md "Future Considerations".
+
+## Out of Scope
+
+- **Comments on projects.** The Comment entity does not exist yet. Project service methods (UpdateProject, CompleteProject, DropProject, ParkProject, ReopenProject) ship without comment parameters. `implement-comments` owns adding comment support — it will re-break these signatures to add an optional comment string and atomic Comment creation. API churn is acceptable; see implement-comments `edit-with-comment` spec.
 
 ## Capabilities
 

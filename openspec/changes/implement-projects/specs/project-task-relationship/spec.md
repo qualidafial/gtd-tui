@@ -39,15 +39,15 @@ When a project is completed or dropped, done and dropped tasks SHALL remain atta
 - **THEN** the dropped tasks keep their ProjectID unchanged
 
 ### Requirement: Park project filters tasks from default views
-When a project has someday status, tasks under that project SHALL be filtered from default task views. The task statuses SHALL NOT change; only view filtering is affected. Unparking restores tasks to default views automatically.
+When a project has someday status, tasks under that project SHALL be filtered from default task views. The task statuses SHALL NOT change; only view filtering is affected. Reopening the project restores tasks to default views automatically.
 
 #### Scenario: Tasks under someday project filtered
 - **WHEN** listing tasks with default view filter
 - **AND** a task belongs to a project with status someday
 - **THEN** the task is excluded from the results
 
-#### Scenario: Unpark restores task visibility
-- **WHEN** a project is unparked (status changed from someday to active)
+#### Scenario: Reopen restores task visibility
+- **WHEN** a project is reopened (status changed from someday to active)
 - **THEN** tasks under the project appear in default views again
 
 #### Scenario: Task status unchanged by parking

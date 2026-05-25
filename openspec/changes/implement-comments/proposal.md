@@ -17,7 +17,8 @@ The GTD methodology depends on capturing *why* decisions were made, not just *wh
 - `edit-with-comment`: Transactional update-plus-comment flow for UpdateTask and UpdateProject
 
 ### Modified Capabilities
-(none - existing specs remain unchanged; this adds new behavior without modifying existing requirements)
+- `task-service`: UpdateTask and the status transitions (CompleteTask, DropTask, ReopenTask) gain an optional comment string parameter
+- `project-service`: UpdateProject and the transitions (CompleteProject, DropProject, ParkProject, ReopenProject) gain an optional comment string parameter. `implement-projects` ships these comment-free; this change re-breaks the signatures. API churn is acceptable for this personal project.
 
 ## Impact
 
