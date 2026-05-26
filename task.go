@@ -27,6 +27,7 @@ type Task struct {
 	Kind        TaskKind
 	Status      TaskStatus
 	Assignee    string
+	ProjectID   *int64
 	Due         *time.Time
 	DeferUntil  *time.Time
 	CreatedAt   time.Time
@@ -74,14 +75,18 @@ type DatePredicate struct {
 }
 
 type TaskFilter struct {
-	Status   *TaskStatus
-	Kind     *TaskKind
-	Assignee *string
-	Due      *DatePredicate
-	Ready    *DatePredicate
-	Defer    *DatePredicate
-	Search   []string
-	TaskIDs  []int64
+	Status    *TaskStatus
+	Kind      *TaskKind
+	Assignee  *string
+	ProjectID *int64
+	Due       *DatePredicate
+	Ready     *DatePredicate
+	Defer     *DatePredicate
+	Search    []string
+	TaskIDs   []int64
+	// IncludeSomedayProjects keeps tasks whose project is parked (someday) in
+	// the results. When false (default), someday-project tasks are excluded.
+	IncludeSomedayProjects bool
 }
 
 func (f TaskFilter) WithStatus(s TaskStatus) TaskFilter {
@@ -96,6 +101,11 @@ func (f TaskFilter) WithKind(k TaskKind) TaskFilter {
 
 func (f TaskFilter) WithAssignee(a string) TaskFilter {
 	f.Assignee = &a
+	return f
+}
+
+func (f TaskFilter) WithProjectID(id int64) TaskFilter {
+	f.ProjectID = &id
 	return f
 }
 

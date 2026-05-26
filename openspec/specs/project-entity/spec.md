@@ -7,7 +7,7 @@ The system SHALL provide a Project entity with the following fields:
 - Outcome (string): desired end state statement
 - Description (string): detailed project description
 - Due (*time.Time): optional firm deadline
-- Status (ProjectStatus): one of active, someday, done, dropped
+- Status (ProjectStatus): one of open, someday, done, dropped
 - CreatedAt (time.Time): creation timestamp, server-assigned
 - UpdatedAt (time.Time): last update timestamp, server-assigned
 - StatusChangedAt (time.Time): when the project last entered its current status, server-assigned
@@ -16,7 +16,7 @@ The system SHALL provide a Project entity with the following fields:
 - **WHEN** creating a Project with title "Launch website" and outcome "Website is live and accepting traffic"
 - **THEN** system creates a Project with the specified title and outcome
 - **AND** ID, CreatedAt, and UpdatedAt are server-assigned
-- **AND** Status defaults to active
+- **AND** Status defaults to open
 - **AND** StatusChangedAt equals CreatedAt
 
 #### Scenario: Project title cannot be empty
@@ -25,13 +25,13 @@ The system SHALL provide a Project entity with the following fields:
 
 ### Requirement: Project status values
 A Project's Status SHALL be one of:
-- active: project is in progress
+- open: project is in progress
 - someday: project is parked for later consideration
 - done: project is completed successfully
 - dropped: project is abandoned
 
 #### Scenario: Valid project statuses
-- **WHEN** creating a Project with status active, someday, done, or dropped
+- **WHEN** creating a Project with status open, someday, done, or dropped
 - **THEN** system accepts the status value
 
 #### Scenario: Invalid project status rejected
@@ -39,7 +39,7 @@ A Project's Status SHALL be one of:
 - **THEN** system rejects the operation with a validation error
 
 ### Requirement: Project status-change timestamp
-A Project SHALL record StatusChangedAt, the instant it last entered its current status. On creation it SHALL equal CreatedAt (the transition into active). Every status transition (CompleteProject, DropProject, ParkProject, ReopenProject) SHALL overwrite StatusChangedAt with the instant supplied to that transition. UpdateProject SHALL NOT change StatusChangedAt (it does not change status). This mirrors Task.StatusChangedAt.
+A Project SHALL record StatusChangedAt, the instant it last entered its current status. On creation it SHALL equal CreatedAt (the transition into open). Every status transition (CompleteProject, DropProject, ParkProject, ReopenProject) SHALL overwrite StatusChangedAt with the instant supplied to that transition. UpdateProject SHALL NOT change StatusChangedAt (it does not change status). This mirrors Task.StatusChangedAt.
 
 #### Scenario: Status change updates StatusChangedAt
 - **WHEN** a transition (e.g. CompleteProject) is called with instant T

@@ -14,7 +14,7 @@ import (
 )
 
 var taskColumns = []string{
-	"t.id", "t.title", "t.description", "t.kind", "t.status", "t.assignee",
+	"t.id", "t.title", "t.description", "t.kind", "t.status", "t.assignee", "t.project_id",
 	"t.due", "t.defer_until", "t.created_at", "t.updated_at", "t.status_changed_at",
 }
 
@@ -44,6 +44,13 @@ func (d *DB) ListTasks(ctx context.Context, filter gtd.TaskFilter) ([]gtd.Task, 
 	}
 	if len(filter.TaskIDs) > 0 {
 		q = q.Where(sq.Eq{"t.id": filter.TaskIDs})
+	}
+	if filter.ProjectID != nil {
+		q = q.Where(sq.Eq{"t.project_id": *filter.ProjectID})
+	}
+	if !filter.IncludeSomedayProjects {
+		q = q.LeftJoin("projects p ON p.id = t.project_id").
+			Where("(p.status IS NULL OR p.status != ?)", string(gtd.ProjectStatusSomeday))
 	}
 	if filter.Assignee != nil {
 		q = q.Where("lower(t.assignee) LIKE ?", likeContains(*filter.Assignee))
@@ -128,9 +135,9 @@ func (d *DB) CreateTask(ctx context.Context, task gtd.Task) (gtd.Task, error) {
 	}
 
 	query, args, err := sq.Insert("tasks").
-		Columns("title", "description", "kind", "status", "assignee", "due", "defer_until", "created_at", "updated_at", "status_changed_at", "order_key").
+		Columns("title", "description", "kind", "status", "assignee", "project_id", "due", "defer_until", "created_at", "updated_at", "status_changed_at", "order_key").
 		Values(task.Title, task.Description, string(task.Kind), string(task.Status), task.Assignee,
-			nullTime(task.Due), nullTime(task.DeferUntil),
+			nullInt64(task.ProjectID), nullTime(task.Due), nullTime(task.DeferUntil),
 			task.CreatedAt, task.UpdatedAt, task.StatusChangedAt, key).
 		ToSql()
 	if err != nil {
@@ -164,6 +171,7 @@ func (d *DB) UpdateTask(ctx context.Context, task gtd.Task) (gtd.Task, error) {
 			Set("description", task.Description).
 			Set("kind", string(task.Kind)).
 			Set("assignee", task.Assignee).
+			Set("project_id", nullInt64(task.ProjectID)).
 			Set("due", nullTime(task.Due)).
 			Set("defer_until", nullTime(task.DeferUntil)).
 			Set("updated_at", task.UpdatedAt).
@@ -271,12 +279,16 @@ type scanner interface {
 func scanTask(s scanner) (gtd.Task, error) {
 	var task gtd.Task
 	var due, deferUntil sql.NullTime
+	var projectID sql.NullInt64
 	err := s.Scan(
-		&task.ID, &task.Title, &task.Description, &task.Kind, &task.Status, &task.Assignee,
+		&task.ID, &task.Title, &task.Description, &task.Kind, &task.Status, &task.Assignee, &projectID,
 		&due, &deferUntil, &task.CreatedAt, &task.UpdatedAt, &task.StatusChangedAt,
 	)
 	if err != nil {
 		return gtd.Task{}, err
+	}
+	if projectID.Valid {
+		task.ProjectID = &projectID.Int64
 	}
 	if due.Valid {
 		task.Due = &due.Time
@@ -285,6 +297,13 @@ func scanTask(s scanner) (gtd.Task, error) {
 		task.DeferUntil = &deferUntil.Time
 	}
 	return task, nil
+}
+
+func nullInt64(i *int64) sql.NullInt64 {
+	if i == nil {
+		return sql.NullInt64{}
+	}
+	return sql.NullInt64{Int64: *i, Valid: true}
 }
 
 // MoveUp shifts the task one slot earlier within pending tasks.

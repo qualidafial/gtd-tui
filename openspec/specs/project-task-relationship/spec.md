@@ -38,16 +38,21 @@ When a project is completed or dropped, done and dropped tasks SHALL remain atta
 - **WHEN** DropProject is called on a project with dropped tasks
 - **THEN** the dropped tasks keep their ProjectID unchanged
 
-### Requirement: Park project filters tasks from default views
-When a project has someday status, tasks under that project SHALL be filtered from default task views. The task statuses SHALL NOT change; only view filtering is affected. Reopening the project restores tasks to default views automatically.
+### Requirement: Someday project tasks excluded by default
+Tasks under a someday project SHALL be excluded from default task views. The TaskFilter field IncludeSomedayProjects (default false) controls this: when false, tasks whose project has someday status are filtered out; when true, they are included. Task statuses are never changed by this filtering. Reopening the project restores tasks to default views automatically.
 
-#### Scenario: Tasks under someday project filtered
-- **WHEN** listing tasks with default view filter
+#### Scenario: Tasks under someday project excluded by default
+- **WHEN** listing tasks with default filter (IncludeSomedayProjects=false)
 - **AND** a task belongs to a project with status someday
 - **THEN** the task is excluded from the results
 
+#### Scenario: Tasks under someday project included on request
+- **WHEN** listing tasks with IncludeSomedayProjects=true
+- **AND** a task belongs to a project with status someday
+- **THEN** the task is included in the results
+
 #### Scenario: Reopen restores task visibility
-- **WHEN** a project is reopened (status changed from someday to active)
+- **WHEN** a project is reopened (status changed from someday to open)
 - **THEN** tasks under the project appear in default views again
 
 #### Scenario: Task status unchanged by parking
