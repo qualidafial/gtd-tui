@@ -13,7 +13,6 @@ import (
 	"github.com/qualidafial/gtd-tui"
 	"github.com/qualidafial/gtd-tui/tui/components/date"
 	"github.com/qualidafial/gtd-tui/tui/components/screen"
-	"github.com/qualidafial/gtd-tui/tui/pages/tasks"
 )
 
 type Model struct {
@@ -80,7 +79,7 @@ func (m Model) Update(msg tea.Msg) (screen.Screen, tea.Cmd) {
 			m.applying = false
 			return m, nil
 		}
-		return m, tea.Batch(screen.HideOverlay(), tasks.TasksChanged())
+		return m, screen.Dismiss()
 	}
 
 	if m.applying {
@@ -94,10 +93,10 @@ func (m Model) Update(msg tea.Msg) (screen.Screen, tea.Cmd) {
 
 	switch m.form.State {
 	case huh.StateAborted:
-		return m, tea.Batch(cmd, screen.HideOverlay())
+		return m, tea.Batch(cmd, screen.Dismiss())
 	case huh.StateCompleted:
 		if !*m.confirm {
-			return m, tea.Batch(cmd, screen.HideOverlay())
+			return m, tea.Batch(cmd, screen.Dismiss())
 		}
 		m.applying = true
 		return m, tea.Batch(cmd, m.applyCmd())
@@ -129,6 +128,10 @@ func (m Model) View() string {
 		return m.err.Error()
 	}
 	return m.form.View()
+}
+
+func (m Model) CapturingInput() bool {
+	return m.form.State == huh.StateNormal
 }
 
 func (m Model) KeyMap() help.KeyMap {

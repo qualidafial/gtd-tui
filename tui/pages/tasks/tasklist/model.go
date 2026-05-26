@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"slices"
 	"strings"
 	"time"
 
@@ -18,7 +17,6 @@ import (
 	"github.com/qualidafial/gtd-tui"
 	"github.com/qualidafial/gtd-tui/internal/taskquery"
 	"github.com/qualidafial/gtd-tui/tui/components/screen"
-	"github.com/qualidafial/gtd-tui/tui/pages/tasks"
 	"github.com/qualidafial/gtd-tui/tui/pages/tasks/taskedit"
 	"github.com/qualidafial/gtd-tui/tui/pages/tasks/taskstatus"
 )
@@ -47,14 +45,12 @@ type Model struct {
 }
 
 type TasksLoadedMsg struct {
-	filter gtd.TaskFilter
-	tasks  []gtd.Task
+	tasks []gtd.Task
 }
 
 // tasksReorderedMsg is delivered after a Shift+Up/Down move so the tab
 // can refresh its items and keep the cursor on the moved task.
 type tasksReorderedMsg struct {
-	filter   gtd.TaskFilter
 	tasks    []gtd.Task
 	selectID int64
 }
@@ -107,7 +103,7 @@ func (m Model) loadCmd() tea.Cmd {
 		if err != nil {
 			return fmt.Errorf("load tasks: %w", err)
 		}
-		return TasksLoadedMsg{filter: filter, tasks: tasks}
+		return TasksLoadedMsg{tasks: tasks}
 	}
 }
 
@@ -122,15 +118,7 @@ func (m Model) Update(msg tea.Msg) (screen.Screen, tea.Cmd) {
 		}
 		m.list.SetSize(msg.Width, listHeight)
 		return m, nil
-	case tasks.TasksChangedMsg:
-		return m, m.loadCmd()
 	case TasksLoadedMsg:
-		// TasksLoadedMsg is broadcast to every tasklist tab; only apply it
-		// when the loaded filter matches this tab's filter, otherwise an
-		// Active-tab load lands in the Inbox tab and vice versa.
-		if !filterMatches(msg.filter, m.filter) {
-			return m, nil
-		}
 		items := make([]list.Item, len(msg.tasks))
 		for i, t := range msg.tasks {
 			items[i] = Item{t}
@@ -139,9 +127,6 @@ func (m Model) Update(msg tea.Msg) (screen.Screen, tea.Cmd) {
 		m.updateKeybindings()
 		return m, cmd
 	case tasksReorderedMsg:
-		if !filterMatches(msg.filter, m.filter) {
-			return m, nil
-		}
 		items := make([]list.Item, len(msg.tasks))
 		idx := m.list.Index()
 		for i, t := range msg.tasks {
@@ -173,10 +158,10 @@ func (m Model) Update(msg tea.Msg) (screen.Screen, tea.Cmd) {
 				Status: gtd.TaskStatusPending,
 				Kind:   gtd.TaskKindNextAction,
 			}
-			return m, screen.ShowOverlay(taskedit.New(t, m.svc))
+			return m, screen.Push(taskedit.New(t, m.svc))
 		case key.Matches(msg, m.keys.Edit):
 			if ti, ok := m.list.SelectedItem().(Item); ok {
-				return m, screen.ShowOverlay(taskedit.New(ti.task, m.svc))
+				return m, screen.Push(taskedit.New(ti.task, m.svc))
 			}
 		case key.Matches(msg, m.keys.Toggle):
 			if ti, ok := m.list.SelectedItem().(Item); ok {
@@ -184,12 +169,12 @@ func (m Model) Update(msg tea.Msg) (screen.Screen, tea.Cmd) {
 				if ti.task.Status != gtd.TaskStatusPending {
 					transition = taskstatus.Reopen
 				}
-				return m, screen.ShowOverlay(taskstatus.New(ti.task, m.svc, transition))
+				return m, screen.Push(taskstatus.New(ti.task, m.svc, transition))
 			}
 		case key.Matches(msg, m.keys.Drop):
 			// Drop is enabled only for pending tasks, so a match implies pending.
 			if ti, ok := m.list.SelectedItem().(Item); ok {
-				return m, screen.ShowOverlay(taskstatus.New(ti.task, m.svc, taskstatus.Drop))
+				return m, screen.Push(taskstatus.New(ti.task, m.svc, taskstatus.Drop))
 			}
 		case key.Matches(msg, m.keys.MoveUp):
 			if cmd := m.moveCmd(-1); cmd != nil {
@@ -356,12 +341,6 @@ func statusAt(l list.Model, i int) gtd.TaskStatus {
 	return ""
 }
 
-func filterMatches(a, b gtd.TaskFilter) bool {
-	statusMatch := (a.Status == nil && b.Status == nil) ||
-		(a.Status != nil && b.Status != nil && *a.Status == *b.Status)
-	return statusMatch && slices.Equal(a.TaskIDs, b.TaskIDs)
-}
-
 // moveCmd reorders the selected task by one slot in the given direction
 // (-1 = up, +1 = down). The move bindings are enabled only for a pending
 // selection (see updateKeybindings), so reaching here implies a movable task;
@@ -391,7 +370,6 @@ func (m Model) moveCmd(direction int) tea.Cmd {
 			return fmt.Errorf("reload tasks: %w", err)
 		}
 		return tasksReorderedMsg{
-			filter:   filter,
 			tasks:    tasks,
 			selectID: id,
 		}

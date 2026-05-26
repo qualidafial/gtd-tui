@@ -26,22 +26,36 @@ func CapturingInput(s Screen) bool {
 	return ok && c.CapturingInput()
 }
 
-// ShowOverlayMsg signals a transition to a new screen.
-type ShowOverlayMsg struct {
-	Overlay Screen
+// Popper is satisfied by screens that can reveal a parent screen underneath.
+type Popper interface {
+	Pop() Screen
 }
 
-func ShowOverlay(s Screen) tea.Cmd {
+// PushMsg signals that a child screen should be pushed on top of the current view.
+type PushMsg struct {
+	Screen Screen
+}
+
+func Push(child Screen) tea.Cmd {
 	return func() tea.Msg {
-		return ShowOverlayMsg{Overlay: s}
+		return PushMsg{Screen: child}
 	}
 }
 
-// HideOverlayMsg signals that the current overlay screen should be dismissed.
-type HideOverlayMsg struct{}
+// DismissMsg signals that the current overlay screen should be dismissed.
+type DismissMsg struct{}
 
-func HideOverlay() tea.Cmd {
+func Dismiss() tea.Cmd {
 	return func() tea.Msg {
-		return HideOverlayMsg{}
+		return DismissMsg{}
+	}
+}
+
+// InitMsg signals that the active screen should re-initialize.
+type InitMsg struct{}
+
+func InitCmd() tea.Cmd {
+	return func() tea.Msg {
+		return InitMsg{}
 	}
 }

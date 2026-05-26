@@ -18,7 +18,6 @@ import (
 	"github.com/qualidafial/gtd-tui/internal/reltime"
 	"github.com/qualidafial/gtd-tui/tui/components/date"
 	"github.com/qualidafial/gtd-tui/tui/components/screen"
-	"github.com/qualidafial/gtd-tui/tui/pages/tasks"
 )
 
 var taskKindOptions = []huh.Option[gtd.TaskKind]{
@@ -108,7 +107,7 @@ func (m Model) Update(msg tea.Msg) (screen.Screen, tea.Cmd) {
 			m.saving = false
 			return m, nil
 		}
-		return m, tea.Batch(screen.HideOverlay(), tasks.TasksChanged())
+		return m, screen.Dismiss()
 	case tea.KeyPressMsg:
 		// After a save error the form is stuck in StateCompleted, so
 		// any key that fell through to the form would re-trigger the
@@ -135,7 +134,7 @@ func (m Model) Update(msg tea.Msg) (screen.Screen, tea.Cmd) {
 
 	switch m.form.State {
 	case huh.StateAborted:
-		return m, tea.Batch(cmd, screen.HideOverlay())
+		return m, tea.Batch(cmd, screen.Dismiss())
 	case huh.StateCompleted:
 		m.saving = true
 		return m, tea.Batch(cmd, m.saveCmd())
@@ -202,6 +201,10 @@ func titleStatus(s gtd.TaskStatus) string {
 		return ""
 	}
 	return strings.ToUpper(str[:1]) + str[1:]
+}
+
+func (m Model) CapturingInput() bool {
+	return m.form.State == huh.StateNormal
 }
 
 func (m Model) KeyMap() help.KeyMap {
