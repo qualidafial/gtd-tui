@@ -1,0 +1,112 @@
+package service_test
+
+import (
+	"context"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/qualidafial/gtd-tui"
+	"github.com/qualidafial/gtd-tui/service"
+	"github.com/qualidafial/gtd-tui/sqlite"
+)
+
+func openTestDB(t *testing.T) *sqlite.DB {
+	t.Helper()
+	db, err := sqlite.Open(":memory:")
+	require.NoError(t, err)
+	t.Cleanup(func() { db.Close() })
+	return db
+}
+
+func TestProjectTaskService_ListTasks(t *testing.T) {
+	db := openTestDB(t)
+	ctx := t.Context()
+
+	taskSvc := service.NewTaskService(db)
+	projSvc := service.NewProjectService(db)
+
+	p1, err := projSvc.CreateProject(ctx, gtd.Project{Title: "P1", Status: gtd.ProjectStatusOpen})
+	require.NoError(t, err)
+
+	p2, err := projSvc.CreateProject(ctx, gtd.Project{Title: "P2", Status: gtd.ProjectStatusOpen})
+	require.NoError(t, err)
+
+	_, err = taskSvc.CreateTask(ctx, gtd.Task{Title: "T1", Kind: gtd.TaskKindNextAction, Status: gtd.TaskStatusPending, ProjectID: &p1.ID})
+	require.NoError(t, err)
+	_, err = taskSvc.CreateTask(ctx, gtd.Task{Title: "T2", Kind: gtd.TaskKindNextAction, Status: gtd.TaskStatusPending, ProjectID: &p2.ID})
+	require.NoError(t, err)
+	_, err = taskSvc.CreateTask(ctx, gtd.Task{Title: "T3", Kind: gtd.TaskKindNextAction, Status: gtd.TaskStatusPending})
+	require.NoError(t, err)
+
+	wrapped := service.NewProjectTaskService(taskSvc, p1.ID)
+	tasks, err := wrapped.ListTasks(ctx, gtd.TaskFilter{})
+	require.NoError(t, err)
+
+	assert.Len(t, tasks, 1)
+	assert.Equal(t, "T1", tasks[0].Title)
+}
+
+func TestProjectTaskService_CreateTask(t *testing.T) {
+	db := openTestDB(t)
+	ctx := t.Context()
+
+	taskSvc := service.NewTaskService(db)
+	projSvc := service.NewProjectService(db)
+
+	p, err := projSvc.CreateProject(ctx, gtd.Project{Title: "P1", Status: gtd.ProjectStatusOpen})
+	require.NoError(t, err)
+
+	wrapped := service.NewProjectTaskService(taskSvc, p.ID)
+	created, err := wrapped.CreateTask(ctx, gtd.Task{Title: "New", Kind: gtd.TaskKindNextAction, Status: gtd.TaskStatusPending})
+	require.NoError(t, err)
+
+	assert.Equal(t, &p.ID, created.ProjectID)
+}
+
+func TestProjectTaskService_UpdateTask_Delegates(t *testing.T) {
+	db := openTestDB(t)
+	ctx := t.Context()
+
+	taskSvc := service.NewTaskService(db)
+	projSvc := service.NewProjectService(db)
+
+	p, err := projSvc.CreateProject(ctx, gtd.Project{Title: "P1", Status: gtd.ProjectStatusOpen})
+	require.NoError(t, err)
+
+	task, err := taskSvc.CreateTask(ctx, gtd.Task{Title: "T1", Kind: gtd.TaskKindNextAction, Status: gtd.TaskStatusPending, ProjectID: &p.ID})
+	require.NoError(t, err)
+
+	wrapped := service.NewProjectTaskService(taskSvc, p.ID)
+
+	task.Title = "Updated"
+	updated, err := wrapped.UpdateTask(ctx, task)
+	require.NoError(t, err)
+	assert.Equal(t, "Updated", updated.Title)
+	assert.Equal(t, &p.ID, updated.ProjectID)
+}
+
+func TestProjectTaskService_ListTasks_WithCallerFilter(t *testing.T) {
+	db := openTestDB(t)
+	ctx := context.Background()
+
+	taskSvc := service.NewTaskService(db)
+	projSvc := service.NewProjectService(db)
+
+	p, err := projSvc.CreateProject(ctx, gtd.Project{Title: "P1", Status: gtd.ProjectStatusOpen})
+	require.NoError(t, err)
+
+	_, err = taskSvc.CreateTask(ctx, gtd.Task{Title: "Pending", Kind: gtd.TaskKindNextAction, Status: gtd.TaskStatusPending, ProjectID: &p.ID})
+	require.NoError(t, err)
+	done := gtd.TaskStatusDone
+	_, err = taskSvc.CreateTask(ctx, gtd.Task{Title: "Done", Kind: gtd.TaskKindNextAction, Status: gtd.TaskStatusDone, ProjectID: &p.ID})
+	require.NoError(t, err)
+
+	wrapped := service.NewProjectTaskService(taskSvc, p.ID)
+	tasks, err := wrapped.ListTasks(ctx, gtd.TaskFilter{Status: &done})
+	require.NoError(t, err)
+
+	assert.Len(t, tasks, 1)
+	assert.Equal(t, "Done", tasks[0].Title)
+}

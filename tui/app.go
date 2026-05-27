@@ -10,6 +10,7 @@ import (
 	"github.com/qualidafial/gtd-tui/tui/components/screen"
 	"github.com/qualidafial/gtd-tui/tui/components/tabcontainer"
 	"github.com/qualidafial/gtd-tui/tui/pages/projects"
+	"github.com/qualidafial/gtd-tui/tui/pages/projects/projectpicker"
 	"github.com/qualidafial/gtd-tui/tui/pages/tasks/tasklist"
 )
 
@@ -33,8 +34,11 @@ func New(
 	taskSvc gtd.TaskService,
 	projectSvc gtd.ProjectService,
 ) Model {
-	pending := tasklist.New(taskSvc, "status:pending ready:now")
-	projectList := projects.New(projectSvc)
+	pickerFn := func(task gtd.Task) screen.Screen {
+		return projectpicker.New(task, taskSvc, projectSvc)
+	}
+	pending := tasklist.New(taskSvc, "status:pending ready:now", pickerFn)
+	projectList := projects.New(projectSvc, taskSvc, pickerFn)
 
 	tabs := tabcontainer.New(
 		tabcontainer.Tab{Label: "Tasks", Screen: pending},

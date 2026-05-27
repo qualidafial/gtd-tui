@@ -20,6 +20,7 @@ import (
 type keyMap struct {
 	New        key.Binding
 	Edit       key.Binding
+	Project    key.Binding
 	Toggle     key.Binding
 	Drop       key.Binding
 	MoveUp     key.Binding
@@ -36,6 +37,7 @@ func defaultKeyMap() keyMap {
 	return keyMap{
 		New:        key.NewBinding(key.WithKeys("+", "insert"), key.WithHelp("+/insert", "new task")),
 		Edit:       key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "edit")),
+		Project:    key.NewBinding(key.WithKeys("p"), key.WithHelp("p", "project")),
 		Toggle:     key.NewBinding(key.WithKeys("space"), key.WithHelp("space", "complete")),
 		Drop:       key.NewBinding(key.WithKeys("delete"), key.WithHelp("delete", "drop task")),
 		MoveUp:     key.NewBinding(key.WithKeys("shift+up"), key.WithHelp("shift+↑", "move up")),
@@ -59,6 +61,7 @@ func (k keyMap) ShortHelp() []key.Binding {
 		k.FocusQuery,
 		k.New,
 		k.Edit,
+		k.Project,
 		k.Toggle,
 		k.Drop,
 		k.MoveUp,
@@ -87,6 +90,7 @@ func (k keyMap) FullHelp() [][]key.Binding {
 		{
 			k.New,
 			k.Edit,
+			k.Project,
 			k.Toggle,
 			k.Drop,
 		},

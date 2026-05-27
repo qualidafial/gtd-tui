@@ -15,12 +15,16 @@ import (
 	"github.com/qualidafial/gtd-tui/tui/components/screen"
 	"github.com/qualidafial/gtd-tui/tui/pages/projects/projectcreate"
 	"github.com/qualidafial/gtd-tui/tui/pages/projects/projectstatus"
+	"github.com/qualidafial/gtd-tui/tui/pages/projects/projectview"
+	"github.com/qualidafial/gtd-tui/tui/pages/tasks/tasklist"
 )
 
 var listErrStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("9"))
 
 type Model struct {
 	svc      gtd.ProjectService
+	taskSvc  gtd.TaskService
+	pickerFn tasklist.PickerFactory
 	projects []gtd.Project
 	list     list.Model
 	keys     keyMap
@@ -41,7 +45,7 @@ type projectsReorderedMsg struct {
 	selectID int64
 }
 
-func New(svc gtd.ProjectService) Model {
+func New(svc gtd.ProjectService, taskSvc gtd.TaskService, pickerFn tasklist.PickerFactory) Model {
 	keys := defaultKeyMap()
 	l := list.New(nil, newDelegate(keys), 0, 0)
 	l.SetStatusBarItemName("project", "projects")
@@ -51,9 +55,11 @@ func New(svc gtd.ProjectService) Model {
 	l.KeyMap.Filter.SetEnabled(false)
 
 	m := Model{
-		svc:  svc,
-		list: l,
-		keys: keys,
+		svc:      svc,
+		taskSvc:  taskSvc,
+		pickerFn: pickerFn,
+		list:     l,
+		keys:     keys,
 	}
 	m.updateKeybindings()
 	return m
@@ -139,6 +145,11 @@ func (m Model) Update(msg tea.Msg) (screen.Screen, tea.Cmd) {
 		switch {
 		case key.Matches(msg, m.keys.New):
 			return m, screen.Push(projectcreate.New(m.svc))
+
+		case key.Matches(msg, m.keys.Enter):
+			if it, ok := m.list.SelectedItem().(Item); ok {
+				return m, screen.Push(projectview.New(it.project, m.taskSvc, m.svc, m.pickerFn))
+			}
 
 		case key.Matches(msg, m.keys.Toggle):
 			it, ok := m.list.SelectedItem().(Item)
@@ -278,6 +289,7 @@ func (m *Model) updateKeybindings() {
 		label = "reopen"
 	}
 	m.keys.Toggle.SetHelp("space", label)
+	m.keys.Enter.SetEnabled(selected)
 	m.keys.Toggle.SetEnabled(selected)
 	m.keys.Drop.SetEnabled(open || someday)
 	m.keys.Park.SetEnabled(open)

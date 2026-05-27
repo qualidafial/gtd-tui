@@ -12,6 +12,7 @@ import (
 	"github.com/qualidafial/gtd-tui/tui/components/screen"
 	"github.com/qualidafial/gtd-tui/tui/pages/projects/projectcreate"
 	"github.com/qualidafial/gtd-tui/tui/pages/projects/projectstatus"
+	"github.com/qualidafial/gtd-tui/tui/pages/projects/projectview"
 )
 
 func openTestSvc(t *testing.T) gtd.ProjectService {
@@ -62,16 +63,16 @@ func TestModel_Load_AppliesItems(t *testing.T) {
 	seedProject(t, svc, gtd.Project{Title: "Beta", Status: gtd.ProjectStatusSomeday})
 
 	projects, _ := svc.ListProjects(t.Context(), gtd.ProjectFilter{})
-	m := loadProjects(New(svc), projects)
+	m := loadProjects(New(svc, nil, nil), projects)
 
 	if got := len(m.list.Items()); got != 2 {
 		t.Fatalf("expected 2 items; got %d", got)
 	}
 }
 
-func TestModel_NKey_PushesCreateOverlay(t *testing.T) {
-	m := New(openTestSvc(t))
-	_, cmd := sendKey(m, tea.KeyPressMsg{Code: 'n', Text: "n"})
+func TestModel_PlusKey_PushesCreateOverlay(t *testing.T) {
+	m := New(openTestSvc(t), nil, nil)
+	_, cmd := sendKey(m, tea.KeyPressMsg{Code: '+', Text: "+"})
 	s := pushScreen(t, cmd)
 	if _, ok := s.(projectcreate.Model); !ok {
 		t.Fatalf("expected projectcreate.Model, got %T", s)
@@ -82,7 +83,7 @@ func TestModel_Space_CompletePushesConfirmation(t *testing.T) {
 	svc := openTestSvc(t)
 	p := seedProject(t, svc, gtd.Project{Title: "P", Status: gtd.ProjectStatusOpen})
 
-	m := loadProjects(New(svc), []gtd.Project{p})
+	m := loadProjects(New(svc, nil, nil), []gtd.Project{p})
 	_, cmd := sendKey(m, tea.KeyPressMsg{Code: ' ', Text: " "})
 
 	s := pushScreen(t, cmd)
@@ -99,7 +100,7 @@ func TestModel_Space_ReopenIsImmediate(t *testing.T) {
 	svc := openTestSvc(t)
 	p := seedProject(t, svc, gtd.Project{Title: "P", Status: gtd.ProjectStatusSomeday})
 
-	m := loadProjects(New(svc), []gtd.Project{p})
+	m := loadProjects(New(svc, nil, nil), []gtd.Project{p})
 	_, cmd := sendKey(m, tea.KeyPressMsg{Code: ' ', Text: " "})
 
 	if cmd == nil {
@@ -116,7 +117,7 @@ func TestModel_Delete_DropPushesConfirmation(t *testing.T) {
 	svc := openTestSvc(t)
 	p := seedProject(t, svc, gtd.Project{Title: "P", Status: gtd.ProjectStatusOpen})
 
-	m := loadProjects(New(svc), []gtd.Project{p})
+	m := loadProjects(New(svc, nil, nil), []gtd.Project{p})
 	_, cmd := sendKey(m, tea.KeyPressMsg{Code: tea.KeyDelete})
 
 	s := pushScreen(t, cmd)
@@ -133,7 +134,7 @@ func TestModel_Delete_DisabledForDone(t *testing.T) {
 	svc := openTestSvc(t)
 	p := seedProject(t, svc, gtd.Project{Title: "P", Status: gtd.ProjectStatusDone})
 
-	m := loadProjects(New(svc), []gtd.Project{p})
+	m := loadProjects(New(svc, nil, nil), []gtd.Project{p})
 	_, cmd := sendKey(m, tea.KeyPressMsg{Code: tea.KeyDelete})
 
 	if cmd != nil {
@@ -149,7 +150,7 @@ func TestModel_S_ParkIsImmediate(t *testing.T) {
 	svc := openTestSvc(t)
 	p := seedProject(t, svc, gtd.Project{Title: "P", Status: gtd.ProjectStatusOpen})
 
-	m := loadProjects(New(svc), []gtd.Project{p})
+	m := loadProjects(New(svc, nil, nil), []gtd.Project{p})
 	_, cmd := sendKey(m, tea.KeyPressMsg{Code: 's', Text: "s"})
 
 	if cmd == nil {
@@ -166,7 +167,7 @@ func TestModel_MoveBindings_Boundaries(t *testing.T) {
 	p2 := seedProject(t, svc, gtd.Project{Title: "B", Status: gtd.ProjectStatusOpen})
 	p3 := seedProject(t, svc, gtd.Project{Title: "C", Status: gtd.ProjectStatusDone})
 
-	m := loadProjects(New(svc), []gtd.Project{p1, p2, p3})
+	m := loadProjects(New(svc, nil, nil), []gtd.Project{p1, p2, p3})
 
 	down := func(m Model) Model {
 		u, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyDown})
@@ -194,8 +195,20 @@ func TestModel_MoveBindings_Boundaries(t *testing.T) {
 	}
 }
 
+func TestModel_Enter_PushesProjectView(t *testing.T) {
+	svc := openTestSvc(t)
+	p := seedProject(t, svc, gtd.Project{Title: "P", Status: gtd.ProjectStatusOpen})
+
+	m := loadProjects(New(svc, nil, nil), []gtd.Project{p})
+	_, cmd := sendKey(m, tea.KeyPressMsg{Code: tea.KeyEnter})
+	s := pushScreen(t, cmd)
+	if _, ok := s.(projectview.Model); !ok {
+		t.Fatalf("expected projectview.Model, got %T", s)
+	}
+}
+
 func TestModel_ErrorMsg_ShownAndClearedOnKeypress(t *testing.T) {
-	m := New(openTestSvc(t))
+	m := New(openTestSvc(t), nil, nil)
 
 	updated, _ := m.Update(errors.New("load projects: connection refused"))
 	m = updated.(Model)

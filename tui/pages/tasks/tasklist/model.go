@@ -31,8 +31,13 @@ const queryDebounceDelay = 2 * time.Second
 
 var errStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("9"))
 
+// PickerFactory creates a project picker overlay for the given task.
+// When nil, the "p" keybinding is disabled.
+type PickerFactory func(gtd.Task) screen.Screen
+
 type Model struct {
 	svc          gtd.TaskService
+	pickerFn     PickerFactory
 	filter       gtd.TaskFilter
 	appliedQuery string
 	query        textinput.Model
@@ -59,7 +64,7 @@ type tasksReorderedMsg struct {
 // ignore it when a newer keystroke has since arrived.
 type queryDebounceMsg struct{ seq int }
 
-func New(svc gtd.TaskService, query string) Model {
+func New(svc gtd.TaskService, query string, pickerFn PickerFactory) Model {
 	keys := defaultKeyMap()
 
 	l := list.New(nil, newDelegate(keys), 0, 0)
@@ -82,6 +87,7 @@ func New(svc gtd.TaskService, query string) Model {
 
 	m := Model{
 		svc:          svc,
+		pickerFn:     pickerFn,
 		filter:       filter,
 		appliedQuery: query,
 		query:        ti,
@@ -162,6 +168,10 @@ func (m Model) Update(msg tea.Msg) (screen.Screen, tea.Cmd) {
 		case key.Matches(msg, m.keys.Edit):
 			if ti, ok := m.list.SelectedItem().(Item); ok {
 				return m, screen.Push(taskedit.New(ti.task, m.svc))
+			}
+		case key.Matches(msg, m.keys.Project):
+			if ti, ok := m.list.SelectedItem().(Item); ok && m.pickerFn != nil {
+				return m, screen.Push(m.pickerFn(ti.task))
 			}
 		case key.Matches(msg, m.keys.Toggle):
 			if ti, ok := m.list.SelectedItem().(Item); ok {
@@ -279,6 +289,7 @@ func (m *Model) updateKeybindings() {
 		label = "reopen"
 	}
 	m.keys.Toggle.SetHelp("space", label)
+	m.keys.Project.SetEnabled(selected && m.pickerFn != nil)
 
 	// Drop is valid only for pending tasks: the service rejects dropping a
 	// done/dropped task (it must be reopened first).
