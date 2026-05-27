@@ -29,6 +29,11 @@ type Project struct {
 	StatusChangedAt time.Time
 }
 
+type ProjectTaskCounts struct {
+	Complete int // done tasks (non-dropped, non-pending)
+	Total    int // non-dropped tasks
+}
+
 type ProjectFilter struct {
 	Status *ProjectStatus
 }
@@ -59,4 +64,5 @@ type ProjectService interface {
 	ReopenProject(ctx context.Context, id int64, at time.Time) (Project, error)
 	MoveProjectUp(ctx context.Context, id int64) error
 	MoveProjectDown(ctx context.Context, id int64) error
+	CountTasksByProjects(ctx context.Context, projectIDs []int64) (map[int64]ProjectTaskCounts, error)
 }

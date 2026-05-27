@@ -9,6 +9,7 @@ import (
 	"github.com/qualidafial/gtd-tui"
 	"github.com/qualidafial/gtd-tui/tui/components/screen"
 	"github.com/qualidafial/gtd-tui/tui/components/tabcontainer"
+	"github.com/qualidafial/gtd-tui/tui/pages/projects"
 	"github.com/qualidafial/gtd-tui/tui/pages/tasks/tasklist"
 )
 
@@ -30,11 +31,14 @@ type Model struct {
 
 func New(
 	taskSvc gtd.TaskService,
+	projectSvc gtd.ProjectService,
 ) Model {
 	pending := tasklist.New(taskSvc, "status:pending ready:now")
+	projectList := projects.New(projectSvc)
 
 	tabs := tabcontainer.New(
 		tabcontainer.Tab{Label: "Tasks", Screen: pending},
+		tabcontainer.Tab{Label: "Projects", Screen: projectList},
 	)
 
 	return Model{
@@ -44,7 +48,7 @@ func New(
 }
 
 func (m Model) Init() tea.Cmd {
-	return tea.Batch(tea.RequestBackgroundColor, m.active.Init())
+	return tea.Batch(tea.RequestBackgroundColor, tea.RequestWindowSize, m.active.Init())
 }
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -55,15 +59,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.resizeActive()
 	case screen.PushMsg:
 		m.active = screen.Overlay(m.active, msg.Screen)
-		return m, m.active.Init()
+		return m, tea.Batch(tea.RequestWindowSize, m.active.Init())
 	case screen.DismissMsg:
 		if popper, ok := m.active.(screen.Popper); ok {
 			m.active = popper.Pop()
-			return m, m.active.Init()
+			return m, tea.Batch(tea.RequestWindowSize, m.active.Init())
 		}
 		return m, nil
 	case screen.InitMsg:
-		return m, m.active.Init()
+		return m, tea.Batch(tea.RequestWindowSize, m.active.Init())
 	case tea.KeyPressMsg:
 		switch {
 		case key.Matches(msg, keyQuit):

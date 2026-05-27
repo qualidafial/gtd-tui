@@ -407,6 +407,44 @@ func (d *DB) setProjectOrderKey(ctx context.Context, id int64, key string) error
 	return nil
 }
 
+func (d *DB) CountTasksByProjects(ctx context.Context, projectIDs []int64) (map[int64]gtd.ProjectTaskCounts, error) {
+	if len(projectIDs) == 0 {
+		return nil, nil
+	}
+	query, args, err := sq.Select(
+		"project_id",
+		"SUM(CASE WHEN status = 'done' THEN 1 ELSE 0 END) AS complete",
+		"COUNT(*) AS total",
+	).
+		From("tasks").
+		Where(sq.And{
+			sq.Eq{"project_id": projectIDs},
+			sq.NotEq{"status": string(gtd.TaskStatusDropped)},
+		}).
+		GroupBy("project_id").
+		ToSql()
+	if err != nil {
+		return nil, err
+	}
+
+	rows, err := d.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("count tasks by projects: %w", err)
+	}
+	defer rows.Close()
+
+	counts := make(map[int64]gtd.ProjectTaskCounts, len(projectIDs))
+	for rows.Next() {
+		var projectID int64
+		var c gtd.ProjectTaskCounts
+		if err := rows.Scan(&projectID, &c.Complete, &c.Total); err != nil {
+			return nil, fmt.Errorf("count tasks by projects: %w", err)
+		}
+		counts[projectID] = c
+	}
+	return counts, rows.Err()
+}
+
 func scanProject(s scanner) (gtd.Project, error) {
 	var project gtd.Project
 	var due sql.NullTime

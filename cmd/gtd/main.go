@@ -35,14 +35,12 @@ func run() error {
 	}
 	defer db.Close()
 
-	// projects := service.NewProjectService(db)
+	projects := service.NewProjectService(db)
 	tasks := service.NewTaskService(db)
-	// projectTasks := service.NewProjectTaskService(db)
 
 	m := tui.New(
-		// projects,
 		tasks,
-		// projectTasks,
+		projects,
 	)
 	p := tea.NewProgram(m)
 	if _, err := p.Run(); err != nil {
