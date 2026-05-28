@@ -12,7 +12,7 @@ import (
 
 func TestModel_TasksLoaded_AppliesItems(t *testing.T) {
 	var svc gtd.TaskService = nil
-	pending := New(svc, "status:open", nil)
+	pending := New(svc, "status:open", nil, nil)
 
 	updated, _ := pending.Update(TasksLoadedMsg{
 		tasks: []gtd.Task{{ID: 1, Title: "open task", Status: gtd.TaskStatusOpen}},
@@ -35,7 +35,7 @@ func TestModel_NewTaskKey_OpensEditor(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			m := New(nil, "status:open", nil)
+			m := New(nil, "status:open", nil, nil)
 			_, cmd := m.Update(tt.key)
 			if cmd == nil {
 				t.Fatal("expected a cmd from new-task keybinding")
@@ -49,7 +49,7 @@ func TestModel_NewTaskKey_OpensEditor(t *testing.T) {
 }
 
 func TestModel_NKey_NoLongerOpensEditor(t *testing.T) {
-	m := New(nil, "status:open", nil)
+	m := New(nil, "status:open", nil, nil)
 	_, cmd := m.Update(tea.KeyPressMsg{Code: 'n', Text: "n"})
 	if cmd != nil {
 		if msg := cmd(); msg != nil {
@@ -62,7 +62,7 @@ func TestModel_NKey_NoLongerOpensEditor(t *testing.T) {
 
 // loadOne builds a tasklist with a single selected task of the given status.
 func loadOne(status gtd.TaskStatus) Model {
-	m := New(nil, "", nil)
+	m := New(nil, "", nil, nil)
 	updated, _ := m.Update(TasksLoadedMsg{
 		tasks: []gtd.Task{{ID: 1, Title: "t", Status: status}},
 	})
@@ -135,7 +135,7 @@ func TestModel_Delete_NoOpOnClosedTasks(t *testing.T) {
 }
 
 func TestModel_MoveBindings_Boundaries(t *testing.T) {
-	m := New(nil, "", nil)
+	m := New(nil, "", nil, nil)
 	upd, _ := m.Update(TasksLoadedMsg{
 		tasks: []gtd.Task{
 			{ID: 1, Title: "a", Status: gtd.TaskStatusOpen},

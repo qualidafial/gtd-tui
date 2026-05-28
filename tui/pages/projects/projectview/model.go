@@ -36,7 +36,8 @@ func New(
 	pickerFn tasklist.PickerFactory,
 ) Model {
 	wrapped := service.NewProjectTaskService(taskSvc, project.ID)
-	tasks := tasklist.New(wrapped, "", pickerFn)
+	projectNameFn := func(_ int64) string { return project.Title }
+	tasks := tasklist.New(wrapped, "", pickerFn, projectNameFn)
 
 	return Model{
 		project: project,

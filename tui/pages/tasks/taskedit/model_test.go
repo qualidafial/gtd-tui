@@ -36,7 +36,7 @@ func TestModel_StatusLine(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			m := New(gtd.Task{ID: 1, Title: "Existing", Status: tt.status, StatusChangedAt: tt.at}, nil)
+			m := New(gtd.Task{ID: 1, Title: "Existing", Status: tt.status, StatusChangedAt: tt.at}, nil, "")
 			view := ansi.Strip(m.View())
 			if !strings.Contains(view, tt.want) {
 				t.Fatalf("expected status line %q in view, got:\n%s", tt.want, view)
@@ -46,7 +46,7 @@ func TestModel_StatusLine(t *testing.T) {
 }
 
 func TestModel_SaveError_RendersInView(t *testing.T) {
-	m := New(gtd.Task{ID: 1, Title: "Existing"}, nil)
+	m := New(gtd.Task{ID: 1, Title: "Existing"}, nil, "")
 
 	updated, _ := m.Update(taskSavedMsg{err: errors.New("disk full")})
 	view := updated.(Model).View()
@@ -57,7 +57,7 @@ func TestModel_SaveError_RendersInView(t *testing.T) {
 }
 
 func TestModel_SaveError_EscClearsErrorAndResumesForm(t *testing.T) {
-	m := New(gtd.Task{ID: 1, Title: "Existing"}, nil)
+	m := New(gtd.Task{ID: 1, Title: "Existing"}, nil, "")
 
 	withErr, _ := m.Update(taskSavedMsg{err: errors.New("disk full")})
 	if withErr.(Model).err == nil {
@@ -80,12 +80,28 @@ func TestModel_SaveError_OtherKeysSwallowed(t *testing.T) {
 	// Regression guard: after a save error the form is stuck in
 	// StateCompleted, so any keypress that fell through to the form would
 	// re-fire the save and spin in a loop. Non-esc keys must be swallowed.
-	m := New(gtd.Task{ID: 1, Title: "Existing"}, nil)
+	m := New(gtd.Task{ID: 1, Title: "Existing"}, nil, "")
 
 	withErr, _ := m.Update(taskSavedMsg{err: errors.New("disk full")})
 
 	_, cmd := withErr.(Model).Update(tea.KeyPressMsg{Code: 'x', Text: "x"})
 	if cmd != nil {
 		t.Fatalf("expected nil cmd on non-esc key after save error, got %v", cmd)
+	}
+}
+
+func TestModel_ProjectLine_Shown(t *testing.T) {
+	m := New(gtd.Task{ID: 1, Title: "Existing"}, nil, "Inbox Rewrite")
+	view := ansi.Strip(m.View())
+	if !strings.Contains(view, "Project: Inbox Rewrite") {
+		t.Fatalf("expected project line in view, got:\n%s", view)
+	}
+}
+
+func TestModel_ProjectLine_Hidden(t *testing.T) {
+	m := New(gtd.Task{ID: 1, Title: "Existing"}, nil, "")
+	view := ansi.Strip(m.View())
+	if strings.Contains(view, "Project:") {
+		t.Fatalf("expected no project line in view, got:\n%s", view)
 	}
 }

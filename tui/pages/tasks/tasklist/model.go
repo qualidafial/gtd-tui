@@ -35,18 +35,23 @@ var errStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("9"))
 // When nil, the "p" keybinding is disabled.
 type PickerFactory func(gtd.Task) screen.Screen
 
+// ProjectNameFunc resolves a project ID to its display name.
+// When nil, the task editor omits the project line.
+type ProjectNameFunc func(id int64) string
+
 type Model struct {
-	svc          gtd.TaskService
-	pickerFn     PickerFactory
-	filter       gtd.TaskFilter
-	appliedQuery string
-	query        textinput.Model
-	editing      bool
-	parseErr     *taskquery.ParseError
-	debounceSeq  int
-	list         list.Model
-	keys         keyMap
-	width        int
+	svc           gtd.TaskService
+	pickerFn      PickerFactory
+	projectNameFn ProjectNameFunc
+	filter        gtd.TaskFilter
+	appliedQuery  string
+	query         textinput.Model
+	editing       bool
+	parseErr      *taskquery.ParseError
+	debounceSeq   int
+	list          list.Model
+	keys          keyMap
+	width         int
 }
 
 type TasksLoadedMsg struct {
@@ -64,7 +69,7 @@ type tasksReorderedMsg struct {
 // ignore it when a newer keystroke has since arrived.
 type queryDebounceMsg struct{ seq int }
 
-func New(svc gtd.TaskService, query string, pickerFn PickerFactory) Model {
+func New(svc gtd.TaskService, query string, pickerFn PickerFactory, projectNameFn ProjectNameFunc) Model {
 	keys := defaultKeyMap()
 
 	l := list.New(nil, newDelegate(keys), 0, 0)
@@ -86,16 +91,24 @@ func New(svc gtd.TaskService, query string, pickerFn PickerFactory) Model {
 	filter, _ := taskquery.Parse(query)
 
 	m := Model{
-		svc:          svc,
-		pickerFn:     pickerFn,
-		filter:       filter,
-		appliedQuery: query,
-		query:        ti,
-		list:         l,
-		keys:         keys,
+		svc:           svc,
+		pickerFn:      pickerFn,
+		projectNameFn: projectNameFn,
+		filter:        filter,
+		appliedQuery:  query,
+		query:         ti,
+		list:          l,
+		keys:          keys,
 	}
 	m.updateKeybindings()
 	return m
+}
+
+func (m Model) resolveProjectName(task gtd.Task) string {
+	if task.ProjectID == nil || m.projectNameFn == nil {
+		return ""
+	}
+	return m.projectNameFn(*task.ProjectID)
 }
 
 func (m Model) Init() tea.Cmd {
@@ -163,10 +176,10 @@ func (m Model) Update(msg tea.Msg) (screen.Screen, tea.Cmd) {
 			t := gtd.Task{
 				Status: gtd.TaskStatusOpen,
 			}
-			return m, screen.Push(taskedit.New(t, m.svc))
+			return m, screen.Push(taskedit.New(t, m.svc, ""))
 		case key.Matches(msg, m.keys.Edit):
 			if ti, ok := m.list.SelectedItem().(Item); ok {
-				return m, screen.Push(taskedit.New(ti.task, m.svc))
+				return m, screen.Push(taskedit.New(ti.task, m.svc, m.resolveProjectName(ti.task)))
 			}
 		case key.Matches(msg, m.keys.Project):
 			if ti, ok := m.list.SelectedItem().(Item); ok && m.pickerFn != nil {

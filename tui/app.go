@@ -1,6 +1,9 @@
 package tui
 
 import (
+	"context"
+	"log/slog"
+
 	"charm.land/bubbles/v2/help"
 	"charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
@@ -37,7 +40,15 @@ func New(
 	pickerFn := func(task gtd.Task) screen.Screen {
 		return projectpicker.New(task, taskSvc, projectSvc)
 	}
-	pending := tasklist.New(taskSvc, "status:open ready:now", pickerFn)
+	projectNameFn := func(id int64) string {
+		p, err := projectSvc.GetProject(context.Background(), id)
+		if err != nil {
+			slog.Error("resolving project name", "id", id, "err", err)
+			return ""
+		}
+		return p.Title
+	}
+	pending := tasklist.New(taskSvc, "status:open ready:now", pickerFn, projectNameFn)
 	projectList := projects.New(projectSvc, taskSvc, pickerFn)
 
 	tabs := tabcontainer.New(

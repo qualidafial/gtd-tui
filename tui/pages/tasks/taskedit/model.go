@@ -29,15 +29,16 @@ var (
 )
 
 type Model struct {
-	task     *gtd.Task
-	svc      gtd.TaskService
-	assignee string
-	err      error
-	form     *huh.Form
-	saving   bool
+	task        *gtd.Task
+	svc         gtd.TaskService
+	projectName string
+	assignee    string
+	err         error
+	form        *huh.Form
+	saving      bool
 }
 
-func New(task gtd.Task, svc gtd.TaskService) Model {
+func New(task gtd.Task, svc gtd.TaskService, projectName string) Model {
 	if task.ID == 0 {
 		task.Status = gtd.TaskStatusOpen
 	}
@@ -48,9 +49,10 @@ func New(task gtd.Task, svc gtd.TaskService) Model {
 	}
 
 	m := Model{
-		task:     &task,
-		svc:      svc,
-		assignee: assignee,
+		task:        &task,
+		svc:         svc,
+		projectName: projectName,
+		assignee:    assignee,
 	}
 
 	fields := []huh.Field{
@@ -173,8 +175,11 @@ func (m Model) View() string {
 			m.metaLine("Created", m.task.CreatedAt.Local().Format(time.DateTime)),
 			m.metaLine("Updated", m.task.UpdatedAt.Local().Format(time.DateTime)),
 			m.metaLine("Status", m.statusValue()),
-			"",
 		)
+		if m.projectName != "" {
+			sections = append(sections, m.metaLine("Project", m.projectName))
+		}
+		sections = append(sections, "")
 	}
 	sections = append(sections, m.form.View())
 	if m.err != nil {
