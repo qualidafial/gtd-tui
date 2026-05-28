@@ -13,7 +13,7 @@ import (
 
 	"github.com/qualidafial/gtd-tui"
 	"github.com/qualidafial/gtd-tui/tui/components/screen"
-	"github.com/qualidafial/gtd-tui/tui/pages/projects/projectcreate"
+	"github.com/qualidafial/gtd-tui/tui/pages/projects/projectedit"
 	"github.com/qualidafial/gtd-tui/tui/pages/projects/projectstatus"
 	"github.com/qualidafial/gtd-tui/tui/pages/projects/projectview"
 	"github.com/qualidafial/gtd-tui/tui/pages/tasks/tasklist"
@@ -144,7 +144,12 @@ func (m Model) Update(msg tea.Msg) (screen.Screen, tea.Cmd) {
 		m.err = nil
 		switch {
 		case key.Matches(msg, m.keys.New):
-			return m, screen.Push(projectcreate.New(m.svc))
+			return m, screen.Push(projectedit.New(gtd.Project{}, m.svc, m.viewFactory()))
+
+		case key.Matches(msg, m.keys.Edit):
+			if it, ok := m.list.SelectedItem().(Item); ok {
+				return m, screen.Push(projectedit.New(it.project, m.svc, nil))
+			}
 
 		case key.Matches(msg, m.keys.Enter):
 			if it, ok := m.list.SelectedItem().(Item); ok {
@@ -269,6 +274,12 @@ func (m Model) currentCounts() map[int64]gtd.ProjectTaskCounts {
 	return counts
 }
 
+func (m Model) viewFactory() projectedit.ViewFactory {
+	return func(project gtd.Project) screen.Screen {
+		return projectview.New(project, m.taskSvc, m.svc, m.pickerFn)
+	}
+}
+
 func (m *Model) updateKeybindings() {
 	var status gtd.ProjectStatus
 	selected := false
@@ -289,6 +300,7 @@ func (m *Model) updateKeybindings() {
 		label = "reopen"
 	}
 	m.keys.Toggle.SetHelp("space", label)
+	m.keys.Edit.SetEnabled(selected)
 	m.keys.Enter.SetEnabled(selected)
 	m.keys.Toggle.SetEnabled(selected)
 	m.keys.Drop.SetEnabled(open || someday)

@@ -10,7 +10,7 @@ import (
 	"github.com/qualidafial/gtd-tui/service"
 	"github.com/qualidafial/gtd-tui/sqlite"
 	"github.com/qualidafial/gtd-tui/tui/components/screen"
-	"github.com/qualidafial/gtd-tui/tui/pages/projects/projectcreate"
+	"github.com/qualidafial/gtd-tui/tui/pages/projects/projectedit"
 	"github.com/qualidafial/gtd-tui/tui/pages/projects/projectstatus"
 	"github.com/qualidafial/gtd-tui/tui/pages/projects/projectview"
 )
@@ -74,8 +74,8 @@ func TestModel_PlusKey_PushesCreateOverlay(t *testing.T) {
 	m := New(openTestSvc(t), nil, nil)
 	_, cmd := sendKey(m, tea.KeyPressMsg{Code: '+', Text: "+"})
 	s := pushScreen(t, cmd)
-	if _, ok := s.(projectcreate.Model); !ok {
-		t.Fatalf("expected projectcreate.Model, got %T", s)
+	if _, ok := s.(projectedit.Model); !ok {
+		t.Fatalf("expected projectedit.Model, got %T", s)
 	}
 }
 
