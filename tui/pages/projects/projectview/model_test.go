@@ -71,9 +71,9 @@ func TestTaskScoping(t *testing.T) {
 	p, err := e.projectSvc.CreateProject(ctx, gtd.Project{Title: "P1", Status: gtd.ProjectStatusOpen})
 	require.NoError(t, err)
 
-	_, err = e.taskSvc.CreateTask(ctx, gtd.Task{Title: "In project", Kind: gtd.TaskKindNextAction, Status: gtd.TaskStatusPending, ProjectID: &p.ID})
+	_, err = e.taskSvc.CreateTask(ctx, gtd.Task{Title: "In project", Status: gtd.TaskStatusOpen, ProjectID: &p.ID})
 	require.NoError(t, err)
-	_, err = e.taskSvc.CreateTask(ctx, gtd.Task{Title: "Standalone", Kind: gtd.TaskKindNextAction, Status: gtd.TaskStatusPending})
+	_, err = e.taskSvc.CreateTask(ctx, gtd.Task{Title: "Standalone", Status: gtd.TaskStatusOpen})
 	require.NoError(t, err)
 
 	m := New(p, e.taskSvc, e.projectSvc, nil)
@@ -95,7 +95,7 @@ func TestCreateInheritsProject(t *testing.T) {
 	require.NoError(t, err)
 
 	wrapped := service.NewProjectTaskService(e.taskSvc, p.ID)
-	created, err := wrapped.CreateTask(ctx, gtd.Task{Title: "New task", Kind: gtd.TaskKindNextAction, Status: gtd.TaskStatusPending})
+	created, err := wrapped.CreateTask(ctx, gtd.Task{Title: "New task", Status: gtd.TaskStatusOpen})
 	require.NoError(t, err)
 	require.NotNil(t, created.ProjectID)
 	assert.Equal(t, p.ID, *created.ProjectID)

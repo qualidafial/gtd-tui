@@ -1,19 +1,19 @@
 # task-list-presentation Specification
 
 ## Purpose
-TBD - created by syncing change task-list-item-rendering. Update Purpose after archive.
+Defines the visual rendering of task list items: status markers, date/assignee chips, urgency colors, and selection highlight.
 
 ## Requirements
 
 ### Requirement: Status marker and title styling
 Each task row SHALL begin with a status marker followed by the task title. The marker and title styling SHALL reflect the task status:
 
-- `pending` → `[ ]`, default title style.
+- `open` → `[ ]`, default title style.
 - `done` → `[x]`, title rendered in a dim "done" color.
 - `dropped` → `[-]`, title rendered with strikethrough in a dim "dropped" color.
 
-#### Scenario: Pending task marker
-- **WHEN** rendering a pending task titled "Buy milk"
+#### Scenario: Open task marker
+- **WHEN** rendering an open task titled "Buy milk"
 - **THEN** the row reads `[ ] Buy milk` with the default title style
 
 #### Scenario: Done task marker and color
@@ -60,7 +60,7 @@ The past ladder (used by `overdue:` and `ready:`):
 - **THEN** the WHEN string is `3d`
 
 ### Requirement: Due and overdue chip
-A pending task with a due date SHALL display a due chip. The chip word and reference instant depend on the due timestamp:
+An open task with a due date SHALL display a due chip. The chip word and reference instant depend on the due timestamp:
 
 - A date-only due date applies at **end of the local day**; a timed due date applies at its exact instant.
 - While the reference instant is in the future, the chip is `due:<WHEN>` using the future ladder.
@@ -79,7 +79,7 @@ A pending task with a due date SHALL display a due chip. The chip word and refer
 - **THEN** the chip reads `overdue:3pm`
 
 ### Requirement: Defer and ready chip
-A pending task with a defer date SHALL display a defer chip. The chip word and reference instant depend on the defer timestamp:
+An open task with a defer date SHALL display a defer chip. The chip word and reference instant depend on the defer timestamp:
 
 - A date-only defer date applies at **start of the local day**; a timed defer date applies at its exact instant.
 - While the reference instant is in the future, the chip is `defer:<WHEN>` using the future ladder.
@@ -98,7 +98,7 @@ A pending task with a defer date SHALL display a defer chip. The chip word and r
 - **THEN** the chip reads `ready:1d`
 
 ### Requirement: Assignee chip
-A task with a non-empty assignee SHALL display an `@<assignee>` chip.
+A task with a non-nil assignee SHALL display an `@<assignee>` chip.
 
 #### Scenario: Delegated task shows assignee
 - **WHEN** rendering a task assigned to "bob"

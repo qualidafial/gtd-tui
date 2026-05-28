@@ -161,8 +161,7 @@ func (m Model) Update(msg tea.Msg) (screen.Screen, tea.Cmd) {
 			return m, m.query.Focus()
 		case key.Matches(msg, m.keys.New):
 			t := gtd.Task{
-				Status: gtd.TaskStatusPending,
-				Kind:   gtd.TaskKindNextAction,
+				Status: gtd.TaskStatusOpen,
 			}
 			return m, screen.Push(taskedit.New(t, m.svc))
 		case key.Matches(msg, m.keys.Edit):
@@ -176,7 +175,7 @@ func (m Model) Update(msg tea.Msg) (screen.Screen, tea.Cmd) {
 		case key.Matches(msg, m.keys.Toggle):
 			if ti, ok := m.list.SelectedItem().(Item); ok {
 				transition := taskstatus.Complete
-				if ti.task.Status != gtd.TaskStatusPending {
+				if ti.task.Status != gtd.TaskStatusOpen {
 					transition = taskstatus.Reopen
 				}
 				return m, screen.Push(taskstatus.New(ti.task, m.svc, transition))
@@ -278,12 +277,12 @@ func (m *Model) updateKeybindings() {
 	if ti, ok := m.list.SelectedItem().(Item); ok {
 		status, selected = ti.task.Status, true
 	}
-	pending := selected && status == gtd.TaskStatusPending
+	pending := selected && status == gtd.TaskStatusOpen
 
 	label := "toggle"
 	switch {
 	case !selected:
-	case status == gtd.TaskStatusPending:
+	case status == gtd.TaskStatusOpen:
 		label = "complete"
 	default:
 		label = "reopen"
@@ -300,7 +299,7 @@ func (m *Model) updateKeybindings() {
 	// pending task (the next item is closed or there is none).
 	idx := m.list.Index()
 	m.keys.MoveUp.SetEnabled(pending && idx > 0)
-	m.keys.MoveDown.SetEnabled(pending && statusAt(m.list, idx+1) == gtd.TaskStatusPending)
+	m.keys.MoveDown.SetEnabled(pending && statusAt(m.list, idx+1) == gtd.TaskStatusOpen)
 }
 
 // CapturingInput reports that the query bar is focused, so the app should not

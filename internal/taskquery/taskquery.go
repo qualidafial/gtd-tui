@@ -60,7 +60,6 @@ func tokenize(s string) []token {
 
 var recognizedKeys = map[string]bool{
 	"status":   true,
-	"kind":     true,
 	"assignee": true,
 	"due":      true,
 	"defer":    true,
@@ -114,12 +113,6 @@ func applyKeyValue(filter *gtd.TaskFilter, key, value string, tok token, now tim
 			return tokenError(tok)
 		}
 		filter.Status = &s
-	case "kind":
-		k, err := parseKind(value)
-		if err != nil {
-			return tokenError(tok)
-		}
-		filter.Kind = &k
 	case "assignee":
 		v := value
 		filter.Assignee = &v
@@ -155,24 +148,14 @@ func tokenError(tok token) error {
 
 func parseStatus(v string) (gtd.TaskStatus, error) {
 	switch v {
-	case "pending":
-		return gtd.TaskStatusPending, nil
+	case "open":
+		return gtd.TaskStatusOpen, nil
 	case "done":
 		return gtd.TaskStatusDone, nil
 	case "dropped":
 		return gtd.TaskStatusDropped, nil
 	}
 	return "", fmt.Errorf("invalid status %q", v)
-}
-
-func parseKind(v string) (gtd.TaskKind, error) {
-	switch v {
-	case "next_action":
-		return gtd.TaskKindNextAction, nil
-	case "delegated":
-		return gtd.TaskKindDelegated, nil
-	}
-	return "", fmt.Errorf("invalid kind %q", v)
 }
 
 // dayBoundary selects how a day-granularity value is resolved within its

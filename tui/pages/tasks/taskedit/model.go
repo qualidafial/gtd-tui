@@ -20,11 +20,6 @@ import (
 	"github.com/qualidafial/gtd-tui/tui/components/screen"
 )
 
-var taskKindOptions = []huh.Option[gtd.TaskKind]{
-	huh.NewOption("Next Action", gtd.TaskKindNextAction),
-	huh.NewOption("Delegated", gtd.TaskKindDelegated),
-}
-
 var keyBack = key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "back"))
 
 var (
@@ -34,23 +29,28 @@ var (
 )
 
 type Model struct {
-	task   *gtd.Task
-	svc    gtd.TaskService
-	err    error
-	form   *huh.Form
-	saving bool
+	task     *gtd.Task
+	svc      gtd.TaskService
+	assignee string
+	err      error
+	form     *huh.Form
+	saving   bool
 }
 
 func New(task gtd.Task, svc gtd.TaskService) Model {
 	if task.ID == 0 {
-		task.Status = gtd.TaskStatusPending
-		if task.Kind == "" {
-			task.Kind = gtd.TaskKindNextAction
-		}
+		task.Status = gtd.TaskStatusOpen
 	}
+
+	assignee := ""
+	if task.Assignee != nil {
+		assignee = *task.Assignee
+	}
+
 	m := Model{
-		task: &task,
-		svc:  svc,
+		task:     &task,
+		svc:      svc,
+		assignee: assignee,
 	}
 
 	fields := []huh.Field{
@@ -66,13 +66,9 @@ func New(task gtd.Task, svc gtd.TaskService) Model {
 		huh.NewText().
 			Title("Description").
 			Value(&task.Description),
-		huh.NewSelect[gtd.TaskKind]().
-			Title("Kind").
-			Options(taskKindOptions...).
-			Value(&task.Kind),
 		huh.NewInput().
 			Title("Assignee").
-			Value(&task.Assignee),
+			Value(&m.assignee),
 		date.NewField().
 			Title("Due").
 			Value(&task.Due),
@@ -144,6 +140,11 @@ func (m Model) Update(msg tea.Msg) (screen.Screen, tea.Cmd) {
 
 func (m Model) saveCmd() tea.Cmd {
 	task := *m.task
+	if m.assignee != "" {
+		task.Assignee = new(m.assignee)
+	} else {
+		task.Assignee = nil
+	}
 	svc := m.svc
 	return func() tea.Msg {
 		var saved gtd.Task
@@ -194,7 +195,7 @@ func (m Model) statusValue() string {
 }
 
 // titleStatus maps a lowercase TaskStatus to a display form with its first
-// letter capitalized (e.g. "pending" -> "Pending").
+// letter capitalized (e.g. "open" -> "Open").
 func titleStatus(s gtd.TaskStatus) string {
 	str := string(s)
 	if str == "" {

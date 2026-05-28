@@ -24,7 +24,7 @@ type recordingService struct {
 func (s *recordingService) ReopenTask(_ context.Context, id int64, at time.Time) (gtd.Task, error) {
 	s.gotID = id
 	s.gotAt = at
-	return gtd.Task{ID: id, Status: gtd.TaskStatusPending, StatusChangedAt: at}, nil
+	return gtd.Task{ID: id, Status: gtd.TaskStatusOpen, StatusChangedAt: at}, nil
 }
 
 func typeString(s screen.Screen, text string) screen.Screen {

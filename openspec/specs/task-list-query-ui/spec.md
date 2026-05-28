@@ -1,17 +1,17 @@
 # task-list-query-ui Specification
 
 ## Purpose
-TBD - created by syncing change task-query-filter. Update Purpose after archive.
+Defines the task list query bar UI: default query, focus/edit behavior, live validation, and apply/cancel semantics.
 
 ## Requirements
 
 ### Requirement: Query bar on the task list
-The task list SHALL display a query bar showing the active query string. The bar SHALL be seeded with the default query `status:pending ready:now` on startup. When the query is empty, the bar SHALL show a placeholder indicating that all tasks are shown.
+The task list SHALL display a query bar showing the active query string. The bar SHALL be seeded with the default query `status:open ready:now` on startup. When the query is empty, the bar SHALL show a placeholder indicating that all tasks are shown.
 
 #### Scenario: Default query on startup
 - **WHEN** the task list first loads
-- **THEN** the query bar shows `status:pending ready:now`
-- **AND** only pending tasks that are available now (not deferred to the future) are listed
+- **THEN** the query bar shows `status:open ready:now`
+- **AND** only open tasks that are available now (not deferred to the future) are listed
 
 #### Scenario: Empty query shows placeholder
 - **WHEN** the query bar is empty
@@ -59,8 +59,8 @@ While the query bar is being edited, the query SHALL be parsed for validation fe
 Pressing Enter SHALL parse the query and, on success, reload the list via ListTasks with the parsed TaskFilter. On parse failure Enter SHALL NOT reload the list.
 
 #### Scenario: Apply a valid query
-- **WHEN** the user types `status:done kind:delegated bob` and presses Enter
-- **THEN** the list reloads showing done, delegated tasks matching "bob"
+- **WHEN** the user types `status:done assignee:bob` and presses Enter
+- **THEN** the list reloads showing done tasks assigned to "bob"
 
 #### Scenario: Enter on an invalid query does not reload
 - **WHEN** the user presses Enter on a query that fails to parse

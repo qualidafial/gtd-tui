@@ -23,11 +23,9 @@ func startOfDay(year int, month time.Month, day int) time.Time {
 }
 
 func TestParse_StructuredKeys(t *testing.T) {
-	pending := gtd.TaskStatusPending
+	open := gtd.TaskStatusOpen
 	done := gtd.TaskStatusDone
 	dropped := gtd.TaskStatusDropped
-	nextAction := gtd.TaskKindNextAction
-	delegated := gtd.TaskKindDelegated
 	bob := "bob"
 
 	tests := []struct {
@@ -35,11 +33,9 @@ func TestParse_StructuredKeys(t *testing.T) {
 		query string
 		want  gtd.TaskFilter
 	}{
-		{"status pending", "status:pending", gtd.TaskFilter{Status: &pending}},
+		{"status open", "status:open", gtd.TaskFilter{Status: &open}},
 		{"status done", "status:done", gtd.TaskFilter{Status: &done}},
 		{"status dropped", "status:dropped", gtd.TaskFilter{Status: &dropped}},
-		{"kind next_action", "kind:next_action", gtd.TaskFilter{Kind: &nextAction}},
-		{"kind delegated", "kind:delegated", gtd.TaskFilter{Kind: &delegated}},
 		{"assignee", "assignee:bob", gtd.TaskFilter{Assignee: &bob}},
 		{
 			"ready now is instant",
@@ -181,8 +177,7 @@ func TestParse_Errors(t *testing.T) {
 		wantEnd   int
 	}{
 		{"bad status", "status:bogus", 0, 12},
-		{"bad kind", "kind:foo", 0, 8},
-		{"bad date", "kind:delegated due:notadate", 15, 27},
+		{"bad date", "due:notadate", 0, 12},
 		{"ready none not allowed", "ready:none", 0, 10},
 	}
 

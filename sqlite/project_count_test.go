@@ -19,12 +19,12 @@ func TestDB_CountTasksByProjects(t *testing.T) {
 	mkTask := func(status gtd.TaskStatus) {
 		t.Helper()
 		id := proj.ID
-		_, err := db.CreateTask(c, gtd.Task{Title: "t", Kind: gtd.TaskKindNextAction, Status: status, ProjectID: &id})
+		_, err := db.CreateTask(c, gtd.Task{Title: "t", Status: status, ProjectID: &id})
 		require.NoError(t, err)
 	}
 
-	mkTask(gtd.TaskStatusPending)
-	mkTask(gtd.TaskStatusPending)
+	mkTask(gtd.TaskStatusOpen)
+	mkTask(gtd.TaskStatusOpen)
 	mkTask(gtd.TaskStatusDone)
 	mkTask(gtd.TaskStatusDropped) // excluded from both counts
 
@@ -70,11 +70,11 @@ func TestDB_CountTasksByProjects_MultipleProjects(t *testing.T) {
 	mk := func(proj gtd.Project, status gtd.TaskStatus) {
 		t.Helper()
 		id := proj.ID
-		_, err := db.CreateTask(c, gtd.Task{Title: "t", Kind: gtd.TaskKindNextAction, Status: status, ProjectID: &id})
+		_, err := db.CreateTask(c, gtd.Task{Title: "t", Status: status, ProjectID: &id})
 		require.NoError(t, err)
 	}
 
-	mk(p1, gtd.TaskStatusPending)
+	mk(p1, gtd.TaskStatusOpen)
 	mk(p1, gtd.TaskStatusDone)
 	mk(p2, gtd.TaskStatusDropped) // all dropped → zero total
 

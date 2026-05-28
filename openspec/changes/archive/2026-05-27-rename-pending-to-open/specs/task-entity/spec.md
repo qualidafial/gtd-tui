@@ -1,11 +1,14 @@
-# task-entity Specification
+# task-entity Delta Spec
 
-## Purpose
-Defines the Task domain type, its status lifecycle, and field semantics.
+## REMOVED Requirements
 
-## Requirements
+### Requirement: TaskKind type with constants
+**Reason**: Kind is redundant — a non-nil Assignee implies delegated.
+**Migration**: Remove all references to TaskKind, TaskKindNextAction, TaskKindDelegated. No replacement needed.
 
-### Requirement: Task struct definition
+## MODIFIED Requirements
+
+### Requirement: Task struct
 The Task struct SHALL be defined in the root package (`gtd`) with the following fields: ID (int64), Title (string), Description (string), Status (TaskStatus), Assignee (*string), ProjectID (*int64), Due (*time.Time), DeferUntil (*time.Time), CreatedAt (time.Time), UpdatedAt (time.Time), StatusChangedAt (time.Time).
 
 #### Scenario: Task struct fields
@@ -22,17 +25,6 @@ TaskStatus SHALL be a string type with constants: TaskStatusOpen ("open") for ac
 #### Scenario: Complete task
 - **WHEN** a task is completed
 - **THEN** Status becomes TaskStatusDone
-
-#### Scenario: Drop task
-- **WHEN** a task is dropped
-- **THEN** Status becomes TaskStatusDropped
-
-### Requirement: Task value semantics
-Task SHALL use value semantics throughout service interfaces. No *Task pointers in interface method signatures.
-
-#### Scenario: Service returns Task value
-- **WHEN** CreateTask returns
-- **THEN** it returns Task, not *Task
 
 ### Requirement: Task nullable fields
 Due, DeferUntil, and Assignee fields SHALL be pointer types to represent optional values. Nil indicates not set.
@@ -55,15 +47,3 @@ CreatedAt, UpdatedAt, and StatusChangedAt SHALL be time.Time values stored as UT
 #### Scenario: Task creation sets timestamps
 - **WHEN** a task is created
 - **THEN** CreatedAt and UpdatedAt are both set to current UTC time
-- **AND** StatusChangedAt is set equal to CreatedAt
-
-#### Scenario: Task update refreshes UpdatedAt only
-- **WHEN** a task is updated (a non-status edit)
-- **THEN** UpdatedAt is set to current UTC time
-- **AND** CreatedAt remains unchanged
-- **AND** StatusChangedAt remains unchanged
-
-#### Scenario: Status transition sets StatusChangedAt
-- **WHEN** a task's status is transitioned with a given instant
-- **THEN** StatusChangedAt is set to that instant (in UTC)
-- **AND** UpdatedAt is refreshed to current UTC time

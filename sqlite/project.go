@@ -228,7 +228,7 @@ func (d *DB) cascadeTaskStatus(ctx context.Context, projectID int64, status gtd.
 		Set("order_key", nil).
 		Set("updated_at", time.Now().UTC()).
 		Set("status_changed_at", at).
-		Where(sq.Eq{"project_id": projectID, "status": string(gtd.TaskStatusPending)}).
+		Where(sq.Eq{"project_id": projectID, "status": string(gtd.TaskStatusOpen)}).
 		ToSql()
 	if err != nil {
 		return err
@@ -243,7 +243,7 @@ func (d *DB) detachPendingTasks(ctx context.Context, projectID int64) error {
 	query, args, err := sq.Update("tasks").
 		Set("project_id", nil).
 		Set("updated_at", time.Now().UTC()).
-		Where(sq.Eq{"project_id": projectID, "status": string(gtd.TaskStatusPending)}).
+		Where(sq.Eq{"project_id": projectID, "status": string(gtd.TaskStatusOpen)}).
 		ToSql()
 	if err != nil {
 		return err

@@ -12,10 +12,10 @@ import (
 
 func TestModel_TasksLoaded_AppliesItems(t *testing.T) {
 	var svc gtd.TaskService = nil
-	pending := New(svc, "status:pending", nil)
+	pending := New(svc, "status:open", nil)
 
 	updated, _ := pending.Update(TasksLoadedMsg{
-		tasks: []gtd.Task{{ID: 1, Title: "pending task", Status: gtd.TaskStatusPending}},
+		tasks: []gtd.Task{{ID: 1, Title: "open task", Status: gtd.TaskStatusOpen}},
 	})
 
 	got := updated.(Model).list.Items()
@@ -35,7 +35,7 @@ func TestModel_NewTaskKey_OpensEditor(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			m := New(nil, "status:pending", nil)
+			m := New(nil, "status:open", nil)
 			_, cmd := m.Update(tt.key)
 			if cmd == nil {
 				t.Fatal("expected a cmd from new-task keybinding")
@@ -49,7 +49,7 @@ func TestModel_NewTaskKey_OpensEditor(t *testing.T) {
 }
 
 func TestModel_NKey_NoLongerOpensEditor(t *testing.T) {
-	m := New(nil, "status:pending", nil)
+	m := New(nil, "status:open", nil)
 	_, cmd := m.Update(tea.KeyPressMsg{Code: 'n', Text: "n"})
 	if cmd != nil {
 		if msg := cmd(); msg != nil {
@@ -91,7 +91,7 @@ func TestModel_Toggle_ResolvesTransition(t *testing.T) {
 		status gtd.TaskStatus
 		want   taskstatus.Transition
 	}{
-		{gtd.TaskStatusPending, taskstatus.Complete},
+		{gtd.TaskStatusOpen, taskstatus.Complete},
 		{gtd.TaskStatusDone, taskstatus.Reopen},
 		{gtd.TaskStatusDropped, taskstatus.Reopen},
 	}
@@ -111,7 +111,7 @@ func TestModel_Toggle_ResolvesTransition(t *testing.T) {
 }
 
 func TestModel_Delete_DropsPendingTask(t *testing.T) {
-	m := loadOne(gtd.TaskStatusPending)
+	m := loadOne(gtd.TaskStatusOpen)
 	_, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyDelete})
 	got, ok := overlayTransition(t, cmd)
 	if !ok {
@@ -138,8 +138,8 @@ func TestModel_MoveBindings_Boundaries(t *testing.T) {
 	m := New(nil, "", nil)
 	upd, _ := m.Update(TasksLoadedMsg{
 		tasks: []gtd.Task{
-			{ID: 1, Title: "a", Status: gtd.TaskStatusPending},
-			{ID: 2, Title: "b", Status: gtd.TaskStatusPending},
+			{ID: 1, Title: "a", Status: gtd.TaskStatusOpen},
+			{ID: 2, Title: "b", Status: gtd.TaskStatusOpen},
 			{ID: 3, Title: "c", Status: gtd.TaskStatusDone},
 		},
 	})

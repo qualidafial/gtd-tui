@@ -21,10 +21,10 @@ func TestModel_StatusLine(t *testing.T) {
 		want   string
 	}{
 		{
-			name:   "pending changed three days ago",
-			status: gtd.TaskStatusPending,
+			name:   "open changed three days ago",
+			status: gtd.TaskStatusOpen,
 			at:     time.Now().AddDate(0, 0, -3),
-			want:   "Status:  Pending (3d)",
+			want:   "Status:  Open (3d)",
 		},
 		{
 			name:   "done changed today",

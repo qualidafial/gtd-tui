@@ -14,7 +14,7 @@ import (
 )
 
 var taskColumns = []string{
-	"t.id", "t.title", "t.description", "t.kind", "t.status", "t.assignee", "t.project_id",
+	"t.id", "t.title", "t.description", "t.status", "t.assignee", "t.project_id",
 	"t.due", "t.defer_until", "t.created_at", "t.updated_at", "t.status_changed_at",
 }
 
@@ -39,9 +39,6 @@ func (d *DB) ListTasks(ctx context.Context, filter gtd.TaskFilter) ([]gtd.Task, 
 	if filter.Status != nil {
 		q = q.Where(sq.Eq{"t.status": string(*filter.Status)})
 	}
-	if filter.Kind != nil {
-		q = q.Where(sq.Eq{"t.kind": string(*filter.Kind)})
-	}
 	if len(filter.TaskIDs) > 0 {
 		q = q.Where(sq.Eq{"t.id": filter.TaskIDs})
 	}
@@ -53,11 +50,11 @@ func (d *DB) ListTasks(ctx context.Context, filter gtd.TaskFilter) ([]gtd.Task, 
 			Where("(p.status IS NULL OR p.status != ?)", string(gtd.ProjectStatusSomeday))
 	}
 	if filter.Assignee != nil {
-		q = q.Where("lower(t.assignee) LIKE ?", likeContains(*filter.Assignee))
+		q = q.Where("t.assignee IS NOT NULL AND lower(t.assignee) LIKE ?", likeContains(*filter.Assignee))
 	}
 	for _, term := range filter.Search {
 		pattern := likeContains(term)
-		q = q.Where("(lower(t.title) LIKE ? OR lower(t.description) LIKE ? OR lower(t.assignee) LIKE ?)",
+		q = q.Where("(lower(t.title) LIKE ? OR lower(t.description) LIKE ? OR (t.assignee IS NOT NULL AND lower(t.assignee) LIKE ?))",
 			pattern, pattern, pattern)
 	}
 	q = applyDatePredicate(q, "t.due", filter.Due)
@@ -135,8 +132,8 @@ func (d *DB) CreateTask(ctx context.Context, task gtd.Task) (gtd.Task, error) {
 	}
 
 	query, args, err := sq.Insert("tasks").
-		Columns("title", "description", "kind", "status", "assignee", "project_id", "due", "defer_until", "created_at", "updated_at", "status_changed_at", "order_key").
-		Values(task.Title, task.Description, string(task.Kind), string(task.Status), task.Assignee,
+		Columns("title", "description", "status", "assignee", "project_id", "due", "defer_until", "created_at", "updated_at", "status_changed_at", "order_key").
+		Values(task.Title, task.Description, string(task.Status), nullString(task.Assignee),
 			nullInt64(task.ProjectID), nullTime(task.Due), nullTime(task.DeferUntil),
 			task.CreatedAt, task.UpdatedAt, task.StatusChangedAt, key).
 		ToSql()
@@ -169,8 +166,7 @@ func (d *DB) UpdateTask(ctx context.Context, task gtd.Task) (gtd.Task, error) {
 		query, args, err := sq.Update("tasks").
 			Set("title", task.Title).
 			Set("description", task.Description).
-			Set("kind", string(task.Kind)).
-			Set("assignee", task.Assignee).
+			Set("assignee", nullString(task.Assignee)).
 			Set("project_id", nullInt64(task.ProjectID)).
 			Set("due", nullTime(task.Due)).
 			Set("defer_until", nullTime(task.DeferUntil)).
@@ -190,21 +186,21 @@ func (d *DB) UpdateTask(ctx context.Context, task gtd.Task) (gtd.Task, error) {
 }
 
 func (d *DB) CompleteTask(ctx context.Context, id int64, at time.Time) (gtd.Task, error) {
-	return d.transitionTask(ctx, id, at, gtd.TaskStatusDone, gtd.TaskStatusPending)
+	return d.transitionTask(ctx, id, at, gtd.TaskStatusDone, gtd.TaskStatusOpen)
 }
 
 func (d *DB) DropTask(ctx context.Context, id int64, at time.Time) (gtd.Task, error) {
-	return d.transitionTask(ctx, id, at, gtd.TaskStatusDropped, gtd.TaskStatusPending)
+	return d.transitionTask(ctx, id, at, gtd.TaskStatusDropped, gtd.TaskStatusOpen)
 }
 
 func (d *DB) ReopenTask(ctx context.Context, id int64, at time.Time) (gtd.Task, error) {
-	return d.transitionTask(ctx, id, at, gtd.TaskStatusPending, gtd.TaskStatusDone, gtd.TaskStatusDropped)
+	return d.transitionTask(ctx, id, at, gtd.TaskStatusOpen, gtd.TaskStatusDone, gtd.TaskStatusDropped)
 }
 
 // transitionTask atomically validates the current status is one of allowedFrom,
 // then sets it to newStatus. updated_at tracks record time (now); the supplied
 // at is the event time stored in status_changed_at. Clears order_key for closed
-// transitions; assigns a fresh key when reopening to pending.
+// transitions; assigns a fresh key when reopening to open.
 func (d *DB) transitionTask(ctx context.Context, id int64, at time.Time, newStatus gtd.TaskStatus, allowedFrom ...gtd.TaskStatus) (gtd.Task, error) {
 	var task gtd.Task
 	err := d.RunTx(ctx, func(ctx context.Context, tx *DB) error {
@@ -278,14 +274,18 @@ type scanner interface {
 
 func scanTask(s scanner) (gtd.Task, error) {
 	var task gtd.Task
+	var assignee sql.NullString
 	var due, deferUntil sql.NullTime
 	var projectID sql.NullInt64
 	err := s.Scan(
-		&task.ID, &task.Title, &task.Description, &task.Kind, &task.Status, &task.Assignee, &projectID,
+		&task.ID, &task.Title, &task.Description, &task.Status, &assignee, &projectID,
 		&due, &deferUntil, &task.CreatedAt, &task.UpdatedAt, &task.StatusChangedAt,
 	)
 	if err != nil {
 		return gtd.Task{}, err
+	}
+	if assignee.Valid {
+		task.Assignee = &assignee.String
 	}
 	if projectID.Valid {
 		task.ProjectID = &projectID.Int64
@@ -396,7 +396,7 @@ type statusEntry struct {
 func (d *DB) pendingOrder(ctx context.Context, excludeID int64) ([]statusEntry, error) {
 	q := sq.Select("id", "order_key").
 		From("tasks").
-		Where(sq.Eq{"status": string(gtd.TaskStatusPending)}).
+		Where(sq.Eq{"status": string(gtd.TaskStatusOpen)}).
 		OrderBy("order_key ASC", "id ASC")
 	if excludeID != 0 {
 		q = q.Where(sq.NotEq{"id": excludeID})
@@ -424,7 +424,7 @@ func (d *DB) pendingOrder(ctx context.Context, excludeID int64) ([]statusEntry, 
 func (d *DB) nextOrderKey(ctx context.Context) (string, error) {
 	var maxKey sql.NullString
 	query, args, err := sq.Select("MAX(order_key)").From("tasks").
-		Where(sq.Eq{"status": string(gtd.TaskStatusPending)}).ToSql()
+		Where(sq.Eq{"status": string(gtd.TaskStatusOpen)}).ToSql()
 	if err != nil {
 		return "", err
 	}
@@ -474,6 +474,13 @@ func (d *DB) setOrderKey(ctx context.Context, id int64, key string) error {
 		return fmt.Errorf("task %d: not found", id)
 	}
 	return nil
+}
+
+func nullString(s *string) sql.NullString {
+	if s == nil {
+		return sql.NullString{}
+	}
+	return sql.NullString{String: *s, Valid: true}
 }
 
 func nullTime(t *time.Time) sql.NullTime {

@@ -5,17 +5,10 @@ import (
 	"time"
 )
 
-type TaskKind string
-
-const (
-	TaskKindNextAction TaskKind = "next_action"
-	TaskKindDelegated  TaskKind = "delegated"
-)
-
 type TaskStatus string
 
 const (
-	TaskStatusPending TaskStatus = "pending"
+	TaskStatusOpen TaskStatus = "open"
 	TaskStatusDone    TaskStatus = "done"
 	TaskStatusDropped TaskStatus = "dropped"
 )
@@ -24,16 +17,15 @@ type Task struct {
 	ID          int64
 	Title       string
 	Description string
-	Kind        TaskKind
 	Status      TaskStatus
-	Assignee    string
+	Assignee    *string
 	ProjectID   *int64
 	Due         *time.Time
 	DeferUntil  *time.Time
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
 	// StatusChangedAt records when the task last entered its current status:
-	// equal to CreatedAt on creation (the transition into pending), then
+	// equal to CreatedAt on creation (the transition into open), then
 	// overwritten by the supplied instant on every Complete/Drop/Reopen.
 	StatusChangedAt time.Time
 }
@@ -76,7 +68,6 @@ type DatePredicate struct {
 
 type TaskFilter struct {
 	Status    *TaskStatus
-	Kind      *TaskKind
 	Assignee  *string
 	ProjectID *int64
 	Due       *DatePredicate
@@ -91,11 +82,6 @@ type TaskFilter struct {
 
 func (f TaskFilter) WithStatus(s TaskStatus) TaskFilter {
 	f.Status = &s
-	return f
-}
-
-func (f TaskFilter) WithKind(k TaskKind) TaskFilter {
-	f.Kind = &k
 	return f
 }
 

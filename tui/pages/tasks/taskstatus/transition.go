@@ -44,7 +44,7 @@ var specs = map[Transition]spec{
 	},
 	Reopen: {
 		title:       "Reopen task?",
-		description: func(t string) string { return fmt.Sprintf("%q will be moved back to pending.", t) },
+		description: func(t string) string { return fmt.Sprintf("%q will be moved back to open.", t) },
 		affirmative: "Reopen",
 		apply: func(svc gtd.TaskService, ctx context.Context, id int64, at time.Time) (gtd.Task, error) {
 			return svc.ReopenTask(ctx, id, at)

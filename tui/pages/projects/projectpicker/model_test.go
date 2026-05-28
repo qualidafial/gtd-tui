@@ -37,7 +37,7 @@ func TestPicker_Assign(t *testing.T) {
 	p, err := e.projectSvc.CreateProject(ctx, gtd.Project{Title: "P1", Status: gtd.ProjectStatusOpen})
 	require.NoError(t, err)
 
-	task, err := e.taskSvc.CreateTask(ctx, gtd.Task{Title: "T1", Kind: gtd.TaskKindNextAction, Status: gtd.TaskStatusPending})
+	task, err := e.taskSvc.CreateTask(ctx, gtd.Task{Title: "T1", Status: gtd.TaskStatusOpen})
 	require.NoError(t, err)
 	assert.Nil(t, task.ProjectID)
 
@@ -75,7 +75,7 @@ func TestPicker_Unlink(t *testing.T) {
 	p, err := e.projectSvc.CreateProject(ctx, gtd.Project{Title: "P1", Status: gtd.ProjectStatusOpen})
 	require.NoError(t, err)
 
-	task, err := e.taskSvc.CreateTask(ctx, gtd.Task{Title: "T1", Kind: gtd.TaskKindNextAction, Status: gtd.TaskStatusPending, ProjectID: &p.ID})
+	task, err := e.taskSvc.CreateTask(ctx, gtd.Task{Title: "T1", Status: gtd.TaskStatusOpen, ProjectID: &p.ID})
 	require.NoError(t, err)
 
 	m := New(task, e.taskSvc, e.projectSvc)
@@ -101,7 +101,7 @@ func TestPicker_NoChange_SkipsUpdate(t *testing.T) {
 	p, err := e.projectSvc.CreateProject(ctx, gtd.Project{Title: "P1", Status: gtd.ProjectStatusOpen})
 	require.NoError(t, err)
 
-	task, err := e.taskSvc.CreateTask(ctx, gtd.Task{Title: "T1", Kind: gtd.TaskKindNextAction, Status: gtd.TaskStatusPending, ProjectID: &p.ID})
+	task, err := e.taskSvc.CreateTask(ctx, gtd.Task{Title: "T1", Status: gtd.TaskStatusOpen, ProjectID: &p.ID})
 	require.NoError(t, err)
 
 	m := New(task, e.taskSvc, e.projectSvc)
@@ -122,7 +122,7 @@ func TestPicker_Cancel(t *testing.T) {
 	e := setup(t)
 	ctx := t.Context()
 
-	task, err := e.taskSvc.CreateTask(ctx, gtd.Task{Title: "T1", Kind: gtd.TaskKindNextAction, Status: gtd.TaskStatusPending})
+	task, err := e.taskSvc.CreateTask(ctx, gtd.Task{Title: "T1", Status: gtd.TaskStatusOpen})
 	require.NoError(t, err)
 
 	m := New(task, e.taskSvc, e.projectSvc)

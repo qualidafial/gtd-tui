@@ -18,12 +18,11 @@ func dateOnly(y int, m time.Month, d int) time.Time {
 
 func TestTaskChips(t *testing.T) {
 	colors := newChipColors(true)
-	ptr := func(tm time.Time) *time.Time { return &tm }
 
 	t.Run("date-only due today is not overdue", func(t *testing.T) {
 		// now at 17:00; a date-only due today applies at end of day.
 		at := time.Date(2026, 5, 24, 17, 0, 0, 0, time.Local)
-		task := gtd.Task{Status: gtd.TaskStatusPending, Due: ptr(dateOnly(2026, 5, 24))}
+		task := gtd.Task{Status: gtd.TaskStatusOpen, Due: new(dateOnly(2026, 5, 24))}
 		ch, ok := dueChip(task, at, colors)
 		assert.True(t, ok)
 		assert.Equal(t, "due:today", ch.text)
@@ -31,7 +30,7 @@ func TestTaskChips(t *testing.T) {
 
 	t.Run("date-only due flips to overdue next day", func(t *testing.T) {
 		at := time.Date(2026, 5, 28, 9, 0, 0, 0, time.Local)
-		task := gtd.Task{Status: gtd.TaskStatusPending, Due: ptr(dateOnly(2026, 5, 27))}
+		task := gtd.Task{Status: gtd.TaskStatusOpen, Due: new(dateOnly(2026, 5, 27))}
 		ch, ok := dueChip(task, at, colors)
 		assert.True(t, ok)
 		assert.Equal(t, "overdue:1d", ch.text)
@@ -39,7 +38,7 @@ func TestTaskChips(t *testing.T) {
 
 	t.Run("timed due earlier today is overdue", func(t *testing.T) {
 		at := time.Date(2026, 5, 24, 17, 0, 0, 0, time.Local)
-		task := gtd.Task{Status: gtd.TaskStatusPending, Due: ptr(time.Date(2026, 5, 24, 15, 0, 0, 0, time.Local))}
+		task := gtd.Task{Status: gtd.TaskStatusOpen, Due: new(time.Date(2026, 5, 24, 15, 0, 0, 0, time.Local))}
 		ch, ok := dueChip(task, at, colors)
 		assert.True(t, ok)
 		assert.Equal(t, "overdue:3pm", ch.text)
@@ -47,7 +46,7 @@ func TestTaskChips(t *testing.T) {
 
 	t.Run("defer flips to ready at start of day", func(t *testing.T) {
 		at := time.Date(2026, 5, 27, 9, 0, 0, 0, time.Local)
-		task := gtd.Task{Status: gtd.TaskStatusPending, DeferUntil: ptr(dateOnly(2026, 5, 27))}
+		task := gtd.Task{Status: gtd.TaskStatusOpen, DeferUntil: new(dateOnly(2026, 5, 27))}
 		ch, ok := deferChip(task, at, colors)
 		assert.True(t, ok)
 		assert.Equal(t, "ready:today", ch.text)
@@ -55,7 +54,7 @@ func TestTaskChips(t *testing.T) {
 
 	t.Run("future defer", func(t *testing.T) {
 		at := time.Date(2026, 5, 26, 9, 0, 0, 0, time.Local)
-		task := gtd.Task{Status: gtd.TaskStatusPending, DeferUntil: ptr(dateOnly(2026, 5, 27))}
+		task := gtd.Task{Status: gtd.TaskStatusOpen, DeferUntil: new(dateOnly(2026, 5, 27))}
 		ch, ok := deferChip(task, at, colors)
 		assert.True(t, ok)
 		assert.Equal(t, "defer:tomorrow", ch.text)
@@ -63,7 +62,7 @@ func TestTaskChips(t *testing.T) {
 
 	t.Run("resurfaced defer counts days since", func(t *testing.T) {
 		at := time.Date(2026, 5, 28, 9, 0, 0, 0, time.Local)
-		task := gtd.Task{Status: gtd.TaskStatusPending, DeferUntil: ptr(dateOnly(2026, 5, 27))}
+		task := gtd.Task{Status: gtd.TaskStatusOpen, DeferUntil: new(dateOnly(2026, 5, 27))}
 		ch, ok := deferChip(task, at, colors)
 		assert.True(t, ok)
 		assert.Equal(t, "ready:1d", ch.text)
@@ -72,8 +71,8 @@ func TestTaskChips(t *testing.T) {
 	t.Run("done hides date chips but keeps assignee", func(t *testing.T) {
 		task := gtd.Task{
 			Status:   gtd.TaskStatusDone,
-			Due:      ptr(dateOnly(2026, 5, 20)),
-			Assignee: "alice",
+			Due:      new(dateOnly(2026, 5, 20)),
+			Assignee: new("alice"),
 		}
 		chips := taskChips(task, now, colors)
 		assert.Equal(t, []chip{{text: "@alice", style: colors.assignee}}, chips)
@@ -82,18 +81,18 @@ func TestTaskChips(t *testing.T) {
 	t.Run("dropped hides all chips", func(t *testing.T) {
 		task := gtd.Task{
 			Status:   gtd.TaskStatusDropped,
-			Due:      ptr(dateOnly(2026, 5, 20)),
-			Assignee: "bob",
+			Due:      new(dateOnly(2026, 5, 20)),
+			Assignee: new("bob"),
 		}
 		assert.Empty(t, taskChips(task, now, colors))
 	})
 
 	t.Run("chip order: due, defer, assignee", func(t *testing.T) {
 		task := gtd.Task{
-			Status:     gtd.TaskStatusPending,
-			Due:        ptr(dateOnly(2026, 6, 21)), // 28d out
-			DeferUntil: ptr(dateOnly(2026, 6, 7)),  // 14d out
-			Assignee:   "carol",
+			Status:     gtd.TaskStatusOpen,
+			Due:        new(dateOnly(2026, 6, 21)), // 28d out
+			DeferUntil: new(dateOnly(2026, 6, 7)),  // 14d out
+			Assignee:   new("carol"),
 		}
 		chips := taskChips(task, now, colors)
 		var texts []string
@@ -105,7 +104,7 @@ func TestTaskChips(t *testing.T) {
 
 	t.Run("ready day-count and color", func(t *testing.T) {
 		at := time.Date(2026, 5, 30, 9, 0, 0, 0, time.Local)
-		task := gtd.Task{Status: gtd.TaskStatusPending, DeferUntil: ptr(dateOnly(2026, 5, 27))}
+		task := gtd.Task{Status: gtd.TaskStatusOpen, DeferUntil: new(dateOnly(2026, 5, 27))}
 		ch, ok := deferChip(task, at, colors)
 		assert.True(t, ok)
 		assert.Equal(t, "ready:3d", ch.text)

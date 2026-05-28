@@ -37,7 +37,7 @@ func New(
 	pickerFn := func(task gtd.Task) screen.Screen {
 		return projectpicker.New(task, taskSvc, projectSvc)
 	}
-	pending := tasklist.New(taskSvc, "status:pending ready:now", pickerFn)
+	pending := tasklist.New(taskSvc, "status:open ready:now", pickerFn)
 	projectList := projects.New(projectSvc, taskSvc, pickerFn)
 
 	tabs := tabcontainer.New(

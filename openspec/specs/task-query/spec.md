@@ -1,7 +1,7 @@
 # task-query Specification
 
 ## Purpose
-TBD - created by syncing change task-query-filter. Update Purpose after archive.
+Defines the task query parser that translates a query string into a TaskFilter.
 
 ## Requirements
 
@@ -21,15 +21,15 @@ The system SHALL provide a parser in `internal/taskquery` exposing `Parse(query 
 - **THEN** `bob` is added as a free-text term
 
 ### Requirement: Recognized keys
-The parser SHALL recognize the keys `status`, `kind`, `assignee`, `due`, `defer`, and `ready`. `status` accepts pending/done/dropped; `kind` accepts next_action/delegated; `assignee` accepts any string; `due`, `defer`, and `ready` accept date-predicate values (`ready` accepts only threshold values, not `none`/`any`).
+The parser SHALL recognize the keys `status`, `assignee`, `due`, `defer`, and `ready`. `status` accepts open/done/dropped; `assignee` accepts any string; `due`, `defer`, and `ready` accept date-predicate values (`ready` accepts only threshold values, not `none`/`any`). The `kind` key SHALL NOT be recognized.
 
 #### Scenario: status key
 - **WHEN** parsing `status:dropped`
 - **THEN** TaskFilter.Status = TaskStatusDropped
 
-#### Scenario: kind key
+#### Scenario: kind key is unrecognized
 - **WHEN** parsing `kind:delegated`
-- **THEN** TaskFilter.Kind = TaskKindDelegated
+- **THEN** the token is treated as a free-text search term
 
 #### Scenario: assignee key
 - **WHEN** parsing `assignee:bob`
@@ -132,7 +132,7 @@ A recognized key with an invalid value SHALL produce an error. An unrecognized k
 - **AND** the error's range covers the `status:bogus` token's offsets in the input
 
 #### Scenario: Invalid date value with range
-- **WHEN** parsing `kind:delegated due:notadate`
+- **WHEN** parsing `status:open due:notadate`
 - **THEN** Parse returns an error covering the offsets of the `due:notadate` token (not the whole input)
 
 #### Scenario: Empty query

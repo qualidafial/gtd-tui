@@ -73,7 +73,7 @@ func taskChips(t gtd.Task, now time.Time, c chipColors) []chip {
 		return nil
 	}
 
-	if t.Status == gtd.TaskStatusPending {
+	if t.Status == gtd.TaskStatusOpen {
 		if ch, ok := dueChip(t, now, c); ok {
 			chips = append(chips, ch)
 		}
@@ -82,8 +82,8 @@ func taskChips(t gtd.Task, now time.Time, c chipColors) []chip {
 		}
 	}
 
-	if t.Assignee != "" {
-		chips = append(chips, chip{text: "@" + t.Assignee, style: c.assignee})
+	if t.Assignee != nil {
+		chips = append(chips, chip{text: "@" + *t.Assignee, style: c.assignee})
 	}
 
 	return chips
@@ -163,7 +163,7 @@ func endOfLocalDay(t time.Time) time.Time {
 var (
 	doneTitleStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("65")).Faint(true)
 	droppedTitleStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("240")).Faint(true).Strikethrough(true)
-	pendingTitleStyle = lipgloss.NewStyle()
+	openTitleStyle = lipgloss.NewStyle()
 )
 
 // statusMarker returns the leading marker for a task status.
@@ -186,7 +186,7 @@ func titleStyle(s gtd.TaskStatus) lipgloss.Style {
 	case gtd.TaskStatusDropped:
 		return droppedTitleStyle
 	default:
-		return pendingTitleStyle
+		return openTitleStyle
 	}
 }
 

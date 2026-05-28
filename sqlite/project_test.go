@@ -195,7 +195,6 @@ func createProjectWithTasks(t *testing.T, db *sqlite.DB, c context.Context, stat
 	for i, s := range statuses {
 		task, err := db.CreateTask(c, gtd.Task{
 			Title:     "Task " + string(rune('A'+i)),
-			Kind:      gtd.TaskKindNextAction,
 			Status:    s,
 			ProjectID: &project.ID,
 		})
@@ -210,7 +209,7 @@ func TestDB_CompleteProject(t *testing.T) {
 		db := openTestDB(t)
 		c := ctx(t)
 
-		project, tasks := createProjectWithTasks(t, db, c, gtd.TaskStatusPending, gtd.TaskStatusPending)
+		project, tasks := createProjectWithTasks(t, db, c, gtd.TaskStatusOpen, gtd.TaskStatusOpen)
 
 		at := time.Now()
 		done, err := db.CompleteProject(c, project.ID, true, at)
@@ -228,7 +227,7 @@ func TestDB_CompleteProject(t *testing.T) {
 		db := openTestDB(t)
 		c := ctx(t)
 
-		project, tasks := createProjectWithTasks(t, db, c, gtd.TaskStatusPending, gtd.TaskStatusPending)
+		project, tasks := createProjectWithTasks(t, db, c, gtd.TaskStatusOpen, gtd.TaskStatusOpen)
 
 		done, err := db.CompleteProject(c, project.ID, false, time.Now())
 		require.NoError(t, err)
@@ -238,7 +237,7 @@ func TestDB_CompleteProject(t *testing.T) {
 			fetched, err := db.GetTask(c, task.ID)
 			require.NoError(t, err)
 			assert.Nil(t, fetched.ProjectID)
-			assert.Equal(t, gtd.TaskStatusPending, fetched.Status)
+			assert.Equal(t, gtd.TaskStatusOpen, fetched.Status)
 		}
 	})
 
@@ -246,7 +245,7 @@ func TestDB_CompleteProject(t *testing.T) {
 		db := openTestDB(t)
 		c := ctx(t)
 
-		project, tasks := createProjectWithTasks(t, db, c, gtd.TaskStatusDone, gtd.TaskStatusDropped, gtd.TaskStatusPending)
+		project, tasks := createProjectWithTasks(t, db, c, gtd.TaskStatusDone, gtd.TaskStatusDropped, gtd.TaskStatusOpen)
 
 		_, err := db.CompleteProject(c, project.ID, true, time.Now())
 		require.NoError(t, err)
@@ -277,7 +276,7 @@ func TestDB_DropProject(t *testing.T) {
 		db := openTestDB(t)
 		c := ctx(t)
 
-		project, tasks := createProjectWithTasks(t, db, c, gtd.TaskStatusPending, gtd.TaskStatusPending)
+		project, tasks := createProjectWithTasks(t, db, c, gtd.TaskStatusOpen, gtd.TaskStatusOpen)
 
 		dropped, err := db.DropProject(c, project.ID, true, time.Now())
 		require.NoError(t, err)
@@ -294,7 +293,7 @@ func TestDB_DropProject(t *testing.T) {
 		db := openTestDB(t)
 		c := ctx(t)
 
-		project, tasks := createProjectWithTasks(t, db, c, gtd.TaskStatusPending)
+		project, tasks := createProjectWithTasks(t, db, c, gtd.TaskStatusOpen)
 
 		_, err := db.DropProject(c, project.ID, false, time.Now())
 		require.NoError(t, err)
@@ -302,7 +301,7 @@ func TestDB_DropProject(t *testing.T) {
 		fetched, err := db.GetTask(c, tasks[0].ID)
 		require.NoError(t, err)
 		assert.Nil(t, fetched.ProjectID)
-		assert.Equal(t, gtd.TaskStatusPending, fetched.Status)
+		assert.Equal(t, gtd.TaskStatusOpen, fetched.Status)
 	})
 }
 
@@ -311,7 +310,7 @@ func TestDB_ParkProject(t *testing.T) {
 		db := openTestDB(t)
 		c := ctx(t)
 
-		project, tasks := createProjectWithTasks(t, db, c, gtd.TaskStatusPending)
+		project, tasks := createProjectWithTasks(t, db, c, gtd.TaskStatusOpen)
 
 		parked, err := db.ParkProject(c, project.ID, time.Now())
 		require.NoError(t, err)
@@ -319,7 +318,7 @@ func TestDB_ParkProject(t *testing.T) {
 
 		fetched, err := db.GetTask(c, tasks[0].ID)
 		require.NoError(t, err)
-		assert.Equal(t, gtd.TaskStatusPending, fetched.Status)
+		assert.Equal(t, gtd.TaskStatusOpen, fetched.Status)
 		require.NotNil(t, fetched.ProjectID)
 		assert.Equal(t, project.ID, *fetched.ProjectID)
 	})
@@ -330,7 +329,7 @@ func TestDB_ReopenProject(t *testing.T) {
 		db := openTestDB(t)
 		c := ctx(t)
 
-		project, _ := createProjectWithTasks(t, db, c, gtd.TaskStatusPending)
+		project, _ := createProjectWithTasks(t, db, c, gtd.TaskStatusOpen)
 		_, err := db.ParkProject(c, project.ID, time.Now())
 		require.NoError(t, err)
 
@@ -369,7 +368,7 @@ func TestDB_ReopenProject(t *testing.T) {
 		db := openTestDB(t)
 		c := ctx(t)
 
-		project, tasks := createProjectWithTasks(t, db, c, gtd.TaskStatusPending, gtd.TaskStatusPending)
+		project, tasks := createProjectWithTasks(t, db, c, gtd.TaskStatusOpen, gtd.TaskStatusOpen)
 
 		// Complete with cascade → tasks become done
 		_, err := db.CompleteProject(c, project.ID, true, time.Now())
@@ -459,7 +458,7 @@ func TestDB_ProjectStatusChangedAt(t *testing.T) {
 		db := openTestDB(t)
 		c := ctx(t)
 
-		project, tasks := createProjectWithTasks(t, db, c, gtd.TaskStatusPending, gtd.TaskStatusPending)
+		project, tasks := createProjectWithTasks(t, db, c, gtd.TaskStatusOpen, gtd.TaskStatusOpen)
 
 		backdate := time.Now().Add(-48 * time.Hour)
 		_, err := db.CompleteProject(c, project.ID, true, backdate)
@@ -485,8 +484,7 @@ func TestDB_TaskProjectRelationship(t *testing.T) {
 
 		task, err := db.CreateTask(c, gtd.Task{
 			Title:     "Linked task",
-			Kind:      gtd.TaskKindNextAction,
-			Status:    gtd.TaskStatusPending,
+			Status:    gtd.TaskStatusOpen,
 			ProjectID: &project.ID,
 		})
 		require.NoError(t, err)
@@ -503,10 +501,10 @@ func TestDB_TaskProjectRelationship(t *testing.T) {
 		db := openTestDB(t)
 		c := ctx(t)
 
-		project, _ := createProjectWithTasks(t, db, c, gtd.TaskStatusPending)
+		project, _ := createProjectWithTasks(t, db, c, gtd.TaskStatusOpen)
 
 		// Standalone task
-		_, err := db.CreateTask(c, gtd.Task{Title: "Standalone", Kind: gtd.TaskKindNextAction, Status: gtd.TaskStatusPending})
+		_, err := db.CreateTask(c, gtd.Task{Title: "Standalone", Status: gtd.TaskStatusOpen})
 		require.NoError(t, err)
 
 		// Before parking: default filter shows both
@@ -534,8 +532,8 @@ func TestDB_TaskProjectRelationship(t *testing.T) {
 		db := openTestDB(t)
 		c := ctx(t)
 
-		project, _ := createProjectWithTasks(t, db, c, gtd.TaskStatusPending, gtd.TaskStatusPending)
-		_, err := db.CreateTask(c, gtd.Task{Title: "Standalone", Kind: gtd.TaskKindNextAction, Status: gtd.TaskStatusPending})
+		project, _ := createProjectWithTasks(t, db, c, gtd.TaskStatusOpen, gtd.TaskStatusOpen)
+		_, err := db.CreateTask(c, gtd.Task{Title: "Standalone", Status: gtd.TaskStatusOpen})
 		require.NoError(t, err)
 
 		got, err := db.ListTasks(c, gtd.TaskFilter{}.WithProjectID(project.ID))
@@ -561,8 +559,7 @@ func TestDB_TaskProjectRelationship(t *testing.T) {
 		// Create a pending task linked to the now-closed project
 		task, err := db.CreateTask(c, gtd.Task{
 			Title:     "Orphaned pending",
-			Kind:      gtd.TaskKindNextAction,
-			Status:    gtd.TaskStatusPending,
+			Status:    gtd.TaskStatusOpen,
 			ProjectID: &project.ID,
 		})
 		require.NoError(t, err)

@@ -33,11 +33,11 @@ func TestProjectTaskService_ListTasks(t *testing.T) {
 	p2, err := projSvc.CreateProject(ctx, gtd.Project{Title: "P2", Status: gtd.ProjectStatusOpen})
 	require.NoError(t, err)
 
-	_, err = taskSvc.CreateTask(ctx, gtd.Task{Title: "T1", Kind: gtd.TaskKindNextAction, Status: gtd.TaskStatusPending, ProjectID: &p1.ID})
+	_, err = taskSvc.CreateTask(ctx, gtd.Task{Title: "T1", Status: gtd.TaskStatusOpen, ProjectID: &p1.ID})
 	require.NoError(t, err)
-	_, err = taskSvc.CreateTask(ctx, gtd.Task{Title: "T2", Kind: gtd.TaskKindNextAction, Status: gtd.TaskStatusPending, ProjectID: &p2.ID})
+	_, err = taskSvc.CreateTask(ctx, gtd.Task{Title: "T2", Status: gtd.TaskStatusOpen, ProjectID: &p2.ID})
 	require.NoError(t, err)
-	_, err = taskSvc.CreateTask(ctx, gtd.Task{Title: "T3", Kind: gtd.TaskKindNextAction, Status: gtd.TaskStatusPending})
+	_, err = taskSvc.CreateTask(ctx, gtd.Task{Title: "T3", Status: gtd.TaskStatusOpen})
 	require.NoError(t, err)
 
 	wrapped := service.NewProjectTaskService(taskSvc, p1.ID)
@@ -59,7 +59,7 @@ func TestProjectTaskService_CreateTask(t *testing.T) {
 	require.NoError(t, err)
 
 	wrapped := service.NewProjectTaskService(taskSvc, p.ID)
-	created, err := wrapped.CreateTask(ctx, gtd.Task{Title: "New", Kind: gtd.TaskKindNextAction, Status: gtd.TaskStatusPending})
+	created, err := wrapped.CreateTask(ctx, gtd.Task{Title: "New", Status: gtd.TaskStatusOpen})
 	require.NoError(t, err)
 
 	assert.Equal(t, &p.ID, created.ProjectID)
@@ -75,7 +75,7 @@ func TestProjectTaskService_UpdateTask_Delegates(t *testing.T) {
 	p, err := projSvc.CreateProject(ctx, gtd.Project{Title: "P1", Status: gtd.ProjectStatusOpen})
 	require.NoError(t, err)
 
-	task, err := taskSvc.CreateTask(ctx, gtd.Task{Title: "T1", Kind: gtd.TaskKindNextAction, Status: gtd.TaskStatusPending, ProjectID: &p.ID})
+	task, err := taskSvc.CreateTask(ctx, gtd.Task{Title: "T1", Status: gtd.TaskStatusOpen, ProjectID: &p.ID})
 	require.NoError(t, err)
 
 	wrapped := service.NewProjectTaskService(taskSvc, p.ID)
@@ -97,10 +97,10 @@ func TestProjectTaskService_ListTasks_WithCallerFilter(t *testing.T) {
 	p, err := projSvc.CreateProject(ctx, gtd.Project{Title: "P1", Status: gtd.ProjectStatusOpen})
 	require.NoError(t, err)
 
-	_, err = taskSvc.CreateTask(ctx, gtd.Task{Title: "Pending", Kind: gtd.TaskKindNextAction, Status: gtd.TaskStatusPending, ProjectID: &p.ID})
+	_, err = taskSvc.CreateTask(ctx, gtd.Task{Title: "Pending", Status: gtd.TaskStatusOpen, ProjectID: &p.ID})
 	require.NoError(t, err)
 	done := gtd.TaskStatusDone
-	_, err = taskSvc.CreateTask(ctx, gtd.Task{Title: "Done", Kind: gtd.TaskKindNextAction, Status: gtd.TaskStatusDone, ProjectID: &p.ID})
+	_, err = taskSvc.CreateTask(ctx, gtd.Task{Title: "Done", Status: gtd.TaskStatusDone, ProjectID: &p.ID})
 	require.NoError(t, err)
 
 	wrapped := service.NewProjectTaskService(taskSvc, p.ID)

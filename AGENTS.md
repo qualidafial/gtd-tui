@@ -1,5 +1,10 @@
 # Agent Guidelines
 
+## Go Language Features
+
+This project uses Go 1.26. Use `new(value)` to create a pointer to the value of an expression
+(e.g. `new("alice")` returns `*string` pointing to `"alice"`). Do not create `ptr()` helper functions.
+
 ## Tests
 
 All code modifications must be accompanied by appropriate test changes. When adding behavior, add tests covering it.

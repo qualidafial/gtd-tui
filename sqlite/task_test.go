@@ -22,36 +22,30 @@ func TestDB_CreateTask(t *testing.T) {
 	}{
 		{
 			name:  "minimal task",
-			input: gtd.Task{Title: "Buy milk", Kind: gtd.TaskKindNextAction, Status: gtd.TaskStatusPending},
+			input: gtd.Task{Title: "Buy milk", Status: gtd.TaskStatusOpen},
 		},
 		{
 			name: "full task",
 			input: gtd.Task{
 				Title:       "Write proposal",
 				Description: "Draft the Q3 proposal doc",
-				Kind:        gtd.TaskKindNextAction,
-				Status:      gtd.TaskStatusPending,
+				Status:      gtd.TaskStatusOpen,
 				Due:         new(time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC)),
 				DeferUntil:  new(time.Date(2026, 5, 15, 0, 0, 0, 0, time.UTC)),
 			},
 		},
 		{
 			name:  "delegated task with assignee",
-			input: gtd.Task{Title: "Review PR", Kind: gtd.TaskKindDelegated, Status: gtd.TaskStatusPending, Assignee: "alice"},
+			input: gtd.Task{Title: "Review PR", Status: gtd.TaskStatusOpen, Assignee: new("alice")},
 		},
 		{
 			name:    "missing title",
-			input:   gtd.Task{Kind: gtd.TaskKindNextAction, Status: gtd.TaskStatusPending},
-			wantErr: true,
-		},
-		{
-			name:    "invalid kind",
-			input:   gtd.Task{Title: "Buy milk", Kind: "bogus", Status: gtd.TaskStatusPending},
+			input:   gtd.Task{Status: gtd.TaskStatusOpen},
 			wantErr: true,
 		},
 		{
 			name:    "invalid status",
-			input:   gtd.Task{Title: "Buy milk", Kind: gtd.TaskKindNextAction, Status: "bogus"},
+			input:   gtd.Task{Title: "Buy milk", Status: "bogus"},
 			wantErr: true,
 		},
 	}
@@ -73,7 +67,6 @@ func TestDB_CreateTask(t *testing.T) {
 			assert.False(t, got.UpdatedAt.IsZero())
 			assert.Equal(t, tt.input.Title, got.Title)
 			assert.Equal(t, tt.input.Description, got.Description)
-			assert.Equal(t, tt.input.Kind, got.Kind)
 			assert.Equal(t, tt.input.Status, got.Status)
 			assert.Equal(t, tt.input.Assignee, got.Assignee)
 
@@ -93,7 +86,7 @@ func TestDB_UpdateTask(t *testing.T) {
 	}{
 		{
 			name:  "update title",
-			setup: gtd.Task{Title: "Old title", Kind: gtd.TaskKindNextAction, Status: gtd.TaskStatusPending},
+			setup: gtd.Task{Title: "Old title", Status: gtd.TaskStatusOpen},
 			update: func(task gtd.Task) gtd.Task {
 				task.Title = "New title"
 				return task
@@ -104,7 +97,7 @@ func TestDB_UpdateTask(t *testing.T) {
 		},
 		{
 			name:  "set due date",
-			setup: gtd.Task{Title: "Task", Kind: gtd.TaskKindNextAction, Status: gtd.TaskStatusPending},
+			setup: gtd.Task{Title: "Task", Status: gtd.TaskStatusOpen},
 			update: func(task gtd.Task) gtd.Task {
 				task.Due = new(time.Date(2026, 12, 31, 0, 0, 0, 0, time.UTC))
 				return task
@@ -116,7 +109,7 @@ func TestDB_UpdateTask(t *testing.T) {
 		},
 		{
 			name:  "clear due date",
-			setup: gtd.Task{Title: "Task", Kind: gtd.TaskKindNextAction, Status: gtd.TaskStatusPending, Due: new(time.Now())},
+			setup: gtd.Task{Title: "Task", Status: gtd.TaskStatusOpen, Due: new(time.Now())},
 			update: func(task gtd.Task) gtd.Task {
 				task.Due = nil
 				return task
@@ -127,7 +120,7 @@ func TestDB_UpdateTask(t *testing.T) {
 		},
 		{
 			name:  "set defer until",
-			setup: gtd.Task{Title: "Task", Kind: gtd.TaskKindNextAction, Status: gtd.TaskStatusPending},
+			setup: gtd.Task{Title: "Task", Status: gtd.TaskStatusOpen},
 			update: func(task gtd.Task) gtd.Task {
 				task.DeferUntil = new(time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC))
 				return task
@@ -138,21 +131,20 @@ func TestDB_UpdateTask(t *testing.T) {
 			},
 		},
 		{
-			name:  "change kind to delegated",
-			setup: gtd.Task{Title: "Task", Kind: gtd.TaskKindNextAction, Status: gtd.TaskStatusPending},
+			name:  "set assignee",
+			setup: gtd.Task{Title: "Task", Status: gtd.TaskStatusOpen},
 			update: func(task gtd.Task) gtd.Task {
-				task.Kind = gtd.TaskKindDelegated
-				task.Assignee = "bob"
+				task.Assignee = new("bob")
 				return task
 			},
 			check: func(t *testing.T, task gtd.Task) {
-				assert.Equal(t, gtd.TaskKindDelegated, task.Kind)
-				assert.Equal(t, "bob", task.Assignee)
+				require.NotNil(t, task.Assignee)
+				assert.Equal(t, "bob", *task.Assignee)
 			},
 		},
 		{
 			name:  "status change rejected",
-			setup: gtd.Task{Title: "Task", Kind: gtd.TaskKindNextAction, Status: gtd.TaskStatusPending},
+			setup: gtd.Task{Title: "Task", Status: gtd.TaskStatusOpen},
 			update: func(task gtd.Task) gtd.Task {
 				task.Status = gtd.TaskStatusDone
 				return task
@@ -192,7 +184,7 @@ func TestDB_CompleteTask(t *testing.T) {
 		db := openTestDB(t)
 		c := ctx(t)
 
-		created, err := db.CreateTask(c, gtd.Task{Title: "To complete", Kind: gtd.TaskKindNextAction, Status: gtd.TaskStatusPending})
+		created, err := db.CreateTask(c, gtd.Task{Title: "To complete", Status: gtd.TaskStatusOpen})
 		require.NoError(t, err)
 
 		done, err := db.CompleteTask(c, created.ID, time.Now())
@@ -210,7 +202,7 @@ func TestDB_CompleteTask(t *testing.T) {
 		db := openTestDB(t)
 		c := ctx(t)
 
-		created, err := db.CreateTask(c, gtd.Task{Title: "Already done", Kind: gtd.TaskKindNextAction, Status: gtd.TaskStatusDone})
+		created, err := db.CreateTask(c, gtd.Task{Title: "Already done", Status: gtd.TaskStatusDone})
 		require.NoError(t, err)
 
 		_, err = db.CompleteTask(c, created.ID, time.Now())
@@ -223,7 +215,7 @@ func TestDB_DropTask(t *testing.T) {
 		db := openTestDB(t)
 		c := ctx(t)
 
-		created, err := db.CreateTask(c, gtd.Task{Title: "To drop", Kind: gtd.TaskKindNextAction, Status: gtd.TaskStatusPending})
+		created, err := db.CreateTask(c, gtd.Task{Title: "To drop", Status: gtd.TaskStatusOpen})
 		require.NoError(t, err)
 
 		dropped, err := db.DropTask(c, created.ID, time.Now())
@@ -241,7 +233,7 @@ func TestDB_DropTask(t *testing.T) {
 		db := openTestDB(t)
 		c := ctx(t)
 
-		created, err := db.CreateTask(c, gtd.Task{Title: "Already done", Kind: gtd.TaskKindNextAction, Status: gtd.TaskStatusDone})
+		created, err := db.CreateTask(c, gtd.Task{Title: "Already done", Status: gtd.TaskStatusDone})
 		require.NoError(t, err)
 
 		_, err = db.DropTask(c, created.ID, time.Now())
@@ -262,31 +254,31 @@ func TestDB_ReopenTask(t *testing.T) {
 		db := openTestDB(t)
 		c := ctx(t)
 
-		created, err := db.CreateTask(c, gtd.Task{Title: "Done task", Kind: gtd.TaskKindNextAction, Status: gtd.TaskStatusDone})
+		created, err := db.CreateTask(c, gtd.Task{Title: "Done task", Status: gtd.TaskStatusDone})
 		require.NoError(t, err)
 
 		reopened, err := db.ReopenTask(c, created.ID, time.Now())
 		require.NoError(t, err)
-		assert.Equal(t, gtd.TaskStatusPending, reopened.Status)
+		assert.Equal(t, gtd.TaskStatusOpen, reopened.Status)
 	})
 
 	t.Run("reopens a dropped task", func(t *testing.T) {
 		db := openTestDB(t)
 		c := ctx(t)
 
-		created, err := db.CreateTask(c, gtd.Task{Title: "Dropped task", Kind: gtd.TaskKindNextAction, Status: gtd.TaskStatusDropped})
+		created, err := db.CreateTask(c, gtd.Task{Title: "Dropped task", Status: gtd.TaskStatusDropped})
 		require.NoError(t, err)
 
 		reopened, err := db.ReopenTask(c, created.ID, time.Now())
 		require.NoError(t, err)
-		assert.Equal(t, gtd.TaskStatusPending, reopened.Status)
+		assert.Equal(t, gtd.TaskStatusOpen, reopened.Status)
 	})
 
-	t.Run("pending task returns error", func(t *testing.T) {
+	t.Run("open task returns error", func(t *testing.T) {
 		db := openTestDB(t)
 		c := ctx(t)
 
-		created, err := db.CreateTask(c, gtd.Task{Title: "Pending task", Kind: gtd.TaskKindNextAction, Status: gtd.TaskStatusPending})
+		created, err := db.CreateTask(c, gtd.Task{Title: "Open task", Status: gtd.TaskStatusOpen})
 		require.NoError(t, err)
 
 		_, err = db.ReopenTask(c, created.ID, time.Now())
@@ -299,7 +291,7 @@ func TestDB_StatusChangedAt(t *testing.T) {
 		db := openTestDB(t)
 		c := ctx(t)
 
-		created, err := db.CreateTask(c, gtd.Task{Title: "New", Kind: gtd.TaskKindNextAction, Status: gtd.TaskStatusPending})
+		created, err := db.CreateTask(c, gtd.Task{Title: "New", Status: gtd.TaskStatusOpen})
 		require.NoError(t, err)
 		assert.Equal(t, created.CreatedAt, created.StatusChangedAt)
 
@@ -312,7 +304,7 @@ func TestDB_StatusChangedAt(t *testing.T) {
 		db := openTestDB(t)
 		c := ctx(t)
 
-		created, err := db.CreateTask(c, gtd.Task{Title: "To complete", Kind: gtd.TaskKindNextAction, Status: gtd.TaskStatusPending})
+		created, err := db.CreateTask(c, gtd.Task{Title: "To complete", Status: gtd.TaskStatusOpen})
 		require.NoError(t, err)
 
 		backdate := time.Now().Add(-72 * time.Hour)
@@ -332,7 +324,7 @@ func TestDB_StatusChangedAt(t *testing.T) {
 		db := openTestDB(t)
 		c := ctx(t)
 
-		created, err := db.CreateTask(c, gtd.Task{Title: "Original", Kind: gtd.TaskKindNextAction, Status: gtd.TaskStatusPending})
+		created, err := db.CreateTask(c, gtd.Task{Title: "Original", Status: gtd.TaskStatusOpen})
 		require.NoError(t, err)
 		orig := created.StatusChangedAt
 
@@ -378,7 +370,7 @@ func TestDB_DeleteTask(t *testing.T) {
 	db := openTestDB(t)
 	c := ctx(t)
 
-	created, err := db.CreateTask(c, gtd.Task{Title: "To delete", Kind: gtd.TaskKindNextAction, Status: gtd.TaskStatusPending})
+	created, err := db.CreateTask(c, gtd.Task{Title: "To delete", Status: gtd.TaskStatusOpen})
 	require.NoError(t, err)
 
 	require.NoError(t, db.DeleteTask(c, created.ID))
@@ -397,8 +389,8 @@ func TestDB_ListTasks(t *testing.T) {
 		{
 			name: "all tasks",
 			seed: []gtd.Task{
-				{Title: "Alpha", Kind: gtd.TaskKindNextAction, Status: gtd.TaskStatusPending},
-				{Title: "Beta", Kind: gtd.TaskKindNextAction, Status: gtd.TaskStatusPending},
+				{Title: "Alpha", Status: gtd.TaskStatusOpen},
+				{Title: "Beta", Status: gtd.TaskStatusOpen},
 			},
 			filter: gtd.TaskFilter{},
 			want:   []string{"Alpha", "Beta"},
@@ -406,8 +398,8 @@ func TestDB_ListTasks(t *testing.T) {
 		{
 			name: "closed tasks sort by updated_at desc",
 			seed: []gtd.Task{
-				{Title: "Older", Kind: gtd.TaskKindNextAction, Status: gtd.TaskStatusDone},
-				{Title: "Newer", Kind: gtd.TaskKindNextAction, Status: gtd.TaskStatusDone},
+				{Title: "Older", Status: gtd.TaskStatusDone},
+				{Title: "Newer", Status: gtd.TaskStatusDone},
 			},
 			filter: gtd.TaskFilter{}.WithStatus(gtd.TaskStatusDone),
 			want:   []string{"Newer", "Older"},
@@ -415,24 +407,15 @@ func TestDB_ListTasks(t *testing.T) {
 		{
 			name: "filter by status",
 			seed: []gtd.Task{
-				{Title: "Pending task", Kind: gtd.TaskKindNextAction, Status: gtd.TaskStatusPending},
-				{Title: "Done task", Kind: gtd.TaskKindNextAction, Status: gtd.TaskStatusDone},
+				{Title: "Pending task", Status: gtd.TaskStatusOpen},
+				{Title: "Done task", Status: gtd.TaskStatusDone},
 			},
-			filter: gtd.TaskFilter{}.WithStatus(gtd.TaskStatusPending),
+			filter: gtd.TaskFilter{}.WithStatus(gtd.TaskStatusOpen),
 			want:   []string{"Pending task"},
 		},
 		{
-			name: "filter by kind",
-			seed: []gtd.Task{
-				{Title: "Next action", Kind: gtd.TaskKindNextAction, Status: gtd.TaskStatusPending},
-				{Title: "Delegated", Kind: gtd.TaskKindDelegated, Status: gtd.TaskStatusPending, Assignee: "alice"},
-			},
-			filter: gtd.TaskFilter{}.WithKind(gtd.TaskKindDelegated),
-			want:   []string{"Delegated"},
-		},
-		{
 			name:   "empty result",
-			seed:   []gtd.Task{{Title: "Alpha", Kind: gtd.TaskKindNextAction, Status: gtd.TaskStatusPending}},
+			seed:   []gtd.Task{{Title: "Alpha", Status: gtd.TaskStatusOpen}},
 			filter: gtd.TaskFilter{}.WithStatus(gtd.TaskStatusDone),
 			want:   nil,
 		},
@@ -467,9 +450,9 @@ func TestDB_ListTasks_NoImplicitDeferralFiltering(t *testing.T) {
 	future := time.Now().Add(24 * time.Hour)
 	past := time.Now().Add(-24 * time.Hour)
 
-	mustCreateTask(t, db, gtd.Task{Title: "Visible", Kind: gtd.TaskKindNextAction, Status: gtd.TaskStatusPending})
-	mustCreateTask(t, db, gtd.Task{Title: "Deferred", Kind: gtd.TaskKindNextAction, Status: gtd.TaskStatusPending, DeferUntil: &future})
-	mustCreateTask(t, db, gtd.Task{Title: "Past defer", Kind: gtd.TaskKindNextAction, Status: gtd.TaskStatusPending, DeferUntil: &past})
+	mustCreateTask(t, db, gtd.Task{Title: "Visible", Status: gtd.TaskStatusOpen})
+	mustCreateTask(t, db, gtd.Task{Title: "Deferred", Status: gtd.TaskStatusOpen, DeferUntil: &future})
+	mustCreateTask(t, db, gtd.Task{Title: "Past defer", Status: gtd.TaskStatusOpen, DeferUntil: &past})
 
 	// With no Ready/Defer predicate, future-deferred tasks are returned.
 	got, err := db.ListTasks(c, gtd.TaskFilter{})
@@ -493,13 +476,13 @@ func TestDB_ListTasks_TextAndDateFilters(t *testing.T) {
 	availableAsOfNow := &gtd.DatePredicate{Kind: gtd.AvailableAsOf, Time: now.UTC()}
 
 	seed := func(db *sqlite.DB, c context.Context) {
-		mustCreateTask(t, db, gtd.Task{Title: "Write report", Description: "quarterly numbers", Kind: gtd.TaskKindDelegated, Status: gtd.TaskStatusPending, Assignee: "Bob"})
-		mustCreateTask(t, db, gtd.Task{Title: "Review report", Description: "for alice", Kind: gtd.TaskKindNextAction, Status: gtd.TaskStatusPending, Assignee: "Carol"})
-		mustCreateTask(t, db, gtd.Task{Title: "Call plumber", Kind: gtd.TaskKindNextAction, Status: gtd.TaskStatusPending})
-		mustCreateTask(t, db, gtd.Task{Title: "Deferred future", Kind: gtd.TaskKindNextAction, Status: gtd.TaskStatusPending, DeferUntil: &future})
-		mustCreateTask(t, db, gtd.Task{Title: "Deferred past", Kind: gtd.TaskKindNextAction, Status: gtd.TaskStatusPending, DeferUntil: &past})
-		mustCreateTask(t, db, gtd.Task{Title: "Due soon", Kind: gtd.TaskKindNextAction, Status: gtd.TaskStatusPending, Due: &dueSoon})
-		mustCreateTask(t, db, gtd.Task{Title: "Overdue", Kind: gtd.TaskKindNextAction, Status: gtd.TaskStatusPending, Due: &dueOverdue})
+		mustCreateTask(t, db, gtd.Task{Title: "Write report", Description: "quarterly numbers", Status: gtd.TaskStatusOpen, Assignee: new("Bob")})
+		mustCreateTask(t, db, gtd.Task{Title: "Review report", Description: "for alice", Status: gtd.TaskStatusOpen, Assignee: new("Carol")})
+		mustCreateTask(t, db, gtd.Task{Title: "Call plumber", Status: gtd.TaskStatusOpen})
+		mustCreateTask(t, db, gtd.Task{Title: "Deferred future", Status: gtd.TaskStatusOpen, DeferUntil: &future})
+		mustCreateTask(t, db, gtd.Task{Title: "Deferred past", Status: gtd.TaskStatusOpen, DeferUntil: &past})
+		mustCreateTask(t, db, gtd.Task{Title: "Due soon", Status: gtd.TaskStatusOpen, Due: &dueSoon})
+		mustCreateTask(t, db, gtd.Task{Title: "Overdue", Status: gtd.TaskStatusOpen, Due: &dueOverdue})
 	}
 
 	tests := []struct {
@@ -581,9 +564,9 @@ func TestDB_MoveUp(t *testing.T) {
 	db := openTestDB(t)
 	c := ctx(t)
 
-	a := mustCreateTask(t, db, gtd.Task{Title: "A", Kind: gtd.TaskKindNextAction, Status: gtd.TaskStatusPending})
-	b := mustCreateTask(t, db, gtd.Task{Title: "B", Kind: gtd.TaskKindNextAction, Status: gtd.TaskStatusPending})
-	cTask := mustCreateTask(t, db, gtd.Task{Title: "C", Kind: gtd.TaskKindNextAction, Status: gtd.TaskStatusPending})
+	a := mustCreateTask(t, db, gtd.Task{Title: "A", Status: gtd.TaskStatusOpen})
+	b := mustCreateTask(t, db, gtd.Task{Title: "B", Status: gtd.TaskStatusOpen})
+	cTask := mustCreateTask(t, db, gtd.Task{Title: "C", Status: gtd.TaskStatusOpen})
 
 	// Initial: [A, B, C]. MoveUp(C) → [A, C, B].
 	require.NoError(t, db.MoveUp(c, cTask.ID))
@@ -602,9 +585,9 @@ func TestDB_MoveDown(t *testing.T) {
 	db := openTestDB(t)
 	c := ctx(t)
 
-	a := mustCreateTask(t, db, gtd.Task{Title: "A", Kind: gtd.TaskKindNextAction, Status: gtd.TaskStatusPending})
-	b := mustCreateTask(t, db, gtd.Task{Title: "B", Kind: gtd.TaskKindNextAction, Status: gtd.TaskStatusPending})
-	cTask := mustCreateTask(t, db, gtd.Task{Title: "C", Kind: gtd.TaskKindNextAction, Status: gtd.TaskStatusPending})
+	a := mustCreateTask(t, db, gtd.Task{Title: "A", Status: gtd.TaskStatusOpen})
+	b := mustCreateTask(t, db, gtd.Task{Title: "B", Status: gtd.TaskStatusOpen})
+	cTask := mustCreateTask(t, db, gtd.Task{Title: "C", Status: gtd.TaskStatusOpen})
 
 	// Initial: [A, B, C]. MoveDown(A) → [B, A, C].
 	require.NoError(t, db.MoveDown(c, a.ID))
@@ -623,7 +606,7 @@ func TestDB_MoveUp_RejectsClosedTask(t *testing.T) {
 	db := openTestDB(t)
 	c := ctx(t)
 
-	a := mustCreateTask(t, db, gtd.Task{Title: "A", Kind: gtd.TaskKindNextAction, Status: gtd.TaskStatusDone})
+	a := mustCreateTask(t, db, gtd.Task{Title: "A", Status: gtd.TaskStatusDone})
 
 	assert.Error(t, db.MoveUp(c, a.ID))
 	assert.Error(t, db.MoveDown(c, a.ID))
@@ -633,9 +616,9 @@ func TestDB_MoveUp_RenumbersWhenKeysExhausted(t *testing.T) {
 	db := openTestDB(t)
 	c := ctx(t)
 
-	a := mustCreateTask(t, db, gtd.Task{Title: "A", Kind: gtd.TaskKindNextAction, Status: gtd.TaskStatusPending})
-	b := mustCreateTask(t, db, gtd.Task{Title: "B", Kind: gtd.TaskKindNextAction, Status: gtd.TaskStatusPending})
-	cTask := mustCreateTask(t, db, gtd.Task{Title: "C", Kind: gtd.TaskKindNextAction, Status: gtd.TaskStatusPending})
+	a := mustCreateTask(t, db, gtd.Task{Title: "A", Status: gtd.TaskStatusOpen})
+	b := mustCreateTask(t, db, gtd.Task{Title: "B", Status: gtd.TaskStatusOpen})
+	cTask := mustCreateTask(t, db, gtd.Task{Title: "C", Status: gtd.TaskStatusOpen})
 
 	require.NoError(t, db.SetOrderKeyForTest(c, a.ID, "0"))
 	require.NoError(t, db.SetOrderKeyForTest(c, b.ID, "00"))
@@ -652,9 +635,9 @@ func TestDB_CreateTask_AppendsWithinPending(t *testing.T) {
 	db := openTestDB(t)
 	c := ctx(t)
 
-	a := mustCreateTask(t, db, gtd.Task{Title: "A", Kind: gtd.TaskKindNextAction, Status: gtd.TaskStatusPending})
-	b := mustCreateTask(t, db, gtd.Task{Title: "B", Kind: gtd.TaskKindNextAction, Status: gtd.TaskStatusPending})
-	cTask := mustCreateTask(t, db, gtd.Task{Title: "C", Kind: gtd.TaskKindNextAction, Status: gtd.TaskStatusPending})
+	a := mustCreateTask(t, db, gtd.Task{Title: "A", Status: gtd.TaskStatusOpen})
+	b := mustCreateTask(t, db, gtd.Task{Title: "B", Status: gtd.TaskStatusOpen})
+	cTask := mustCreateTask(t, db, gtd.Task{Title: "C", Status: gtd.TaskStatusOpen})
 
 	assert.Equal(t, []int64{a.ID, b.ID, cTask.ID}, pendingIDs(t, db, c))
 }
@@ -663,8 +646,8 @@ func TestDB_DropTask_SortsByUpdatedAtDesc(t *testing.T) {
 	db := openTestDB(t)
 	c := ctx(t)
 
-	a := mustCreateTask(t, db, gtd.Task{Title: "A", Kind: gtd.TaskKindNextAction, Status: gtd.TaskStatusDropped})
-	b := mustCreateTask(t, db, gtd.Task{Title: "B", Kind: gtd.TaskKindNextAction, Status: gtd.TaskStatusPending})
+	a := mustCreateTask(t, db, gtd.Task{Title: "A", Status: gtd.TaskStatusDropped})
+	b := mustCreateTask(t, db, gtd.Task{Title: "B", Status: gtd.TaskStatusOpen})
 
 	_, err := db.DropTask(c, b.ID, time.Now())
 	require.NoError(t, err)
@@ -682,7 +665,7 @@ func mustCreateTask(t *testing.T, db *sqlite.DB, task gtd.Task) gtd.Task {
 
 func pendingIDs(t *testing.T, db *sqlite.DB, c context.Context) []int64 {
 	t.Helper()
-	return taskIDsByStatus(t, db, c, gtd.TaskStatusPending)
+	return taskIDsByStatus(t, db, c, gtd.TaskStatusOpen)
 }
 
 func taskIDsByStatus(t *testing.T, db *sqlite.DB, c context.Context, status gtd.TaskStatus) []int64 {
