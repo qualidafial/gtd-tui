@@ -5,6 +5,21 @@
 This project uses Go 1.26. Use `new(value)` to create a pointer to the value of an expression
 (e.g. `new("alice")` returns `*string` pointing to `"alice"`). Do not create `ptr()` helper functions.
 
+## Huh Form Value Pointers
+
+Huh forms bind to values via `Value(ptr)`. Because bubbletea uses value-receiver `Update` methods, the
+model is copied on every update cycle. Any pointer huh holds must survive those copies — it must point
+through a stable indirection, not directly into a model field.
+
+- For fields on a `*struct` stored in the model (e.g. `m.task` is `*gtd.Task`), `Value(&m.task.Field)` is
+  safe because the pointer dereference is stable across copies.
+- For standalone fields on the model struct itself, use a double-pointer (`**T`): store `**T` in the model,
+  initialize with `new(initialValue)`, and pass the `*T` (i.e. `m.field`, not `&m.field`) to `Value()`.
+  This way huh writes through the stable `*T`, not into a field that moves with each model copy.
+- For `huh.Select[*T]` where options carry pointer values: huh matches the current value against options
+  using pointer equality (`==`), not deep equality. The initial `*selected` must point to the exact same
+  allocation as the matching option's value — not a separate copy with the same contents.
+
 ## Tests
 
 All code modifications must be accompanied by appropriate test changes. When adding behavior, add tests covering it.

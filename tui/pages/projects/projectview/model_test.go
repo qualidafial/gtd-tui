@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/qualidafial/gtd-tui/tui/components/screen/screentest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -77,7 +78,7 @@ func TestTaskScoping(t *testing.T) {
 	require.NoError(t, err)
 
 	m := New(p, e.taskSvc, e.projectSvc, nil)
-	drain(t, &m)
+	m = screentest.Init(m).(Model)
 
 	s, _ := m.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
 	m = s.(Model)
@@ -99,34 +100,6 @@ func TestCreateInheritsProject(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, created.ProjectID)
 	assert.Equal(t, p.ID, *created.ProjectID)
-}
-
-// drain executes Init and then pumps commands through Update until the model
-// settles (no more commands). Handles tea.BatchMsg by expanding into individual
-// cmds. Caps iterations to prevent infinite loops.
-func drain(t *testing.T, m *Model) {
-	t.Helper()
-	var pending []tea.Cmd
-	if cmd := m.Init(); cmd != nil {
-		pending = append(pending, cmd)
-	}
-	for i := 0; len(pending) > 0 && i < 100; i++ {
-		cmd := pending[0]
-		pending = pending[1:]
-		msg := cmd()
-		if msg == nil {
-			continue
-		}
-		if batch, ok := msg.(tea.BatchMsg); ok {
-			pending = append(pending, ([]tea.Cmd)(batch)...)
-			continue
-		}
-		s, next := m.Update(msg)
-		*m = s.(Model)
-		if next != nil {
-			pending = append(pending, next)
-		}
-	}
 }
 
 func TestHeader_StatusLabels(t *testing.T) {

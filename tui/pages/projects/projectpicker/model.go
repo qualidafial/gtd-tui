@@ -21,8 +21,8 @@ type Model struct {
 	task       gtd.Task
 	taskSvc    gtd.TaskService
 	projectSvc gtd.ProjectService
-	selected   *int64
-	original   *int64
+	selected   **int64
+	original   **int64
 	form       *huh.Form
 	saving     bool
 	err        error
@@ -33,6 +33,8 @@ func New(task gtd.Task, taskSvc gtd.TaskService, projectSvc gtd.ProjectService) 
 		task:       task,
 		taskSvc:    taskSvc,
 		projectSvc: projectSvc,
+		selected:   new(task.ProjectID),
+		original:   new(task.ProjectID),
 	}
 	return m
 }
@@ -92,7 +94,7 @@ func (m Model) Update(msg tea.Msg) (screen.Screen, tea.Cmd) {
 	case huh.StateAborted:
 		return m, tea.Batch(cmd, screen.Dismiss())
 	case huh.StateCompleted:
-		if ptrEqual(m.selected, m.original) {
+		if ptrEqual(*m.selected, *m.original) {
 			return m, tea.Batch(cmd, screen.Dismiss())
 		}
 		m.saving = true
@@ -105,14 +107,12 @@ func (m *Model) buildForm(projects []gtd.Project) {
 	options := make([]huh.Option[*int64], 0, len(projects)+1)
 	options = append(options, huh.NewOption("(none)", (*int64)(nil)))
 	for _, p := range projects {
-		options = append(options, huh.NewOption(p.Title, new(p.ID)))
-	}
-
-	if m.task.ProjectID != nil {
-		m.selected = new(*m.task.ProjectID)
-	}
-	if m.task.ProjectID != nil {
-		m.original = new(*m.task.ProjectID)
+		id := new(p.ID)
+		options = append(options, huh.NewOption(p.Title, id))
+		if m.task.ProjectID != nil && *m.task.ProjectID == p.ID {
+			*m.selected = id
+			*m.original = new(*m.task.ProjectID)
+		}
 	}
 
 	keymap := huh.NewDefaultKeyMap()
@@ -123,7 +123,7 @@ func (m *Model) buildForm(projects []gtd.Project) {
 			huh.NewSelect[*int64]().
 				Title("Project").
 				Options(options...).
-				Value(&m.selected),
+				Value(m.selected),
 		),
 	).
 		WithShowErrors(true).
@@ -133,7 +133,7 @@ func (m *Model) buildForm(projects []gtd.Project) {
 
 func (m Model) saveCmd() tea.Cmd {
 	task := m.task
-	task.ProjectID = m.selected
+	task.ProjectID = *m.selected
 	svc := m.taskSvc
 	return func() tea.Msg {
 		_, err := svc.UpdateTask(context.Background(), task)

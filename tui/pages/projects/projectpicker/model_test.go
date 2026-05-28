@@ -4,7 +4,6 @@ import (
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
-	"charm.land/huh/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -12,6 +11,7 @@ import (
 	"github.com/qualidafial/gtd-tui/service"
 	"github.com/qualidafial/gtd-tui/sqlite"
 	"github.com/qualidafial/gtd-tui/tui/components/screen"
+	"github.com/qualidafial/gtd-tui/tui/components/screen/screentest"
 )
 
 type env struct {
@@ -42,26 +42,21 @@ func TestPicker_Assign(t *testing.T) {
 	assert.Nil(t, task.ProjectID)
 
 	m := New(task, e.taskSvc, e.projectSvc)
-
-	// Simulate load
-	m = applyMsg(t, m, m.loadCmd()())
+	m = screentest.Init(m).(Model)
 
 	// Select the project (index 1, since 0 is "(none)")
-	m.selected = new(p.ID)
-	m.form.State = huh.StateCompleted
+	m = screentest.Send(m, tea.KeyPressMsg{Code: tea.KeyDown}).(Model)
 
-	_, cmd := m.Update(nil)
-	msg := cmd()
-	m = applyMsg(t, m, msg)
+	var dismissed bool
+	for s, msg := range screentest.PumpSend(m, tea.KeyPressMsg{Code: tea.KeyEnter}) {
+		m = s.(Model)
+		if _, ok := msg.(screen.DismissMsg); ok {
+			dismissed = true
+			break
+		}
+	}
+	require.True(t, dismissed, "enter should dismiss after save")
 
-	// Verify dismiss
-	_, cmd2 := m.Update(msg)
-	require.NotNil(t, cmd2)
-	dismissMsg := cmd2()
-	_, ok := dismissMsg.(screen.DismissMsg)
-	assert.True(t, ok)
-
-	// Verify task was updated
 	updated, err := e.taskSvc.GetTask(ctx, task.ID)
 	require.NoError(t, err)
 	require.NotNil(t, updated.ProjectID)
@@ -79,15 +74,22 @@ func TestPicker_Unlink(t *testing.T) {
 	require.NoError(t, err)
 
 	m := New(task, e.taskSvc, e.projectSvc)
-	m = applyMsg(t, m, m.loadCmd()())
+	m = screentest.Init(m).(Model)
 
-	// Select "(none)"
-	m.selected = nil
-	m.form.State = huh.StateCompleted
+	// Move to "(none)" and confirm
+	for s := range screentest.PumpSend(m, tea.KeyPressMsg{Code: tea.KeyHome}) {
+		m = s.(Model)
+	}
 
-	_, cmd := m.Update(nil)
-	msg := cmd()
-	m = applyMsg(t, m, msg)
+	var dismissed bool
+	for s, msg := range screentest.PumpSend(m, tea.KeyPressMsg{Code: tea.KeyEnter}) {
+		m = s.(Model)
+		if _, ok := msg.(screen.DismissMsg); ok {
+			dismissed = true
+			break
+		}
+	}
+	require.True(t, dismissed, "enter should dismiss after save")
 
 	updated, err := e.taskSvc.GetTask(ctx, task.ID)
 	require.NoError(t, err)
@@ -105,14 +107,20 @@ func TestPicker_NoChange_SkipsUpdate(t *testing.T) {
 	require.NoError(t, err)
 
 	m := New(task, e.taskSvc, e.projectSvc)
-	m = applyMsg(t, m, m.loadCmd()())
+	m = screentest.Init(m).(Model)
 
-	// Keep the same project selected (original == selected)
-	m.form.State = huh.StateCompleted
-
+	// Submit without changing selection
+	var dismissed bool
+	for s, msg := range screentest.PumpSend(m, tea.KeyPressMsg{Code: tea.KeyEnter}) {
+		m = s.(Model)
+		if _, ok := msg.(screen.DismissMsg); ok {
+			dismissed = true
+			break
+		}
+	}
+	require.True(t, dismissed, "enter with no change should dismiss without saving")
 	assert.False(t, m.saving, "should not have started saving")
 
-	// Verify task is unchanged
 	got, err := e.taskSvc.GetTask(ctx, task.ID)
 	require.NoError(t, err)
 	assert.Equal(t, &p.ID, got.ProjectID)
@@ -126,15 +134,15 @@ func TestPicker_Cancel(t *testing.T) {
 	require.NoError(t, err)
 
 	m := New(task, e.taskSvc, e.projectSvc)
-	m = applyMsg(t, m, m.loadCmd()())
+	m = screentest.Init(m).(Model)
 
-	m.form.State = huh.StateAborted
-	_, cmd := m.Update(nil)
-	require.NotNil(t, cmd)
-}
-
-func applyMsg(t *testing.T, m Model, msg tea.Msg) Model {
-	t.Helper()
-	updated, _ := m.Update(msg)
-	return updated.(Model)
+	var dismissed bool
+	for s, msg := range screentest.PumpSend(m, tea.KeyPressMsg{Code: tea.KeyEscape}) {
+		m = s.(Model)
+		if _, ok := msg.(screen.DismissMsg); ok {
+			dismissed = true
+			break
+		}
+	}
+	require.True(t, dismissed, "esc should dismiss")
 }
