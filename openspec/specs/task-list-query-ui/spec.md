@@ -6,7 +6,7 @@ Defines the task list query bar UI: default query, focus/edit behavior, live val
 ## Requirements
 
 ### Requirement: Query bar on the task list
-The task list SHALL display a query bar showing the active query string. The bar SHALL be seeded with the default query `status:open ready:now` on startup. When the query is empty, the bar SHALL show a placeholder indicating that all tasks are shown.
+The task list SHALL display a query bar using the shared `querybar` component, occupying exactly one line above the list. The bar SHALL be seeded with the default query `status:open ready:now` on startup. When the query is empty, the bar SHALL show a placeholder indicating that all tasks are shown.
 
 #### Scenario: Default query on startup
 - **WHEN** the task list first loads
@@ -16,6 +16,10 @@ The task list SHALL display a query bar showing the active query string. The bar
 #### Scenario: Empty query shows placeholder
 - **WHEN** the query bar is empty
 - **THEN** a placeholder indicating all tasks are shown (e.g. `(all tasks)`) is displayed in the bar
+
+#### Scenario: Query bar is single line
+- **WHEN** the task list renders
+- **THEN** the query bar SHALL occupy exactly one line above the list
 
 ### Requirement: Focus and edit the query
 Pressing `/` SHALL focus the query bar for editing. The list's built-in filter keybinding SHALL be disabled so the query bar is the only filtering mechanism.
@@ -47,12 +51,18 @@ While the query bar is focused, the application's global keybindings that confli
 - **WHEN** the query bar is focused and the user presses Ctrl+C
 - **THEN** the application quits
 
-### Requirement: Live parsing for validation feedback
-While the query bar is being edited, the query SHALL be parsed for validation feedback on Enter and on a debounce of 2 seconds after the last keystroke. Live parsing SHALL update only the error display; it SHALL NOT reload the list.
+### Requirement: Live parsing for validation and preview
+While the query bar is being edited, the query SHALL be parsed for validation feedback on Enter and on a debounce of 500 milliseconds after the last keystroke. When the debounced parse succeeds, the task list SHALL be reloaded with the new filter as a live preview, but the query bar SHALL remain focused so further edits keep refining the preview. When the debounced parse fails, only the error display SHALL be updated; the list SHALL NOT be reloaded.
 
-#### Scenario: Debounced parse updates error display
-- **WHEN** the user stops typing for 2 seconds
-- **THEN** the query is parsed and the error display is updated (cleared on success, shown on failure)
+#### Scenario: Debounced parse previews the filter
+- **WHEN** the user stops typing for 500 milliseconds and the current query parses cleanly
+- **THEN** the task list reloads using the parsed filter
+- **AND** the query bar remains focused
+- **AND** the error display is cleared
+
+#### Scenario: Debounced parse on invalid query updates only the error display
+- **WHEN** the user stops typing for 500 milliseconds and the current query fails to parse
+- **THEN** the error display is updated to show the parse error
 - **AND** the listed tasks are not reloaded
 
 ### Requirement: Apply query on Enter
@@ -75,12 +85,12 @@ Pressing Esc while editing SHALL revert the query bar to the last successfully-a
 - **AND** the listed tasks are unchanged
 
 ### Requirement: Inline parse-error display with range highlight
-When parsing fails, the task list SHALL display the parse error inline and SHALL highlight the offending substring in the query bar using the error's range. It SHALL NOT change the currently displayed results.
+When parsing fails, the query bar SHALL highlight the offending substring inline using red foreground and underline styling via the shared `querybar` component's `ansi.Cut`-based rendering. The error message SHALL be displayed in the app error bar. The query bar SHALL NOT use a multi-line display for errors.
 
 #### Scenario: Invalid query highlights the bad token
 - **WHEN** the query `status:bogus` fails to parse
-- **THEN** an error message is shown
-- **AND** the `status:bogus` substring is highlighted in the query bar using the error's range
+- **THEN** the `status:bogus` substring is highlighted inline with red foreground and underline
+- **AND** the error message is displayed in the app error bar
 - **AND** the previously listed tasks remain displayed
 
 ### Requirement: Create task with "+" or "insert" key

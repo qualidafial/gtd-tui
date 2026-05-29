@@ -9,13 +9,10 @@ import (
 	"charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/huh/v2"
-	"charm.land/lipgloss/v2"
 
 	"github.com/qualidafial/gtd-tui"
 	"github.com/qualidafial/gtd-tui/tui/components/screen"
 )
-
-var errStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("9"))
 
 type Model struct {
 	task       gtd.Task
@@ -25,7 +22,6 @@ type Model struct {
 	original   **int64
 	form       *huh.Form
 	saving     bool
-	err        error
 }
 
 func New(task gtd.Task, taskSvc gtd.TaskService, projectSvc gtd.ProjectService) Model {
@@ -61,24 +57,14 @@ func (m Model) Update(msg tea.Msg) (screen.Screen, tea.Cmd) {
 		return m, m.form.Init()
 	case savedMsg:
 		if msg.err != nil {
-			m.err = msg.err
 			m.saving = false
-			return m, nil
+			if m.form != nil {
+				m.form.State = huh.StateNormal
+			}
+			err := msg.err
+			return m, func() tea.Msg { return fmt.Errorf("save failed: %w", err) }
 		}
 		return m, screen.Dismiss()
-	case error:
-		m.err = msg
-		return m, nil
-	case tea.KeyPressMsg:
-		if m.err != nil {
-			if key.Matches(msg, keyBack) {
-				m.err = nil
-				if m.form != nil {
-					m.form.State = huh.StateNormal
-				}
-			}
-			return m, nil
-		}
 	}
 
 	if m.form == nil || m.saving {
@@ -148,17 +134,10 @@ func (m Model) View() string {
 	if m.form == nil {
 		return "Loading projects..."
 	}
-	v := m.form.View()
-	if m.err != nil {
-		v += "\n" + errStyle.Render(m.err.Error())
-	}
-	return v
+	return m.form.View()
 }
 
 func (m Model) CapturingInput() bool {
-	if m.err != nil {
-		return true
-	}
 	return m.form != nil && m.form.State == huh.StateNormal
 }
 

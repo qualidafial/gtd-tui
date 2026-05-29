@@ -25,7 +25,6 @@ var keyBack = key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "back"))
 var (
 	metaLabelStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("240")).Width(11)
 	metaValueStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("245"))
-	errorStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("203")).Bold(true)
 )
 
 type ViewFactory func(project gtd.Project) screen.Screen
@@ -98,7 +97,8 @@ func (m Model) Update(msg tea.Msg) (screen.Screen, tea.Cmd) {
 		if msg.err != nil {
 			m.err = msg.err
 			m.saving = false
-			return m, nil
+			err := msg.err
+			return m, func() tea.Msg { return fmt.Errorf("save failed: %w", err) }
 		}
 		if msg.created {
 			return m, tea.Sequence(screen.Dismiss(), m.pushViewCmd(msg.project))
@@ -177,9 +177,6 @@ func (m Model) View() string {
 		)
 	}
 	sections = append(sections, m.form.View())
-	if m.err != nil {
-		sections = append(sections, "", errorStyle.Render("save failed: "+m.err.Error()))
-	}
 	return lipgloss.JoinVertical(lipgloss.Left, sections...)
 }
 

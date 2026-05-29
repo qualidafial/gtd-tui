@@ -99,7 +99,10 @@ func (m Model) renderHeader() string {
 }
 
 func (m Model) KeyMap() help.KeyMap {
-	return tabKeyMap{inner: m.tabs[m.activeTab].Screen.KeyMap()}
+	return tabKeyMap{
+		inner:          m.tabs[m.activeTab].Screen.KeyMap(),
+		capturingInput: screen.CapturingInput(m.tabs[m.activeTab].Screen),
+	}
 }
 
 func (m Model) CapturingInput() bool {
@@ -107,14 +110,21 @@ func (m Model) CapturingInput() bool {
 }
 
 type tabKeyMap struct {
-	inner help.KeyMap
+	inner          help.KeyMap
+	capturingInput bool
 }
 
 func (k tabKeyMap) ShortHelp() []key.Binding {
+	if k.capturingInput {
+		return k.inner.ShortHelp()
+	}
 	return append(k.inner.ShortHelp(), keyTab)
 }
 
 func (k tabKeyMap) FullHelp() [][]key.Binding {
 	groups := k.inner.FullHelp()
+	if k.capturingInput {
+		return groups
+	}
 	return append(groups, []key.Binding{keyTab, keyShiftTab})
 }

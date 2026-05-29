@@ -37,6 +37,11 @@ func (d *DB) ListProjects(ctx context.Context, filter gtd.ProjectFilter) ([]gtd.
 	if filter.Status != nil {
 		q = q.Where(sq.Eq{"status": string(*filter.Status)})
 	}
+	for _, term := range filter.Search {
+		pattern := likeContains(term)
+		q = q.Where("(lower(title) LIKE ? OR lower(outcome) LIKE ? OR lower(description) LIKE ?)",
+			pattern, pattern, pattern)
+	}
 	q = q.OrderBy(
 		"CASE status WHEN 'open' THEN 0 WHEN 'someday' THEN 1 ELSE 2 END ASC",
 		"order_key ASC",

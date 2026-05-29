@@ -1,6 +1,7 @@
 package tasklist
 
 import (
+	"charm.land/bubbles/v2/help"
 	"charm.land/bubbles/v2/key"
 	"charm.land/bubbles/v2/list"
 )
@@ -15,8 +16,8 @@ import (
 //
 // The nav and editing fields are render-time context populated by Model.KeyMap
 // just before the help component reads ShortHelp/FullHelp: nav mirrors the
-// list's own (dynamically enabled) navigation bindings, and editing switches
-// the advertised bindings to the query-bar actions.
+// list's own (dynamically enabled) navigation bindings, and editing, when
+// non-nil, delegates the advertised bindings to the query bar.
 type keyMap struct {
 	New        key.Binding
 	Edit       key.Binding
@@ -26,11 +27,9 @@ type keyMap struct {
 	MoveUp     key.Binding
 	MoveDown   key.Binding
 	FocusQuery key.Binding
-	Apply      key.Binding
-	Cancel     key.Binding
 
 	nav     list.KeyMap
-	editing bool
+	editing help.KeyMap
 }
 
 func defaultKeyMap() keyMap {
@@ -43,8 +42,6 @@ func defaultKeyMap() keyMap {
 		MoveUp:     key.NewBinding(key.WithKeys("shift+up"), key.WithHelp("shift+↑", "move up")),
 		MoveDown:   key.NewBinding(key.WithKeys("shift+down"), key.WithHelp("shift+↓", "move down")),
 		FocusQuery: key.NewBinding(key.WithKeys("/"), key.WithHelp("/", "filter")),
-		Apply:      key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "apply")),
-		Cancel:     key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "cancel")),
 	}
 }
 
@@ -52,8 +49,8 @@ func defaultKeyMap() keyMap {
 // component skips any that are disabled, so per-selection visibility is
 // governed entirely by SetEnabled.
 func (k keyMap) ShortHelp() []key.Binding {
-	if k.editing {
-		return []key.Binding{k.Apply, k.Cancel}
+	if k.editing != nil {
+		return k.editing.ShortHelp()
 	}
 	return []key.Binding{
 		k.nav.CursorUp,
@@ -70,8 +67,8 @@ func (k keyMap) ShortHelp() []key.Binding {
 }
 
 func (k keyMap) FullHelp() [][]key.Binding {
-	if k.editing {
-		return [][]key.Binding{{k.Apply, k.Cancel}}
+	if k.editing != nil {
+		return k.editing.FullHelp()
 	}
 	return [][]key.Binding{
 		{

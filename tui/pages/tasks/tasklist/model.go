@@ -10,26 +10,19 @@ import (
 	"charm.land/bubbles/v2/help"
 	"charm.land/bubbles/v2/key"
 	"charm.land/bubbles/v2/list"
-	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
-	"charm.land/lipgloss/v2"
 
 	"github.com/qualidafial/gtd-tui"
 	"github.com/qualidafial/gtd-tui/internal/taskquery"
+	"github.com/qualidafial/gtd-tui/tui/components/querybar"
 	"github.com/qualidafial/gtd-tui/tui/components/screen"
 	"github.com/qualidafial/gtd-tui/tui/pages/tasks/taskedit"
 	"github.com/qualidafial/gtd-tui/tui/pages/tasks/taskstatus"
 )
 
-// queryAreaHeight is the fixed number of lines reserved above the list for the
-// query bar, the offending-range underline, and the error message.
-const queryAreaHeight = 3
-
 // queryDebounceDelay is how long after the last keystroke a live validation
 // parse fires.
-const queryDebounceDelay = 2 * time.Second
-
-var errStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("9"))
+const queryDebounceDelay = 500 * time.Millisecond
 
 // PickerFactory creates a project picker overlay for the given task.
 // When nil, the "p" keybinding is disabled.
@@ -44,11 +37,7 @@ type Model struct {
 	pickerFn      PickerFactory
 	projectNameFn ProjectNameFunc
 	filter        gtd.TaskFilter
-	appliedQuery  string
-	query         textinput.Model
-	editing       bool
-	parseErr      *taskquery.ParseError
-	debounceSeq   int
+	query         querybar.Model
 	list          list.Model
 	keys          keyMap
 	width         int
@@ -65,10 +54,6 @@ type tasksReorderedMsg struct {
 	selectID int64
 }
 
-// queryDebounceMsg fires queryDebounceDelay after a keystroke; seq lets us
-// ignore it when a newer keystroke has since arrived.
-type queryDebounceMsg struct{ seq int }
-
 func New(svc gtd.TaskService, query string, pickerFn PickerFactory, projectNameFn ProjectNameFunc) Model {
 	keys := defaultKeyMap()
 
@@ -82,10 +67,17 @@ func New(svc gtd.TaskService, query string, pickerFn PickerFactory, projectNameF
 	// built-in `/` filter so it doesn't compete.
 	l.KeyMap.Filter.SetEnabled(false)
 
-	ti := textinput.New()
-	ti.Prompt = "/ "
-	ti.Placeholder = "(all tasks)"
-	ti.SetValue(query)
+	qb := querybar.New("/ ", "(all tasks)", queryDebounceDelay, func(s string) *querybar.ParseError {
+		_, err := taskquery.Parse(s)
+		if err == nil {
+			return nil
+		}
+		if pe, ok := errors.AsType[*querybar.ParseError](err); ok {
+			return pe
+		}
+		return &querybar.ParseError{Message: err.Error()}
+	})
+	qb.SetValue(query)
 
 	// Best-effort initial parse; an invalid seed query yields a zero filter.
 	filter, _ := taskquery.Parse(query)
@@ -95,8 +87,7 @@ func New(svc gtd.TaskService, query string, pickerFn PickerFactory, projectNameF
 		pickerFn:      pickerFn,
 		projectNameFn: projectNameFn,
 		filter:        filter,
-		appliedQuery:  query,
-		query:         ti,
+		query:         qb,
 		list:          l,
 		keys:          keys,
 	}
@@ -131,7 +122,7 @@ func (m Model) Update(msg tea.Msg) (screen.Screen, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.query.SetWidth(msg.Width)
-		listHeight := msg.Height - queryAreaHeight
+		listHeight := msg.Height - 1
 		if listHeight < 0 {
 			listHeight = 0
 		}
@@ -158,20 +149,24 @@ func (m Model) Update(msg tea.Msg) (screen.Screen, tea.Cmd) {
 		m.list.Select(idx)
 		m.updateKeybindings()
 		return m, cmd
-	case queryDebounceMsg:
-		if msg.seq == m.debounceSeq && m.editing {
-			m.validate()
+	case querybar.ApplyMsg:
+		filter, err := taskquery.Parse(msg.Query)
+		if err != nil {
+			return m, nil
 		}
-		return m, nil
+		m.filter = filter
+		return m, m.loadCmd()
 	case tea.KeyPressMsg:
-		if m.editing {
-			return m.updateEditing(msg)
+		if m.query.CapturingInput() {
+			var cmd tea.Cmd
+			m.query, cmd = m.query.Update(msg)
+			return m, cmd
 		}
 		switch {
 		case key.Matches(msg, m.keys.FocusQuery):
-			m.editing = true
-			m.parseErr = nil
-			return m, m.query.Focus()
+			var cmd tea.Cmd
+			m.query, cmd = m.query.Focus()
+			return m, cmd
 		case key.Matches(msg, m.keys.New):
 			t := gtd.Task{
 				Status: gtd.TaskStatusOpen,
@@ -209,8 +204,8 @@ func (m Model) Update(msg tea.Msg) (screen.Screen, tea.Cmd) {
 		}
 	}
 
-	// While editing, non-key messages (cursor blink, etc.) go to the query bar.
-	if m.editing {
+	// While the query bar is capturing input, non-key messages go to it.
+	if m.query.CapturingInput() {
 		var cmd tea.Cmd
 		m.query, cmd = m.query.Update(msg)
 		return m, cmd
@@ -224,60 +219,12 @@ func (m Model) Update(msg tea.Msg) (screen.Screen, tea.Cmd) {
 	return m, cmd
 }
 
-// updateEditing handles key presses while the query bar is focused.
-func (m Model) updateEditing(msg tea.KeyPressMsg) (screen.Screen, tea.Cmd) {
-	switch {
-	case key.Matches(msg, m.keys.Apply):
-		filter, err := taskquery.Parse(m.query.Value())
-		if err != nil {
-			m.setParseErr(err)
-			return m, nil // do not reload on parse failure
-		}
-		m.parseErr = nil
-		m.editing = false
-		m.query.Blur()
-		m.appliedQuery = m.query.Value()
-		m.filter = filter
-		return m, m.loadCmd()
-	case key.Matches(msg, m.keys.Cancel):
-		m.editing = false
-		m.query.Blur()
-		m.query.SetValue(m.appliedQuery)
-		m.parseErr = nil
-		return m, nil
-	}
-
-	var cmd tea.Cmd
-	m.query, cmd = m.query.Update(msg)
-	m.debounceSeq++
-	seq := m.debounceSeq
-	tick := tea.Tick(queryDebounceDelay, func(time.Time) tea.Msg {
-		return queryDebounceMsg{seq: seq}
-	})
-	return m, tea.Batch(cmd, tick)
-}
-
-// validate parses the current query for feedback only; it never reloads.
-func (m *Model) validate() {
-	if _, err := taskquery.Parse(m.query.Value()); err != nil {
-		m.setParseErr(err)
-	} else {
-		m.parseErr = nil
-	}
-}
-
-func (m *Model) setParseErr(err error) {
-	if pe, ok := errors.AsType[*taskquery.ParseError](err); ok {
-		m.parseErr = pe
-	} else {
-		m.parseErr = &taskquery.ParseError{Message: err.Error()}
-	}
-}
-
 func (m Model) KeyMap() help.KeyMap {
 	k := m.keys
 	k.nav = m.list.KeyMap
-	k.editing = m.editing
+	if m.query.CapturingInput() {
+		k.editing = m.query.KeyMap
+	}
 	return k
 }
 
@@ -318,37 +265,15 @@ func (m *Model) updateKeybindings() {
 // CapturingInput reports that the query bar is focused, so the app should not
 // act on global keybindings (tab, help toggle) while the user is typing.
 func (m Model) CapturingInput() bool {
-	return m.editing
+	return m.query.CapturingInput()
 }
 
 func (m Model) View() string {
 	var b strings.Builder
 	b.WriteString(m.query.View())
 	b.WriteByte('\n')
-
-	if m.parseErr != nil {
-		underline := strings.Repeat(" ", promptWidth(m.query)+m.parseErr.Start)
-		n := m.parseErr.End - m.parseErr.Start
-		if n < 1 {
-			n = 1
-		}
-		underline += strings.Repeat("^", n)
-		b.WriteString(errStyle.Render(underline))
-		b.WriteByte('\n')
-		b.WriteString(errStyle.Render(m.parseErr.Message))
-		b.WriteByte('\n')
-	} else {
-		b.WriteString("\n\n")
-	}
-
 	b.WriteString(m.list.View())
 	return b.String()
-}
-
-// promptWidth is the rune width of the query bar's prompt, used to align the
-// offending-range underline under the input text.
-func promptWidth(ti textinput.Model) int {
-	return len([]rune(ti.Prompt))
 }
 
 // statusAt returns the status of the task at index i, or the empty status if i

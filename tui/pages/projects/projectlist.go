@@ -2,16 +2,19 @@ package projects
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"charm.land/bubbles/v2/help"
 	"charm.land/bubbles/v2/key"
 	"charm.land/bubbles/v2/list"
 	tea "charm.land/bubbletea/v2"
-	"charm.land/lipgloss/v2"
 
 	"github.com/qualidafial/gtd-tui"
+	"github.com/qualidafial/gtd-tui/internal/projectquery"
+	"github.com/qualidafial/gtd-tui/tui/components/querybar"
 	"github.com/qualidafial/gtd-tui/tui/components/screen"
 	"github.com/qualidafial/gtd-tui/tui/pages/projects/projectedit"
 	"github.com/qualidafial/gtd-tui/tui/pages/projects/projectstatus"
@@ -19,17 +22,19 @@ import (
 	"github.com/qualidafial/gtd-tui/tui/pages/tasks/tasklist"
 )
 
-var listErrStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("9"))
+const projectQueryDebounceDelay = 500 * time.Millisecond
+const defaultProjectQuery = "status:open"
 
 type Model struct {
 	svc      gtd.ProjectService
 	taskSvc  gtd.TaskService
 	pickerFn tasklist.PickerFactory
+	filter   gtd.ProjectFilter
 	projects []gtd.Project
+	query    querybar.Model
 	list     list.Model
 	keys     keyMap
 	width    int
-	err      error
 }
 
 type projectsLoadedMsg struct {
@@ -54,10 +59,26 @@ func New(svc gtd.ProjectService, taskSvc gtd.TaskService, pickerFn tasklist.Pick
 	l.DisableQuitKeybindings()
 	l.KeyMap.Filter.SetEnabled(false)
 
+	qb := querybar.New("/ ", "(all projects)", projectQueryDebounceDelay, func(s string) *querybar.ParseError {
+		_, err := projectquery.Parse(s)
+		if err == nil {
+			return nil
+		}
+		if pe, ok := errors.AsType[*querybar.ParseError](err); ok {
+			return pe
+		}
+		return &querybar.ParseError{Message: err.Error()}
+	})
+	qb.SetValue(defaultProjectQuery)
+
+	filter, _ := projectquery.Parse(defaultProjectQuery)
+
 	m := Model{
 		svc:      svc,
 		taskSvc:  taskSvc,
 		pickerFn: pickerFn,
+		filter:   filter,
+		query:    qb,
 		list:     l,
 		keys:     keys,
 	}
@@ -71,8 +92,9 @@ func (m Model) Init() tea.Cmd {
 
 func (m Model) loadCmd() tea.Cmd {
 	svc := m.svc
+	filter := m.filter
 	return func() tea.Msg {
-		projects, err := svc.ListProjects(context.Background(), gtd.ProjectFilter{})
+		projects, err := svc.ListProjects(context.Background(), filter)
 		if err != nil {
 			return fmt.Errorf("load projects: %w", err)
 		}
@@ -100,18 +122,17 @@ func (m Model) countCmd(projects []gtd.Project) tea.Cmd {
 
 func (m Model) Update(msg tea.Msg) (screen.Screen, tea.Cmd) {
 	switch msg := msg.(type) {
-	case error:
-		m.err = msg
-		return m, nil
-
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
-		// reserve one line at the bottom for the error footer
-		m.list.SetSize(msg.Width, msg.Height-1)
+		m.query.SetWidth(msg.Width)
+		listHeight := msg.Height - 1
+		if listHeight < 0 {
+			listHeight = 0
+		}
+		m.list.SetSize(msg.Width, listHeight)
 		return m, nil
 
 	case projectsLoadedMsg:
-		m.err = nil
 		m.projects = msg.projects
 		items := m.buildItems(nil)
 		cmd := m.list.SetItems(items)
@@ -125,7 +146,6 @@ func (m Model) Update(msg tea.Msg) (screen.Screen, tea.Cmd) {
 		return m, cmd
 
 	case projectsReorderedMsg:
-		m.err = nil
 		m.projects = msg.projects
 		items := m.buildItems(m.currentCounts())
 		idx := m.list.Index()
@@ -140,9 +160,26 @@ func (m Model) Update(msg tea.Msg) (screen.Screen, tea.Cmd) {
 		m.updateKeybindings()
 		return m, cmd
 
+	case querybar.ApplyMsg:
+		filter, err := projectquery.Parse(msg.Query)
+		if err != nil {
+			return m, nil
+		}
+		m.filter = filter
+		return m, m.loadCmd()
+
 	case tea.KeyPressMsg:
-		m.err = nil
+		if m.query.CapturingInput() {
+			var cmd tea.Cmd
+			m.query, cmd = m.query.Update(msg)
+			return m, cmd
+		}
 		switch {
+		case key.Matches(msg, m.keys.FocusQuery):
+			var cmd tea.Cmd
+			m.query, cmd = m.query.Focus()
+			return m, cmd
+
 		case key.Matches(msg, m.keys.New):
 			return m, screen.Push(projectedit.New(gtd.Project{}, m.svc, m.viewFactory()))
 
@@ -190,6 +227,13 @@ func (m Model) Update(msg tea.Msg) (screen.Screen, tea.Cmd) {
 		}
 	}
 
+	// While the query bar is capturing input, non-key messages go to it.
+	if m.query.CapturingInput() {
+		var cmd tea.Cmd
+		m.query, cmd = m.query.Update(msg)
+		return m, cmd
+	}
+
 	var cmd tea.Cmd
 	m.list, cmd = m.list.Update(msg)
 	m.updateKeybindings()
@@ -198,11 +242,12 @@ func (m Model) Update(msg tea.Msg) (screen.Screen, tea.Cmd) {
 
 func (m Model) reopenCmd(id int64) tea.Cmd {
 	svc := m.svc
+	filter := m.filter
 	return func() tea.Msg {
 		if _, err := svc.ReopenProject(context.Background(), id, time.Now()); err != nil {
 			return fmt.Errorf("reopen project: %w", err)
 		}
-		projects, err := svc.ListProjects(context.Background(), gtd.ProjectFilter{})
+		projects, err := svc.ListProjects(context.Background(), filter)
 		if err != nil {
 			return fmt.Errorf("reload projects: %w", err)
 		}
@@ -212,11 +257,12 @@ func (m Model) reopenCmd(id int64) tea.Cmd {
 
 func (m Model) parkCmd(id int64) tea.Cmd {
 	svc := m.svc
+	filter := m.filter
 	return func() tea.Msg {
 		if _, err := svc.ParkProject(context.Background(), id, time.Now()); err != nil {
 			return fmt.Errorf("park project: %w", err)
 		}
-		projects, err := svc.ListProjects(context.Background(), gtd.ProjectFilter{})
+		projects, err := svc.ListProjects(context.Background(), filter)
 		if err != nil {
 			return fmt.Errorf("reload projects: %w", err)
 		}
@@ -231,6 +277,7 @@ func (m Model) moveCmd(direction int) tea.Cmd {
 	}
 	id := cur.project.ID
 	svc := m.svc
+	filter := m.filter
 	doMove := svc.MoveProjectUp
 	if direction > 0 {
 		doMove = svc.MoveProjectDown
@@ -240,7 +287,7 @@ func (m Model) moveCmd(direction int) tea.Cmd {
 		if err := doMove(ctx, id); err != nil {
 			return fmt.Errorf("move project: %w", err)
 		}
-		projects, err := svc.ListProjects(ctx, gtd.ProjectFilter{})
+		projects, err := svc.ListProjects(ctx, filter)
 		if err != nil {
 			return fmt.Errorf("reload projects: %w", err)
 		}
@@ -329,15 +376,18 @@ func isOrderable(l list.Model, i int) bool {
 func (m Model) KeyMap() help.KeyMap {
 	k := m.keys
 	k.nav = m.list.KeyMap
+	if m.query.CapturingInput() {
+		k.editing = m.query.KeyMap
+	}
 	return k
 }
 
-func (m Model) CapturingInput() bool { return false }
+func (m Model) CapturingInput() bool { return m.query.CapturingInput() }
 
 func (m Model) View() string {
-	footer := "\n" // blank reserved line
-	if m.err != nil {
-		footer = listErrStyle.Render(m.err.Error())
-	}
-	return m.list.View() + "\n" + footer
+	var b strings.Builder
+	b.WriteString(m.query.View())
+	b.WriteByte('\n')
+	b.WriteString(m.list.View())
+	return b.String()
 }

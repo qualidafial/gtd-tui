@@ -45,14 +45,20 @@ func TestModel_StatusLine(t *testing.T) {
 	}
 }
 
-func TestModel_SaveError_RendersInView(t *testing.T) {
+func TestModel_SaveError_ReturnsErrorCmd(t *testing.T) {
 	m := New(gtd.Task{ID: 1, Title: "Existing"}, nil, "")
 
-	updated, _ := m.Update(taskSavedMsg{err: errors.New("disk full")})
-	view := updated.(Model).View()
-
-	if !strings.Contains(view, "disk full") {
-		t.Fatalf("expected save error in view, got:\n%s", view)
+	_, cmd := m.Update(taskSavedMsg{err: errors.New("disk full")})
+	if cmd == nil {
+		t.Fatal("expected error cmd on save failure")
+	}
+	msg := cmd()
+	err, ok := msg.(error)
+	if !ok {
+		t.Fatalf("expected error msg, got %T", msg)
+	}
+	if !strings.Contains(err.Error(), "disk full") {
+		t.Fatalf("error msg = %q, want to contain 'disk full'", err.Error())
 	}
 }
 

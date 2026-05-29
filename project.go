@@ -36,6 +36,7 @@ type ProjectTaskCounts struct {
 
 type ProjectFilter struct {
 	Status *ProjectStatus
+	Search []string
 }
 
 func (f ProjectFilter) WithStatus(s ProjectStatus) ProjectFilter {

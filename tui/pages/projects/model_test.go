@@ -1,7 +1,6 @@
 package projects
 
 import (
-	"errors"
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
@@ -207,17 +206,38 @@ func TestModel_Enter_PushesProjectView(t *testing.T) {
 	}
 }
 
-func TestModel_ErrorMsg_ShownAndClearedOnKeypress(t *testing.T) {
+func TestModel_QueryBar_DefaultQuery(t *testing.T) {
 	m := New(openTestSvc(t), nil, nil)
-
-	updated, _ := m.Update(errors.New("load projects: connection refused"))
-	m = updated.(Model)
-	if m.err == nil {
-		t.Fatal("expected error to be stored on model")
+	if got := m.query.Value(); got != defaultProjectQuery {
+		t.Fatalf("default query = %q, want %q", got, defaultProjectQuery)
 	}
+}
 
-	m, _ = sendKey(m, tea.KeyPressMsg{Code: 'n', Text: "n"})
-	if m.err != nil {
-		t.Fatal("expected error to be cleared on keypress")
+func TestModel_QueryBar_FocusOnSlash(t *testing.T) {
+	m := New(openTestSvc(t), nil, nil)
+	m2, _ := sendKey(m, tea.KeyPressMsg{Code: '/', Text: "/"})
+	if !m2.query.CapturingInput() {
+		t.Fatal("'/' should focus the query bar")
+	}
+	if !m2.CapturingInput() {
+		t.Fatal("model CapturingInput() should be true when query bar is focused")
+	}
+}
+
+func TestModel_QueryBar_CancelReverts(t *testing.T) {
+	m := New(openTestSvc(t), nil, nil)
+	// focus
+	m2, _ := sendKey(m, tea.KeyPressMsg{Code: '/', Text: "/"})
+	// esc to cancel
+	m3, cmd := sendKey(m2, tea.KeyPressMsg{Code: tea.KeyEscape})
+	if cmd == nil {
+		t.Fatal("expected cmd from cancel")
+	}
+	if m3.query.CapturingInput() {
+		t.Fatal("query bar should be blurred after cancel")
+	}
+	// value should revert to default
+	if got := m3.query.Value(); got != defaultProjectQuery {
+		t.Fatalf("after cancel, query = %q, want %q", got, defaultProjectQuery)
 	}
 }

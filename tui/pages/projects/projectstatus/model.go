@@ -115,7 +115,8 @@ func (m Model) Update(msg tea.Msg) (screen.Screen, tea.Cmd) {
 		if msg.err != nil {
 			m.err = msg.err
 			m.applying = false
-			return m, nil
+			err := msg.err
+			return m, func() tea.Msg { return fmt.Errorf("transition failed: %w", err) }
 		}
 		return m, screen.Dismiss()
 	}
@@ -160,9 +161,6 @@ func (m Model) applyCmd() tea.Cmd {
 }
 
 func (m Model) View() string {
-	if m.err != nil {
-		return m.err.Error()
-	}
 	return m.form.View()
 }
 

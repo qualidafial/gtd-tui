@@ -9,6 +9,7 @@ import (
 	"charm.land/huh/v2"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/qualidafial/gtd-tui"
 	"github.com/qualidafial/gtd-tui/tui/components/screen"
@@ -43,13 +44,16 @@ func TestView_NoHeader_NewProject(t *testing.T) {
 	assert.NotContains(t, view, "Created:")
 }
 
-func TestSaveError_RendersInView(t *testing.T) {
+func TestSaveError_ReturnsErrorCmd(t *testing.T) {
 	m := New(gtd.Project{ID: 1, Title: "Existing"}, nil, nil)
 
-	updated, _ := m.Update(projectSavedMsg{err: errors.New("disk full")})
-	view := updated.(Model).View()
-
-	assert.Contains(t, view, "disk full")
+	updated, cmd := m.Update(projectSavedMsg{err: errors.New("disk full")})
+	_ = updated
+	require.NotNil(t, cmd, "expected error cmd on save failure")
+	msg := cmd()
+	err, ok := msg.(error)
+	require.True(t, ok, "expected error msg, got %T", msg)
+	assert.Contains(t, err.Error(), "disk full")
 }
 
 func TestSaveError_EscClearsAndResumesForm(t *testing.T) {

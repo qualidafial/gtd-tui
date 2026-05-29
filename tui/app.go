@@ -23,12 +23,14 @@ var (
 )
 
 var (
-	appStyle = lipgloss.NewStyle().Margin(1, 2)
+	appStyle    = lipgloss.NewStyle().Margin(1, 2)
+	appErrStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("9")).Bold(true)
 )
 
 type Model struct {
 	active screen.Screen
 	help   help.Model
+	err    error
 	width  int
 	height int
 }
@@ -67,7 +69,12 @@ func (m Model) Init() tea.Cmd {
 }
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	var cmds []tea.Cmd
+
 	switch msg := msg.(type) {
+	case error:
+		m.err = msg
+		return m.resizeActive()
 	case tea.WindowSizeMsg:
 		m.width = msg.Width - appStyle.GetHorizontalMargins()
 		m.height = msg.Height - appStyle.GetVerticalMargins()
@@ -84,6 +91,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case screen.InitMsg:
 		return m, tea.Batch(tea.RequestWindowSize, m.active.Init())
 	case tea.KeyPressMsg:
+		// Any keypress clears the error bar; the key is still forwarded below.
+		if m.err != nil {
+			m.err = nil
+			var cmd tea.Cmd
+			m, cmd = m.resizeActive()
+			cmds = append(cmds, cmd)
+		}
 		switch {
 		case key.Matches(msg, keyQuit):
 			return m, tea.Quit
@@ -97,10 +111,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	var cmd tea.Cmd
 	m.active, cmd = m.active.Update(msg)
-	return m, cmd
+	cmds = append(cmds, cmd)
+
+	return m, tea.Batch(cmds...)
 }
 
-func (m Model) resizeActive() (tea.Model, tea.Cmd) {
+func (m Model) resizeActive() (Model, tea.Cmd) {
 	m.help.SetWidth(m.width)
 
 	footer := m.renderFooter()
@@ -132,6 +148,9 @@ func (m Model) View() tea.View {
 }
 
 func (m Model) renderFooter() string {
+	if m.err != nil {
+		return "\n" + appErrStyle.Render(m.err.Error())
+	}
 	km := appKeyMap{inner: m.active.KeyMap()}
 	return "\n" + m.help.View(km)
 }

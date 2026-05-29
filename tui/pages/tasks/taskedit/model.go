@@ -25,7 +25,6 @@ var keyBack = key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "back"))
 var (
 	metaLabelStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("240")).Width(8)
 	metaValueStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("245"))
-	errorStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("203")).Bold(true)
 )
 
 type Model struct {
@@ -103,7 +102,8 @@ func (m Model) Update(msg tea.Msg) (screen.Screen, tea.Cmd) {
 		if msg.err != nil {
 			m.err = msg.err
 			m.saving = false
-			return m, nil
+			err := msg.err
+			return m, func() tea.Msg { return fmt.Errorf("save failed: %w", err) }
 		}
 		return m, screen.Dismiss()
 	case tea.KeyPressMsg:
@@ -182,9 +182,6 @@ func (m Model) View() string {
 		sections = append(sections, "")
 	}
 	sections = append(sections, m.form.View())
-	if m.err != nil {
-		sections = append(sections, "", errorStyle.Render("save failed: "+m.err.Error()))
-	}
 	return lipgloss.JoinVertical(lipgloss.Left, sections...)
 }
 

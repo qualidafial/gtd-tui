@@ -11,18 +11,11 @@ import (
 	"time"
 
 	"github.com/qualidafial/gtd-tui"
+	"github.com/qualidafial/gtd-tui/tui/components/querybar"
 )
 
-// ParseError reports an invalid value for a recognized key. Start and End are
-// rune offsets into the original query marking the [start, end) range of the
-// offending token, so a caller can highlight exactly the bad section.
-type ParseError struct {
-	Message string
-	Start   int
-	End     int
-}
-
-func (e *ParseError) Error() string { return e.Message }
+// ParseError is an alias for querybar.ParseError for backwards compatibility.
+type ParseError = querybar.ParseError
 
 // token is a whitespace-delimited slice of the input with its rune offsets.
 type token struct {
