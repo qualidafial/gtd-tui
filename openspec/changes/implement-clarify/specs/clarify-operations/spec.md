@@ -5,7 +5,7 @@ The system SHALL provide an InboxService in the service/ package that orchestrat
 
 #### Scenario: InboxService accepts store dependencies
 - **WHEN** creating an InboxService
-- **THEN** it accepts ItemStore, TaskStore, ProjectStore, SomedayStore, ReferenceStore
+- **THEN** it accepts ItemStore, TaskStore, ProjectStore, ReferenceStore
 
 #### Scenario: InboxService in service package
 - **WHEN** InboxService is implemented
@@ -36,32 +36,37 @@ The Discard operation SHALL mark an Item as discarded for non-actionable, unwant
 - **THEN** the system returns an error
 
 ### Requirement: Incubate clarify operation
-The Incubate operation SHALL create a Someday entity for non-actionable items to revisit later. The Item's ClarifiedIntoSomedayID SHALL point to the new Someday. The operation SHALL be transactional.
+The Incubate operation SHALL create a Project with `Status=someday` for ideas to revisit later. The Item's `ClarifiedIntoProjectID` SHALL point to the new Project. The operation SHALL be transactional. Someday items are not a separate entity — they reuse the Project entity per the finalized `project-entity` spec.
 
-#### Scenario: Incubate creates someday
-- **WHEN** Incubate is called with item ID and Someday data
-- **THEN** the system creates a Someday entity
-- **AND** Item.ClarifiedIntoSomedayID points to the new Someday
+#### Scenario: Incubate creates someday project
+- **WHEN** Incubate is called with item ID and project data
+- **THEN** the system creates a Project with `Status=someday`
+- **AND** Item.ClarifiedIntoProjectID points to the new Project
 
 #### Scenario: Incubate is atomic
 - **WHEN** Incubate is called
-- **THEN** Someday creation and Item update occur in one transaction
+- **THEN** Project creation and Item update occur in one transaction
 
 #### Scenario: Incubate returns both entities
 - **WHEN** Incubate is called successfully
-- **THEN** it returns both the created Someday and updated Item
+- **THEN** it returns both the created Project and updated Item
 
 #### Scenario: Incubate copies item title by default
 - **WHEN** Incubate is called without explicit title
-- **THEN** the Someday title is copied from the Item title
+- **THEN** the Project title is copied from the Item title
 
 #### Scenario: Incubate fails for already-clarified item
 - **WHEN** Incubate is called on an Item with ClarifiedInto already set
 - **THEN** the system returns an error
 
 #### Scenario: Incubate rollback on failure
-- **WHEN** Incubate fails during Someday creation
+- **WHEN** Incubate fails during Project creation
 - **THEN** no changes are persisted
+
+#### Scenario: Incubated project later reopened
+- **WHEN** the user invokes ReopenProject on a project that was created via Incubate
+- **THEN** the project transitions from someday to open per the existing project-service semantics
+- **AND** no further action is required on the originating Item
 
 ### Requirement: FileAsReference clarify operation
 The FileAsReference operation SHALL create a Reference entity for non-actionable content to keep for retrieval. The Item's ClarifiedIntoReferenceID SHALL point to the new Reference. The operation SHALL be transactional.
@@ -134,11 +139,11 @@ The ClarifyAsTask operation SHALL create a Task entity for actionable single-ste
 - **THEN** the system returns an error
 
 ### Requirement: ClarifyAsProject clarify operation
-The ClarifyAsProject operation SHALL create a Project entity for actionable multi-step outcomes. The Item's ClarifiedIntoProjectID SHALL point to the new Project. The operation SHALL be transactional.
+The ClarifyAsProject operation SHALL create a Project with `Status=open` for actionable multi-step outcomes. The Item's `ClarifiedIntoProjectID` SHALL point to the new Project. The operation SHALL be transactional. This differs from Incubate only in the project's initial status.
 
 #### Scenario: ClarifyAsProject creates project
 - **WHEN** ClarifyAsProject is called with item ID and Project data
-- **THEN** the system creates a Project with status active
+- **THEN** the system creates a Project with `Status=open`
 - **AND** Item.ClarifiedIntoProjectID points to the new Project
 
 #### Scenario: ClarifyAsProject is atomic
@@ -158,7 +163,7 @@ The ClarifyAsProject operation SHALL create a Project entity for actionable mult
 - **THEN** the system returns an error
 
 ### Requirement: Item ClarifiedInto mutual exclusion
-The Item entity SHALL have at most one ClarifiedInto field set at any time. A CHECK constraint SHALL enforce that at most one of ClarifiedIntoTaskID, ClarifiedIntoProjectID, ClarifiedIntoSomedayID, ClarifiedIntoReferenceID is non-null, and Discarded is false when any ClarifiedInto is set.
+The Item entity SHALL have at most one ClarifiedInto field set at any time. A CHECK constraint SHALL enforce that at most one of `ClarifiedIntoTaskID`, `ClarifiedIntoProjectID`, `ClarifiedIntoReferenceID` is non-null, and Discarded is false when any ClarifiedInto is set. Incubate and ClarifyAsProject both target `ClarifiedIntoProjectID`; the project's status distinguishes the two outcomes.
 
 #### Scenario: At most one ClarifiedInto
 - **WHEN** an Item has ClarifiedIntoTaskID set

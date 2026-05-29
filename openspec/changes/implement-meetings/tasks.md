@@ -77,3 +77,10 @@
 - [ ] 9.3 Test Discard preserves MeetingLink pointing at Item
 - [ ] 9.4 Test Item with multiple MeetingLinks - all rewritten on clarify
 - [ ] 9.5 Test clarification rollback reverts MeetingLink rewrite
+
+## 10. TUI
+
+- [ ] 10.1 Create `tui/pages/meetings/` Screen rendering MeetingService.List
+- [ ] 10.2 Surface upcoming + recent meetings by default, ordered by start time
+- [ ] 10.3 Accept MeetingService in the Screen constructor
+- [ ] 10.4 Register a "Meetings" tab in `tui.New`

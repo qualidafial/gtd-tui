@@ -19,7 +19,7 @@ The existing codebase demonstrates patterns we will follow:
 **Non-Goals:**
 - Clarify operations (Discard, ClarifyAsTask, etc.) - these span multiple services and belong in a future change
 - TUI integration - this change establishes the service layer only
-- The somedays and references tables - ClarifiedInto FKs for these will be nullable without foreign key constraints until those entities are implemented
+- The references table — `ClarifiedIntoReferenceID` is added by implement-clarify when that table exists. Someday items are not a separate entity (they are projects with `Status=someday`), so no `ClarifiedIntoSomedayID` is needed
 
 ## Decisions
 
@@ -53,23 +53,30 @@ The existing codebase demonstrates patterns we will follow:
 - Most recent first: Would break FIFO processing flow
 - Manual ordering via order_key: Premature complexity for inbox items
 
-### Decision: Defer FK constraints for unimplemented entities
+### Decision: No ClarifiedIntoSomedayID column
 
-**Choice**: ClarifiedIntoSomedayID and ClarifiedIntoReferenceID columns exist but without REFERENCES clause until those tables are created.
+**Choice**: Someday items reuse the Project entity (`Status=someday`). Incubate stamps `ClarifiedIntoProjectID`, the same field as ClarifyAsProject. The two operations differ only in the initial project status.
 
-**Rationale**: The Item entity design is stable, but Someday and Reference entities are not yet implemented. Including the columns now allows the domain type to be complete while deferring FK integrity until the target tables exist. Migration ordering ensures items table is created before any entity that might reference it.
+**Rationale**: The Project entity already models someday via `ProjectStatusSomeday` (per the finalized `project-entity` spec), and `ParkProject`/`ReopenProject` already handle transitions in and out of someday. A parallel Someday entity would duplicate that machinery and force users to "promote" someday items into projects manually.
 
 **Alternatives considered**:
-- Add columns later: Would require schema migration coordination and domain type changes
-- Create stub tables: Adds unused tables that may not match final design
+- Separate Someday entity with its own table and ClarifiedIntoSomedayID column: Forces a duplicate promotion path and a second list to maintain
+- Add a someday column to items: Conflates inbox state with downstream project status
+
+### Decision: Defer references FK column to implement-clarify
+
+**Choice**: `clarified_into_reference_id` is added by the implement-clarify migration alongside the references table, not by this change.
+
+**Rationale**: Adding the column here would require a NULLable column with no REFERENCES clause and CHECK-constraint coordination across two changes. Deferring it to the change that owns the references table keeps the migration self-contained.
+
+**Alternatives considered**:
+- Add the column now without REFERENCES: Splits CHECK-constraint maintenance across two migrations
+- Create a stub references table: Adds an unused table that may not match final design
 
 ## Risks / Trade-offs
 
-**Risk**: ClarifiedInto FKs for Someday/Reference lack referential integrity until those entities exist.
-**Mitigation**: The CHECK constraint prevents setting these values. When Someday/Reference are implemented, their migrations will add the FK constraints via ALTER TABLE.
+**Risk**: implement-clarify must ALTER the items table to add `clarified_into_reference_id` and extend the CHECK constraint.
+**Mitigation**: Documented as a follow-up migration step in implement-clarify's tasks; SQLite supports the operation via table-rebuild pattern already used elsewhere.
 
 **Risk**: Large inbox could make List() slow without pagination.
 **Mitigation**: For v1, unbounded List is acceptable for personal use. Add pagination or cursor-based iteration if performance becomes an issue.
-
-**Trade-off**: Items table has columns for entities not yet implemented.
-**Accepted**: The alternative (adding columns later) creates more migration complexity and domain type churn. The current approach front-loads the stable design.

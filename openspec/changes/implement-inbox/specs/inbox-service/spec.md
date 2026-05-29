@@ -8,9 +8,8 @@ The system SHALL provide an Item entity in the root package representing an unpr
 - `CreatedAt` (time.Time): timestamp when captured
 - `UpdatedAt` (time.Time): timestamp of last modification
 - `ClarifiedIntoTaskID` (*int64): nullable FK to Task if clarified as task
-- `ClarifiedIntoProjectID` (*int64): nullable FK to Project if clarified as project
-- `ClarifiedIntoSomedayID` (*int64): nullable FK to Someday if incubated
-- `ClarifiedIntoReferenceID` (*int64): nullable FK to Reference if filed
+- `ClarifiedIntoProjectID` (*int64): nullable FK to Project if clarified as project (covers both ClarifyAsProject — Status=open — and Incubate — Status=someday)
+- `ClarifiedIntoReferenceID` (*int64): nullable FK to Reference if filed (column added by implement-clarify alongside the references table)
 - `Discarded` (bool): true if discarded during clarify
 
 All `ClarifiedInto*` pointers SHALL be mutually exclusive with Discarded: at most one can be set.
@@ -69,10 +68,10 @@ The system SHALL create an `items` table via migration with the following schema
 - `created_at DATETIME NOT NULL`: capture timestamp
 - `updated_at DATETIME NOT NULL`: last modification timestamp
 - `clarified_into_task_id INTEGER REFERENCES tasks(id)`: nullable FK
-- `clarified_into_project_id INTEGER REFERENCES projects(id)`: nullable FK
-- `clarified_into_someday_id INTEGER REFERENCES somedays(id)`: nullable FK (for future)
-- `clarified_into_reference_id INTEGER REFERENCES references(id)`: nullable FK (for future)
+- `clarified_into_project_id INTEGER REFERENCES projects(id)`: nullable FK (covers both clarify-as-project and incubate; status lives on the project)
 - `discarded INTEGER NOT NULL DEFAULT 0`: boolean flag
+
+The `clarified_into_reference_id` column SHALL be added later by implement-clarify when the references table exists.
 
 A CHECK constraint SHALL enforce that at most one of the clarified_into_* columns or discarded is set.
 

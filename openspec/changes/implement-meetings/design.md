@@ -1,6 +1,6 @@
 ## Context
 
-The GTD TUI currently has Task, Project, Item (inbox), Someday, Reference, and Comment entities. Meeting records are identified in DESIGN.md as a key capture mechanism: action items captured during meetings should flow to the inbox automatically with a link back to the meeting.
+The GTD TUI currently has Task, Project (which covers someday via `Status=someday`), Item (inbox), Reference, and Comment entities. Meeting records are identified in DESIGN.md as a key capture mechanism: action items captured during meetings should flow to the inbox automatically with a link back to the meeting.
 
 This change introduces Meeting and MeetingLink entities to enable meeting-centric action item capture. The foundation specs in `openspec/changes/foundation/specs/domain-model/spec.md` already define the requirements - this design focuses on implementation approach.
 

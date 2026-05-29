@@ -32,10 +32,10 @@ Clarify operations that do not produce a Task or Project (Discard, Incubate, Fil
 - **THEN** the MeetingLink continues to point at the Item
 - **AND** the Item is marked as discarded
 
-#### Scenario: Incubate preserves MeetingLink to Item
+#### Scenario: Incubate rewrites MeetingLink to Project
 - **WHEN** an Item with a MeetingLink is incubated
-- **THEN** the MeetingLink continues to point at the Item
-- **AND** a Someday entity is created
+- **THEN** a Project with `Status=someday` is created
+- **AND** the MeetingLink is rewritten to point at the new Project (same target type as ClarifyAsProject; only the project status differs)
 
 #### Scenario: FileAsReference preserves MeetingLink to Item
 - **WHEN** an Item with a MeetingLink is filed as reference
