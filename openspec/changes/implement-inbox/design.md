@@ -101,3 +101,17 @@ func (s *InboxService) ClarifyAsTask(ctx context.Context, itemID int64, task Tas
 
 **Trade-off**: MeetingLink rewriting on clarify is not handled here.
 **Accepted**: Meetings are owned by implement-meetings, which already specifies how its MeetingLinks follow Items through clarification (including the Incubate-creates-someday-project case). That coupling is documented in the meetings change, not duplicated here.
+
+## Open Questions
+
+### ClarifyAsProject with a completed first action ("I chose do-it-now for the first task of a new project")
+
+`ClarifyAsTask` already supports the do-it-now path: the spawned Task can start in `Status=done` (see `specs/clarify-operations/spec.md`, "ClarifyAsTask do-it-now creates done task"). The analogous case for projects is unresolved: the user clarifies an Item into a *project* but has already performed the first concrete action, so that first action's Task should be created in `done` status, letting the UI immediately prompt for the actual next action.
+
+Today `ClarifyAsProject` creates only the Project (no spawned Task), so there is no place for a pre-completed first action.
+
+**Open:**
+- Is this a parameter on `ClarifyAsProject` (e.g., an optional first-action Task that is created in `done` status in the same transaction), or a follow-on call (`ClarifyAsProject` then a separate `ClarifyAsTask`/`CreateTask` targeting the new project)?
+- If a parameter: does `ClarifyAsProject` then return three entities (Item, Project, Task) instead of two, and how does that interact with the "returns both entities" scenario?
+
+Out of scope for this change's specs until resolved; tracked here so the decision lands alongside the rest of the clarify surface.
