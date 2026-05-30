@@ -8,8 +8,9 @@ The system SHALL provide an Item entity in the root package representing an unpr
 - `CreatedAt` (time.Time): timestamp when captured
 - `UpdatedAt` (time.Time): timestamp of last modification
 - `ClarifiedIntoTaskID` (*int64): nullable FK to Task if clarified as task
-- `ClarifiedIntoProjectID` (*int64): nullable FK to Project if clarified as project (covers both ClarifyAsProject — Status=open — and Incubate — Status=someday)
-- `ClarifiedIntoReferenceID` (*int64): nullable FK to Reference if filed (column added by implement-clarify alongside the references table)
+- `ClarifiedIntoProjectID` (*int64): nullable FK to Project — covers both ClarifyAsProject (`Status=open`) and Incubate (`Status=someday`)
+
+The `implement-references` change adds a `ClarifiedIntoReferenceID` field; this spec covers the Item state at the end of this change.
 - `Discarded` (bool): true if discarded during clarify
 
 All `ClarifiedInto*` pointers SHALL be mutually exclusive with Discarded: at most one can be set.
@@ -71,7 +72,7 @@ The system SHALL create an `items` table via migration with the following schema
 - `clarified_into_project_id INTEGER REFERENCES projects(id)`: nullable FK (covers both clarify-as-project and incubate; status lives on the project)
 - `discarded INTEGER NOT NULL DEFAULT 0`: boolean flag
 
-The `clarified_into_reference_id` column SHALL be added later by implement-clarify when the references table exists.
+A CHECK constraint SHALL enforce that at most one of `clarified_into_task_id` / `clarified_into_project_id` is non-null, and `discarded = 0` when either is set. `implement-references` extends this constraint to include `clarified_into_reference_id`.
 
 A CHECK constraint SHALL enforce that at most one of the clarified_into_* columns or discarded is set.
 

@@ -5,7 +5,7 @@ The system SHALL provide an InboxService in the service/ package that orchestrat
 
 #### Scenario: InboxService accepts store dependencies
 - **WHEN** creating an InboxService
-- **THEN** it accepts ItemStore, TaskStore, ProjectStore, ReferenceStore
+- **THEN** it accepts ItemStore, TaskStore, ProjectStore (ReferenceStore is added by `implement-references`)
 
 #### Scenario: InboxService in service package
 - **WHEN** InboxService is implemented
@@ -67,34 +67,6 @@ The Incubate operation SHALL create a Project with `Status=someday` for ideas to
 - **WHEN** the user invokes ReopenProject on a project that was created via Incubate
 - **THEN** the project transitions from someday to open per the existing project-service semantics
 - **AND** no further action is required on the originating Item
-
-### Requirement: FileAsReference clarify operation
-The FileAsReference operation SHALL create a Reference entity for non-actionable content to keep for retrieval. The Item's ClarifiedIntoReferenceID SHALL point to the new Reference. The operation SHALL be transactional.
-
-#### Scenario: FileAsReference creates reference
-- **WHEN** FileAsReference is called with item ID and Reference data
-- **THEN** the system creates a Reference entity
-- **AND** Item.ClarifiedIntoReferenceID points to the new Reference
-
-#### Scenario: FileAsReference is atomic
-- **WHEN** FileAsReference is called
-- **THEN** Reference creation and Item update occur in one transaction
-
-#### Scenario: FileAsReference returns both entities
-- **WHEN** FileAsReference is called successfully
-- **THEN** it returns both the created Reference and updated Item
-
-#### Scenario: FileAsReference copies item title by default
-- **WHEN** FileAsReference is called without explicit title
-- **THEN** the Reference title is copied from the Item title
-
-#### Scenario: FileAsReference copies item description to body
-- **WHEN** FileAsReference is called without explicit body
-- **THEN** the Reference body is copied from the Item description
-
-#### Scenario: FileAsReference fails for already-clarified item
-- **WHEN** FileAsReference is called on an Item with ClarifiedInto already set
-- **THEN** the system returns an error
 
 ### Requirement: ClarifyAsTask clarify operation
 The ClarifyAsTask operation SHALL create a Task entity for actionable single-step items. The task kind and optional project are specified at clarify time. The Item's ClarifiedIntoTaskID SHALL point to the new Task. The operation SHALL be transactional.
@@ -163,7 +135,7 @@ The ClarifyAsProject operation SHALL create a Project with `Status=open` for act
 - **THEN** the system returns an error
 
 ### Requirement: Item ClarifiedInto mutual exclusion
-The Item entity SHALL have at most one ClarifiedInto field set at any time. A CHECK constraint SHALL enforce that at most one of `ClarifiedIntoTaskID`, `ClarifiedIntoProjectID`, `ClarifiedIntoReferenceID` is non-null, and Discarded is false when any ClarifiedInto is set. Incubate and ClarifyAsProject both target `ClarifiedIntoProjectID`; the project's status distinguishes the two outcomes.
+The Item entity SHALL have at most one ClarifiedInto field set at any time. A CHECK constraint SHALL enforce that at most one of `ClarifiedIntoTaskID`, `ClarifiedIntoProjectID` is non-null, and Discarded is false when either is set. Incubate and ClarifyAsProject both target `ClarifiedIntoProjectID`; the project's status distinguishes the two outcomes. `implement-references` extends this requirement to include `ClarifiedIntoReferenceID`.
 
 #### Scenario: At most one ClarifiedInto
 - **WHEN** an Item has ClarifiedIntoTaskID set
