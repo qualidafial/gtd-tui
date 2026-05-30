@@ -44,6 +44,7 @@ type chipColors struct {
 	deferred lipgloss.Style // dim blue
 	ready    lipgloss.Style // teal
 	assignee lipgloss.Style // magenta
+	project  lipgloss.Style // green
 }
 
 // newChipColors pulls red from huh.ThemeCharm (where it is named) and uses
@@ -60,13 +61,16 @@ func newChipColors(hasDarkBg bool) chipColors {
 		deferred: lipgloss.NewStyle().Foreground(lipgloss.Color("67")),  // dim blue
 		ready:    lipgloss.NewStyle().Foreground(lipgloss.Color("44")),  // teal
 		assignee: lipgloss.NewStyle().Foreground(lipgloss.Color("13")),  // magenta
+		project:  lipgloss.NewStyle().Foreground(lipgloss.Color("36")),  // green
 	}
 }
 
 // taskChips builds the ordered chips for a task: due/overdue, then defer/ready,
-// then assignee. Due and defer chips are suppressed on done and dropped tasks;
-// the assignee chip survives on done tasks; dropped tasks show no chips.
-func taskChips(t gtd.Task, now time.Time, c chipColors) []chip {
+// then assignee, then project. Due and defer chips are suppressed on done and
+// dropped tasks; assignee and project chips survive on done tasks; dropped
+// tasks show no chips. projectName is the resolved title to render in the
+// `+<name>` chip; an empty string suppresses the chip.
+func taskChips(t gtd.Task, now time.Time, c chipColors, projectName string) []chip {
 	var chips []chip
 
 	if t.Status == gtd.TaskStatusDropped {
@@ -84,6 +88,10 @@ func taskChips(t gtd.Task, now time.Time, c chipColors) []chip {
 
 	if t.Assignee != nil {
 		chips = append(chips, chip{text: "@" + *t.Assignee, style: c.assignee})
+	}
+
+	if projectName != "" {
+		chips = append(chips, chip{text: "+" + projectName, style: c.project})
 	}
 
 	return chips
@@ -193,13 +201,21 @@ func titleStyle(s gtd.TaskStatus) lipgloss.Style {
 // delegate renders task rows: a status marker, the title (truncated first under
 // width pressure and carrying the per-status style and selection highlight),
 // and inline urgency-colored chips that keep their colors on the selected row.
+// projectResolver returns the project name to render in the project chip for
+// a task, or "" to suppress the chip.
+type projectResolver func(gtd.Task) string
+
 type delegate struct {
 	keys      keyMap
 	hasDarkBg bool
+	project   projectResolver
 }
 
-func newDelegate(keys keyMap) *delegate {
-	return &delegate{keys: keys, hasDarkBg: true}
+func newDelegate(keys keyMap, project projectResolver) *delegate {
+	if project == nil {
+		project = func(gtd.Task) string { return "" }
+	}
+	return &delegate{keys: keys, hasDarkBg: true, project: project}
 }
 
 func (d *delegate) Height() int  { return 1 }
@@ -232,7 +248,7 @@ func (d *delegate) Render(w io.Writer, m list.Model, index int, item list.Item) 
 	prefix := cursor + marker
 
 	colors := newChipColors(d.hasDarkBg)
-	chips := taskChips(it.task, time.Now(), colors)
+	chips := taskChips(it.task, time.Now(), colors, d.project(it.task))
 	var chipParts []string
 	for _, ch := range chips {
 		chipParts = append(chipParts, ch.style.Render(ch.text))

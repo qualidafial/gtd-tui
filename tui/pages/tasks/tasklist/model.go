@@ -54,10 +54,14 @@ type tasksReorderedMsg struct {
 	selectID int64
 }
 
-func New(svc gtd.TaskService, query string, pickerFn PickerFactory, projectNameFn ProjectNameFunc) Model {
+// New constructs a task list. showProjectChip controls whether each row
+// renders a `+<project title>` chip for tasks that belong to a project; pass
+// false for the in-project task list where every row would share the same
+// project. The chip is independent of projectNameFn's role in the task editor.
+func New(svc gtd.TaskService, query string, pickerFn PickerFactory, projectNameFn ProjectNameFunc, showProjectChip bool) Model {
 	keys := defaultKeyMap()
 
-	l := list.New(nil, newDelegate(keys), 0, 0)
+	l := list.New(nil, newDelegate(keys, projectChipResolver(showProjectChip, projectNameFn)), 0, 0)
 	l.SetStatusBarItemName("task", "tasks")
 	l.SetShowTitle(false)
 	l.SetShowHelp(false) // app renders help via mergedKeyMap
@@ -93,6 +97,22 @@ func New(svc gtd.TaskService, query string, pickerFn PickerFactory, projectNameF
 	}
 	m.updateKeybindings()
 	return m
+}
+
+// projectChipResolver returns a per-task project-name resolver suitable for
+// the row renderer. It returns "" — suppressing the chip — when the list is
+// configured without a project chip, when no resolver was supplied, or when
+// the task is standalone.
+func projectChipResolver(enabled bool, fn ProjectNameFunc) projectResolver {
+	if !enabled || fn == nil {
+		return nil
+	}
+	return func(t gtd.Task) string {
+		if t.ProjectID == nil {
+			return ""
+		}
+		return fn(*t.ProjectID)
+	}
 }
 
 func (m Model) resolveProjectName(task gtd.Task) string {

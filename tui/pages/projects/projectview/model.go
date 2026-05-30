@@ -45,7 +45,7 @@ func New(
 ) Model {
 	wrapped := service.NewProjectTaskService(taskSvc, project.ID)
 	projectNameFn := func(_ int64) string { return project.Title }
-	tasks := tasklist.New(wrapped, "", pickerFn, projectNameFn)
+	tasks := tasklist.New(wrapped, "", pickerFn, projectNameFn, false)
 
 	return Model{
 		project:    project,

@@ -50,7 +50,7 @@ func New(
 		}
 		return p.Title
 	}
-	pending := tasklist.New(taskSvc, "status:open ready:now", pickerFn, projectNameFn)
+	pending := tasklist.New(taskSvc, "status:open ready:now", pickerFn, projectNameFn, true)
 	projectList := projects.New(projectSvc, taskSvc, pickerFn)
 
 	tabs := tabcontainer.New(
