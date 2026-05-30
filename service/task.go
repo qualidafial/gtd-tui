@@ -48,12 +48,12 @@ func (s *TaskService) DeleteTask(ctx context.Context, id int64) error {
 	return s.db.DeleteTask(ctx, id)
 }
 
-func (s *TaskService) MoveUp(ctx context.Context, id int64) error {
-	return s.db.MoveUp(ctx, id)
+func (s *TaskService) MoveTaskUp(ctx context.Context, id int64, filter gtd.TaskFilter) error {
+	return s.db.MoveTaskUp(ctx, id, filter)
 }
 
-func (s *TaskService) MoveDown(ctx context.Context, id int64) error {
-	return s.db.MoveDown(ctx, id)
+func (s *TaskService) MoveTaskDown(ctx context.Context, id int64, filter gtd.TaskFilter) error {
+	return s.db.MoveTaskDown(ctx, id, filter)
 }
 
 var _ gtd.TaskService = (*TaskService)(nil)

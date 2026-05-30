@@ -8,7 +8,7 @@ import (
 type TaskStatus string
 
 const (
-	TaskStatusOpen TaskStatus = "open"
+	TaskStatusOpen    TaskStatus = "open"
 	TaskStatusDone    TaskStatus = "done"
 	TaskStatusDropped TaskStatus = "dropped"
 )
@@ -39,8 +39,12 @@ type TaskService interface {
 	DropTask(ctx context.Context, id int64, at time.Time) (Task, error)
 	ReopenTask(ctx context.Context, id int64, at time.Time) (Task, error)
 	DeleteTask(ctx context.Context, id int64) error
-	MoveUp(ctx context.Context, id int64) error
-	MoveDown(ctx context.Context, id int64) error
+	// MoveTaskUp / MoveTaskDown shift an open task one slot within the open
+	// tasks that match filter. The filter scopes the swap to the user's current
+	// view so the reorder is immediately visible; status is always forced to
+	// open inside the move regardless of filter.Status.
+	MoveTaskUp(ctx context.Context, id int64, filter TaskFilter) error
+	MoveTaskDown(ctx context.Context, id int64, filter TaskFilter) error
 }
 
 // DatePredicateKind discriminates how a DatePredicate constrains a date column.

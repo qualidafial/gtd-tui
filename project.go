@@ -63,7 +63,10 @@ type ProjectService interface {
 	// ReopenProject restores a someday/done/dropped project to open without
 	// changing task statuses. Mirrors ReopenTask.
 	ReopenProject(ctx context.Context, id int64, at time.Time) (Project, error)
-	MoveProjectUp(ctx context.Context, id int64) error
-	MoveProjectDown(ctx context.Context, id int64) error
+	// MoveProjectUp / MoveProjectDown shift a project one slot within projects
+	// of the same status that also match filter. The moving project's status
+	// group is always the universe; filter narrows further.
+	MoveProjectUp(ctx context.Context, id int64, filter ProjectFilter) error
+	MoveProjectDown(ctx context.Context, id int64, filter ProjectFilter) error
 	CountTasksByProjects(ctx context.Context, projectIDs []int64) (map[int64]ProjectTaskCounts, error)
 }

@@ -569,15 +569,15 @@ func TestDB_MoveUp(t *testing.T) {
 	cTask := mustCreateTask(t, db, gtd.Task{Title: "C", Status: gtd.TaskStatusOpen})
 
 	// Initial: [A, B, C]. MoveUp(C) → [A, C, B].
-	require.NoError(t, db.MoveUp(c, cTask.ID))
+	require.NoError(t, db.MoveTaskUp(c, cTask.ID, gtd.TaskFilter{}))
 	assert.Equal(t, []int64{a.ID, cTask.ID, b.ID}, pendingIDs(t, db, c))
 
 	// MoveUp(C) again → [C, A, B].
-	require.NoError(t, db.MoveUp(c, cTask.ID))
+	require.NoError(t, db.MoveTaskUp(c, cTask.ID, gtd.TaskFilter{}))
 	assert.Equal(t, []int64{cTask.ID, a.ID, b.ID}, pendingIDs(t, db, c))
 
 	// MoveUp at the top is a silent no-op.
-	require.NoError(t, db.MoveUp(c, cTask.ID))
+	require.NoError(t, db.MoveTaskUp(c, cTask.ID, gtd.TaskFilter{}))
 	assert.Equal(t, []int64{cTask.ID, a.ID, b.ID}, pendingIDs(t, db, c))
 }
 
@@ -590,15 +590,15 @@ func TestDB_MoveDown(t *testing.T) {
 	cTask := mustCreateTask(t, db, gtd.Task{Title: "C", Status: gtd.TaskStatusOpen})
 
 	// Initial: [A, B, C]. MoveDown(A) → [B, A, C].
-	require.NoError(t, db.MoveDown(c, a.ID))
+	require.NoError(t, db.MoveTaskDown(c, a.ID, gtd.TaskFilter{}))
 	assert.Equal(t, []int64{b.ID, a.ID, cTask.ID}, pendingIDs(t, db, c))
 
 	// MoveDown(A) again → [B, C, A].
-	require.NoError(t, db.MoveDown(c, a.ID))
+	require.NoError(t, db.MoveTaskDown(c, a.ID, gtd.TaskFilter{}))
 	assert.Equal(t, []int64{b.ID, cTask.ID, a.ID}, pendingIDs(t, db, c))
 
 	// MoveDown at the bottom is a silent no-op.
-	require.NoError(t, db.MoveDown(c, a.ID))
+	require.NoError(t, db.MoveTaskDown(c, a.ID, gtd.TaskFilter{}))
 	assert.Equal(t, []int64{b.ID, cTask.ID, a.ID}, pendingIDs(t, db, c))
 }
 
@@ -608,8 +608,8 @@ func TestDB_MoveUp_RejectsClosedTask(t *testing.T) {
 
 	a := mustCreateTask(t, db, gtd.Task{Title: "A", Status: gtd.TaskStatusDone})
 
-	assert.Error(t, db.MoveUp(c, a.ID))
-	assert.Error(t, db.MoveDown(c, a.ID))
+	assert.Error(t, db.MoveTaskUp(c, a.ID, gtd.TaskFilter{}))
+	assert.Error(t, db.MoveTaskDown(c, a.ID, gtd.TaskFilter{}))
 }
 
 func TestDB_MoveUp_RenumbersWhenKeysExhausted(t *testing.T) {
@@ -624,11 +624,97 @@ func TestDB_MoveUp_RenumbersWhenKeysExhausted(t *testing.T) {
 	require.NoError(t, db.SetOrderKeyForTest(c, b.ID, "00"))
 	require.NoError(t, db.SetOrderKeyForTest(c, cTask.ID, "01"))
 
-	require.NoError(t, db.MoveUp(c, cTask.ID))
+	require.NoError(t, db.MoveTaskUp(c, cTask.ID, gtd.TaskFilter{}))
 	assert.Equal(t, []int64{a.ID, cTask.ID, b.ID}, pendingIDs(t, db, c))
 
-	require.NoError(t, db.MoveUp(c, cTask.ID))
+	require.NoError(t, db.MoveTaskUp(c, cTask.ID, gtd.TaskFilter{}))
 	assert.Equal(t, []int64{cTask.ID, a.ID, b.ID}, pendingIDs(t, db, c))
+}
+
+func TestDB_MoveTaskDown_WithSearchFilter(t *testing.T) {
+	db := openTestDB(t)
+	c := ctx(t)
+
+	// Tasks: red-A, blue-X, red-B, blue-Y, red-C. Filter "red" sees [A, B, C].
+	// MoveDown(A, filter=red) should land A between B and C, regardless of X/Y.
+	a := mustCreateTask(t, db, gtd.Task{Title: "red A", Status: gtd.TaskStatusOpen})
+	x := mustCreateTask(t, db, gtd.Task{Title: "blue X", Status: gtd.TaskStatusOpen})
+	b := mustCreateTask(t, db, gtd.Task{Title: "red B", Status: gtd.TaskStatusOpen})
+	y := mustCreateTask(t, db, gtd.Task{Title: "blue Y", Status: gtd.TaskStatusOpen})
+	cTask := mustCreateTask(t, db, gtd.Task{Title: "red C", Status: gtd.TaskStatusOpen})
+
+	filter := gtd.TaskFilter{Search: []string{"red"}}
+	require.NoError(t, db.MoveTaskDown(c, a.ID, filter))
+
+	// In the filtered view, A is now between B and C: [B, A, C].
+	got := listTitles(t, db, c, filter)
+	assert.Equal(t, []string{"red B", "red A", "red C"}, got)
+
+	// In an unfiltered view, X/Y keep their original keys; A's new key sits
+	// between B's and C's. Full order: [X, B, A, Y, C].
+	assert.Equal(t, []int64{x.ID, b.ID, a.ID, y.ID, cTask.ID}, pendingIDs(t, db, c))
+}
+
+func TestDB_MoveTaskDown_OneItemFilterIsNoop(t *testing.T) {
+	db := openTestDB(t)
+	c := ctx(t)
+
+	mustCreateTask(t, db, gtd.Task{Title: "blue X", Status: gtd.TaskStatusOpen})
+	only := mustCreateTask(t, db, gtd.Task{Title: "red only", Status: gtd.TaskStatusOpen})
+	mustCreateTask(t, db, gtd.Task{Title: "blue Y", Status: gtd.TaskStatusOpen})
+
+	before := pendingIDs(t, db, c)
+	require.NoError(t, db.MoveTaskDown(c, only.ID, gtd.TaskFilter{Search: []string{"red"}}))
+	require.NoError(t, db.MoveTaskUp(c, only.ID, gtd.TaskFilter{Search: []string{"red"}}))
+	assert.Equal(t, before, pendingIDs(t, db, c))
+}
+
+func TestDB_MoveTaskDown_InProjectFilterStaysInProject(t *testing.T) {
+	db := openTestDB(t)
+	c := ctx(t)
+
+	p1, err := db.CreateProject(c, gtd.Project{Title: "P1", Status: gtd.ProjectStatusOpen})
+	require.NoError(t, err)
+	p2, err := db.CreateProject(c, gtd.Project{Title: "P2", Status: gtd.ProjectStatusOpen})
+	require.NoError(t, err)
+
+	// Interleave tasks across two projects: a(P1), x(P2), b(P1), y(P2), cT(P1).
+	a := mustCreateTask(t, db, gtd.Task{Title: "a", Status: gtd.TaskStatusOpen, ProjectID: &p1.ID})
+	x := mustCreateTask(t, db, gtd.Task{Title: "x", Status: gtd.TaskStatusOpen, ProjectID: &p2.ID})
+	b := mustCreateTask(t, db, gtd.Task{Title: "b", Status: gtd.TaskStatusOpen, ProjectID: &p1.ID})
+	y := mustCreateTask(t, db, gtd.Task{Title: "y", Status: gtd.TaskStatusOpen, ProjectID: &p2.ID})
+	cT := mustCreateTask(t, db, gtd.Task{Title: "c", Status: gtd.TaskStatusOpen, ProjectID: &p1.ID})
+
+	// MoveDown(a) within project P1: a should land between b and c in P1.
+	require.NoError(t, db.MoveTaskDown(c, a.ID, gtd.TaskFilter{ProjectID: &p1.ID}))
+
+	// P1's view: [b, a, c]. P2's view: [x, y] unchanged.
+	p1Tasks, err := db.ListTasks(c, gtd.TaskFilter{ProjectID: &p1.ID})
+	require.NoError(t, err)
+	assert.Equal(t, []int64{b.ID, a.ID, cT.ID}, taskIDs(p1Tasks))
+
+	p2Tasks, err := db.ListTasks(c, gtd.TaskFilter{ProjectID: &p2.ID})
+	require.NoError(t, err)
+	assert.Equal(t, []int64{x.ID, y.ID}, taskIDs(p2Tasks))
+}
+
+func listTitles(t *testing.T, db *sqlite.DB, ctx context.Context, filter gtd.TaskFilter) []string {
+	t.Helper()
+	tasks, err := db.ListTasks(ctx, filter)
+	require.NoError(t, err)
+	out := make([]string, len(tasks))
+	for i, task := range tasks {
+		out[i] = task.Title
+	}
+	return out
+}
+
+func taskIDs(tasks []gtd.Task) []int64 {
+	ids := make([]int64, len(tasks))
+	for i, task := range tasks {
+		ids[i] = task.ID
+	}
+	return ids
 }
 
 func TestDB_CreateTask_AppendsWithinPending(t *testing.T) {

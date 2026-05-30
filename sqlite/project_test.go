@@ -602,7 +602,7 @@ func TestDB_MoveProjectUp(t *testing.T) {
 	_, err = db.CreateProject(c, gtd.Project{Title: "C"})
 	require.NoError(t, err)
 
-	require.NoError(t, db.MoveProjectUp(c, b.ID))
+	require.NoError(t, db.MoveProjectUp(c, b.ID, gtd.ProjectFilter{}))
 	assert.Equal(t, []string{"B", "A", "C"}, projectTitles(t, db, c))
 }
 
@@ -617,7 +617,7 @@ func TestDB_MoveProjectDown(t *testing.T) {
 	_, err = db.CreateProject(c, gtd.Project{Title: "C"})
 	require.NoError(t, err)
 
-	require.NoError(t, db.MoveProjectDown(c, b.ID))
+	require.NoError(t, db.MoveProjectDown(c, b.ID, gtd.ProjectFilter{}))
 	assert.Equal(t, []string{"A", "C", "B"}, projectTitles(t, db, c))
 }
 
@@ -630,7 +630,7 @@ func TestDB_MoveProjectUp_RejectsDoneDropped(t *testing.T) {
 	_, err = db.CompleteProject(c, p1.ID, true, time.Now())
 	require.NoError(t, err)
 
-	err = db.MoveProjectUp(c, p1.ID)
+	err = db.MoveProjectUp(c, p1.ID, gtd.ProjectFilter{})
 	assert.Error(t, err)
 
 	p2, err := db.CreateProject(c, gtd.Project{Title: "Dropped"})
@@ -638,8 +638,40 @@ func TestDB_MoveProjectUp_RejectsDoneDropped(t *testing.T) {
 	_, err = db.DropProject(c, p2.ID, true, time.Now())
 	require.NoError(t, err)
 
-	err = db.MoveProjectUp(c, p2.ID)
+	err = db.MoveProjectUp(c, p2.ID, gtd.ProjectFilter{})
 	assert.Error(t, err)
+}
+
+func TestDB_MoveProjectDown_WithSearchFilter(t *testing.T) {
+	db := openTestDB(t)
+	c := ctx(t)
+
+	// Five open projects, alternating between matching "red" filter and not.
+	a, err := db.CreateProject(c, gtd.Project{Title: "red A"})
+	require.NoError(t, err)
+	_, err = db.CreateProject(c, gtd.Project{Title: "blue X"})
+	require.NoError(t, err)
+	_, err = db.CreateProject(c, gtd.Project{Title: "red B"})
+	require.NoError(t, err)
+	_, err = db.CreateProject(c, gtd.Project{Title: "blue Y"})
+	require.NoError(t, err)
+	_, err = db.CreateProject(c, gtd.Project{Title: "red C"})
+	require.NoError(t, err)
+
+	filter := gtd.ProjectFilter{Search: []string{"red"}}
+	require.NoError(t, db.MoveProjectDown(c, a.ID, filter))
+
+	// Filtered view shifts A one slot.
+	got, err := db.ListProjects(c, filter)
+	require.NoError(t, err)
+	gotTitles := make([]string, len(got))
+	for i, p := range got {
+		gotTitles[i] = p.Title
+	}
+	assert.Equal(t, []string{"red B", "red A", "red C"}, gotTitles)
+
+	// Unfiltered: blue X / blue Y keep their keys; A lands between B and C.
+	assert.Equal(t, []string{"blue X", "red B", "red A", "blue Y", "red C"}, projectTitles(t, db, c))
 }
 
 func TestDB_MoveProject_SomedayOrdersIndependently(t *testing.T) {
@@ -659,14 +691,14 @@ func TestDB_MoveProject_SomedayOrdersIndependently(t *testing.T) {
 	require.NoError(t, err)
 
 	// Move S-B up → S-B, S-A, S-C
-	require.NoError(t, db.MoveProjectUp(c, b.ID))
+	require.NoError(t, db.MoveProjectUp(c, b.ID, gtd.ProjectFilter{}))
 
 	titles := projectTitles(t, db, c)
 	// Open first, then someday
 	assert.Equal(t, []string{"Open1", "S-B", "S-A", "S-C"}, titles)
 
 	// Move S-A down → S-B, S-C, S-A
-	require.NoError(t, db.MoveProjectDown(c, a.ID))
+	require.NoError(t, db.MoveProjectDown(c, a.ID, gtd.ProjectFilter{}))
 	titles = projectTitles(t, db, c)
 	assert.Equal(t, []string{"Open1", "S-B", "S-C", "S-A"}, titles)
 }

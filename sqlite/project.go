@@ -33,15 +33,7 @@ func (d *DB) GetProject(ctx context.Context, id int64) (gtd.Project, error) {
 }
 
 func (d *DB) ListProjects(ctx context.Context, filter gtd.ProjectFilter) ([]gtd.Project, error) {
-	q := sq.Select(projectColumns...).From("projects")
-	if filter.Status != nil {
-		q = q.Where(sq.Eq{"status": string(*filter.Status)})
-	}
-	for _, term := range filter.Search {
-		pattern := likeContains(term)
-		q = q.Where("(lower(title) LIKE ? OR lower(outcome) LIKE ? OR lower(description) LIKE ?)",
-			pattern, pattern, pattern)
-	}
+	q := applyProjectListFilter(sq.Select(projectColumns...).From("projects"), filter)
 	q = q.OrderBy(
 		"CASE status WHEN 'open' THEN 0 WHEN 'someday' THEN 1 ELSE 2 END ASC",
 		"order_key ASC",
@@ -68,6 +60,21 @@ func (d *DB) ListProjects(ctx context.Context, filter gtd.ProjectFilter) ([]gtd.
 		projects = append(projects, project)
 	}
 	return projects, rows.Err()
+}
+
+// applyProjectListFilter translates a gtd.ProjectFilter into SQL WHERE clauses
+// on q. Used by ListProjects and by shiftProject to compute filtered candidate
+// orderings.
+func applyProjectListFilter(q sq.SelectBuilder, filter gtd.ProjectFilter) sq.SelectBuilder {
+	if filter.Status != nil {
+		q = q.Where(sq.Eq{"status": string(*filter.Status)})
+	}
+	for _, term := range filter.Search {
+		pattern := likeContains(term)
+		q = q.Where("(lower(title) LIKE ? OR lower(outcome) LIKE ? OR lower(description) LIKE ?)",
+			pattern, pattern, pattern)
+	}
+	return q
 }
 
 func isOrderedProjectStatus(s gtd.ProjectStatus) bool {
@@ -257,21 +264,29 @@ func (d *DB) detachPendingTasks(ctx context.Context, projectID int64) error {
 	return err
 }
 
-// MoveProjectUp shifts the project one slot earlier within its status group.
-func (d *DB) MoveProjectUp(ctx context.Context, id int64) error {
+// MoveProjectUp shifts the project one slot earlier within projects of the
+// same status that match filter. No-op when already at the top of the filtered
+// set.
+func (d *DB) MoveProjectUp(ctx context.Context, id int64, filter gtd.ProjectFilter) error {
 	return d.RunTx(ctx, func(ctx context.Context, tx *DB) error {
-		return tx.shiftProject(ctx, id, -1)
+		return tx.shiftProject(ctx, id, -1, filter)
 	})
 }
 
-// MoveProjectDown shifts the project one slot later within its status group.
-func (d *DB) MoveProjectDown(ctx context.Context, id int64) error {
+// MoveProjectDown shifts the project one slot later within projects of the
+// same status that match filter. No-op when already at the bottom of the
+// filtered set.
+func (d *DB) MoveProjectDown(ctx context.Context, id int64, filter gtd.ProjectFilter) error {
 	return d.RunTx(ctx, func(ctx context.Context, tx *DB) error {
-		return tx.shiftProject(ctx, id, +1)
+		return tx.shiftProject(ctx, id, +1, filter)
 	})
 }
 
-func (d *DB) shiftProject(ctx context.Context, id int64, delta int) error {
+// shiftProject moves id by delta slots within the same-status projects
+// matching filter. The fast path slots a new key via orderkey.Between against
+// the filtered neighbors; on exhaustion the entire same-status group is
+// renumbered, preserving the relative order of every non-moving project.
+func (d *DB) shiftProject(ctx context.Context, id int64, delta int, filter gtd.ProjectFilter) error {
 	project, err := d.GetProject(ctx, id)
 	if err != nil {
 		return err
@@ -284,7 +299,7 @@ func (d *DB) shiftProject(ctx context.Context, id int64, delta int) error {
 	if err != nil {
 		return err
 	}
-	others, err := d.projectOrderByStatus(ctx, project.Status, id)
+	others, err := d.projectOrderByStatus(ctx, project.Status, filter, id)
 	if err != nil {
 		return err
 	}
@@ -312,49 +327,53 @@ func (d *DB) shiftProject(ctx context.Context, id int64, delta int) error {
 		return d.setProjectOrderKey(ctx, id, newKey)
 	}
 
-	keys := orderkey.Renumber(len(others) + 1)
-	for i, p := range others[:newPos] {
+	// Exhaustion fallback: renumber the entire same-status group. Splice the
+	// moving id into the full ordering between its filtered prev/next neighbors
+	// so the visible move is preserved and every other project keeps its
+	// relative position.
+	full, err := d.projectOrderByStatus(ctx, project.Status, gtd.ProjectFilter{}, id)
+	if err != nil {
+		return err
+	}
+	insertAt := 0
+	if newPos > 0 {
+		prevID := others[newPos-1].id
+		for i, e := range full {
+			if e.id == prevID {
+				insertAt = i + 1
+				break
+			}
+		}
+	}
+	keys := orderkey.Renumber(len(full) + 1)
+	for i, p := range full[:insertAt] {
 		if err := d.setProjectOrderKey(ctx, p.id, keys[i]); err != nil {
 			return err
 		}
 	}
-	if err := d.setProjectOrderKey(ctx, id, keys[newPos]); err != nil {
+	if err := d.setProjectOrderKey(ctx, id, keys[insertAt]); err != nil {
 		return err
 	}
-	for i, p := range others[newPos:] {
-		if err := d.setProjectOrderKey(ctx, p.id, keys[newPos+1+i]); err != nil {
+	for i, p := range full[insertAt:] {
+		if err := d.setProjectOrderKey(ctx, p.id, keys[insertAt+1+i]); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func (d *DB) projectOrderByStatus(ctx context.Context, status gtd.ProjectStatus, excludeID int64) ([]statusEntry, error) {
-	q := sq.Select("id", "order_key").
-		From("projects").
-		Where(sq.Eq{"status": string(status)}).
-		OrderBy("order_key ASC", "id ASC")
+// projectOrderByStatus returns id/order_key pairs for the projects with the
+// given status that match filter, ordered by (order_key, id) and excluding
+// excludeID. Status in filter is always overridden to the supplied status.
+// Pass an empty ProjectFilter to load the entire same-status group.
+func (d *DB) projectOrderByStatus(ctx context.Context, status gtd.ProjectStatus, filter gtd.ProjectFilter, excludeID int64) ([]statusEntry, error) {
+	filter.Status = &status
+	q := applyProjectListFilter(sq.Select("id", "order_key").From("projects"), filter)
 	if excludeID != 0 {
 		q = q.Where(sq.NotEq{"id": excludeID})
 	}
-	query, args, err := q.ToSql()
-	if err != nil {
-		return nil, err
-	}
-	rows, err := d.db.QueryContext(ctx, query, args...)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var entries []statusEntry
-	for rows.Next() {
-		var e statusEntry
-		if err := rows.Scan(&e.id, &e.key); err != nil {
-			return nil, err
-		}
-		entries = append(entries, e)
-	}
-	return entries, rows.Err()
+	q = q.OrderBy("order_key ASC", "id ASC")
+	return scanStatusEntries(ctx, d, q)
 }
 
 func (d *DB) nextProjectOrderKey(ctx context.Context, status gtd.ProjectStatus) (string, error) {

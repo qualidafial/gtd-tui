@@ -52,10 +52,12 @@ func (s *ProjectTaskService) DeleteTask(ctx context.Context, id int64) error {
 	return s.inner.DeleteTask(ctx, id)
 }
 
-func (s *ProjectTaskService) MoveUp(ctx context.Context, id int64) error {
-	return s.inner.MoveUp(ctx, id)
+func (s *ProjectTaskService) MoveTaskUp(ctx context.Context, id int64, filter gtd.TaskFilter) error {
+	filter.ProjectID = &s.projectID
+	return s.inner.MoveTaskUp(ctx, id, filter)
 }
 
-func (s *ProjectTaskService) MoveDown(ctx context.Context, id int64) error {
-	return s.inner.MoveDown(ctx, id)
+func (s *ProjectTaskService) MoveTaskDown(ctx context.Context, id int64, filter gtd.TaskFilter) error {
+	filter.ProjectID = &s.projectID
+	return s.inner.MoveTaskDown(ctx, id, filter)
 }

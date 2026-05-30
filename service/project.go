@@ -48,12 +48,12 @@ func (s *ProjectService) ReopenProject(ctx context.Context, id int64, at time.Ti
 	return s.db.ReopenProject(ctx, id, at)
 }
 
-func (s *ProjectService) MoveProjectUp(ctx context.Context, id int64) error {
-	return s.db.MoveProjectUp(ctx, id)
+func (s *ProjectService) MoveProjectUp(ctx context.Context, id int64, filter gtd.ProjectFilter) error {
+	return s.db.MoveProjectUp(ctx, id, filter)
 }
 
-func (s *ProjectService) MoveProjectDown(ctx context.Context, id int64) error {
-	return s.db.MoveProjectDown(ctx, id)
+func (s *ProjectService) MoveProjectDown(ctx context.Context, id int64, filter gtd.ProjectFilter) error {
+	return s.db.MoveProjectDown(ctx, id, filter)
 }
 
 func (s *ProjectService) CountTasksByProjects(ctx context.Context, projectIDs []int64) (map[int64]gtd.ProjectTaskCounts, error) {

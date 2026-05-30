@@ -284,7 +284,7 @@ func (m Model) moveCmd(direction int) tea.Cmd {
 	}
 	return func() tea.Msg {
 		ctx := context.Background()
-		if err := doMove(ctx, id); err != nil {
+		if err := doMove(ctx, id, filter); err != nil {
 			return fmt.Errorf("move project: %w", err)
 		}
 		projects, err := svc.ListProjects(ctx, filter)

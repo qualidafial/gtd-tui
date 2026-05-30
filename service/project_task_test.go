@@ -87,6 +87,67 @@ func TestProjectTaskService_UpdateTask_Delegates(t *testing.T) {
 	assert.Equal(t, &p.ID, updated.ProjectID)
 }
 
+func TestProjectTaskService_MoveTaskDown_StaysInProject(t *testing.T) {
+	db := openTestDB(t)
+	ctx := t.Context()
+
+	taskSvc := service.NewTaskService(db)
+	projSvc := service.NewProjectService(db)
+
+	p1, err := projSvc.CreateProject(ctx, gtd.Project{Title: "P1", Status: gtd.ProjectStatusOpen})
+	require.NoError(t, err)
+	p2, err := projSvc.CreateProject(ctx, gtd.Project{Title: "P2", Status: gtd.ProjectStatusOpen})
+	require.NoError(t, err)
+
+	a, err := taskSvc.CreateTask(ctx, gtd.Task{Title: "a", Status: gtd.TaskStatusOpen, ProjectID: &p1.ID})
+	require.NoError(t, err)
+	_, err = taskSvc.CreateTask(ctx, gtd.Task{Title: "x", Status: gtd.TaskStatusOpen, ProjectID: &p2.ID})
+	require.NoError(t, err)
+	b, err := taskSvc.CreateTask(ctx, gtd.Task{Title: "b", Status: gtd.TaskStatusOpen, ProjectID: &p1.ID})
+	require.NoError(t, err)
+
+	// Caller passes an empty filter; the wrapper must inject ProjectID=p1
+	// so the move stays scoped to P1's tasks.
+	wrapped := service.NewProjectTaskService(taskSvc, p1.ID)
+	require.NoError(t, wrapped.MoveTaskDown(ctx, a.ID, gtd.TaskFilter{}))
+
+	tasks, err := wrapped.ListTasks(ctx, gtd.TaskFilter{})
+	require.NoError(t, err)
+	gotIDs := make([]int64, len(tasks))
+	for i, task := range tasks {
+		gotIDs[i] = task.ID
+	}
+	assert.Equal(t, []int64{b.ID, a.ID}, gotIDs)
+}
+
+func TestProjectTaskService_MoveTaskUp_OverridesForeignProjectID(t *testing.T) {
+	db := openTestDB(t)
+	ctx := t.Context()
+
+	taskSvc := service.NewTaskService(db)
+	projSvc := service.NewProjectService(db)
+
+	p1, err := projSvc.CreateProject(ctx, gtd.Project{Title: "P1", Status: gtd.ProjectStatusOpen})
+	require.NoError(t, err)
+	p2, err := projSvc.CreateProject(ctx, gtd.Project{Title: "P2", Status: gtd.ProjectStatusOpen})
+	require.NoError(t, err)
+
+	_, err = taskSvc.CreateTask(ctx, gtd.Task{Title: "a", Status: gtd.TaskStatusOpen, ProjectID: &p1.ID})
+	require.NoError(t, err)
+	b, err := taskSvc.CreateTask(ctx, gtd.Task{Title: "b", Status: gtd.TaskStatusOpen, ProjectID: &p1.ID})
+	require.NoError(t, err)
+
+	// Caller passes a foreign ProjectID; wrapper must overwrite it with p1.
+	wrapped := service.NewProjectTaskService(taskSvc, p1.ID)
+	require.NoError(t, wrapped.MoveTaskUp(ctx, b.ID, gtd.TaskFilter{ProjectID: &p2.ID}))
+
+	tasks, err := wrapped.ListTasks(ctx, gtd.TaskFilter{})
+	require.NoError(t, err)
+	require.Len(t, tasks, 2)
+	assert.Equal(t, "b", tasks[0].Title)
+	assert.Equal(t, "a", tasks[1].Title)
+}
+
 func TestProjectTaskService_ListTasks_WithCallerFilter(t *testing.T) {
 	db := openTestDB(t)
 	ctx := context.Background()

@@ -303,14 +303,14 @@ func (m Model) moveCmd(direction int) tea.Cmd {
 	filter := m.filter
 	svc := m.svc
 
-	doMove := svc.MoveUp
+	doMove := svc.MoveTaskUp
 	if direction > 0 {
-		doMove = svc.MoveDown
+		doMove = svc.MoveTaskDown
 	}
 
 	return func() tea.Msg {
 		ctx := context.Background()
-		if err := doMove(ctx, id); err != nil {
+		if err := doMove(ctx, id, filter); err != nil {
 			return fmt.Errorf("move task: %w", err)
 		}
 		tasks, err := svc.ListTasks(ctx, filter)

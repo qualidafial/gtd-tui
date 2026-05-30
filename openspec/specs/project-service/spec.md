@@ -130,16 +130,26 @@ All status transition methods SHALL be transactional. The project status change,
 - **AND** no tasks are modified
 
 ### Requirement: Project reordering
-ProjectService SHALL provide MoveProjectUp(ctx, id int64) error and MoveProjectDown(ctx, id int64) error to shift a project one position within projects of the same status. Open projects are reordered among open projects; someday projects are reordered among someday projects. Reordering uses fractional-indexed order keys (same orderkey package as tasks) with a renumber fallback when keys are exhausted. Reordering SHALL be rejected for done/dropped projects.
+ProjectService SHALL provide `MoveProjectUp(ctx context.Context, id int64, filter ProjectFilter) error` and `MoveProjectDown(ctx context.Context, id int64, filter ProjectFilter) error` to shift a project one position within projects of the same status that also match `filter`. The moving project's status group is always the universe — open projects are reordered among open projects; someday projects are reordered among someday projects. The supplied `filter` (Search, and any Status that matches the moving project's status) SHALL narrow the candidate neighbors further. Reordering uses fractional-indexed order keys (same `orderkey` package as tasks) with a renumber fallback when keys are exhausted; on exhaustion the renumber SHALL act on the entire same-status group (not just the filtered subset), preserving every non-moving project's relative position. Reordering SHALL be rejected for done/dropped projects. The new position SHALL be computed against the *filtered* set so a single move is one visible slot; same-status projects outside the filter MAY interleave with filtered projects as a result, and on key exhaustion the moving project may visibly jump several positions in unfiltered views.
 
 #### Scenario: Move open project up
-- **WHEN** MoveProjectUp is called on an open project that is not first
-- **THEN** the project moves one position earlier among open projects
+- **WHEN** MoveProjectUp is called on an open project that is not first among open projects matching the filter
+- **THEN** the project moves one position earlier among the filtered open projects
 
 #### Scenario: Move someday project down
-- **WHEN** MoveProjectDown is called on a someday project that is not last
-- **THEN** the project moves one position later among someday projects
+- **WHEN** MoveProjectDown is called on a someday project that is not last among someday projects matching the filter
+- **THEN** the project moves one position later among the filtered someday projects
 
 #### Scenario: Reorder rejected for done/dropped project
 - **WHEN** MoveProjectUp or MoveProjectDown is called on a done or dropped project
 - **THEN** an error is returned
+
+#### Scenario: Move down within a search filter
+- **WHEN** MoveProjectDown is called on an open project with a Search filter that matches a subset of open projects
+- **THEN** the project SHALL receive a new order_key between the next filtered project and the one after it
+- **AND** open projects that do not match the filter SHALL retain their existing order_keys
+
+#### Scenario: Key exhaustion renumbers the entire same-status group
+- **WHEN** MoveProjectUp or MoveProjectDown is called and `orderkey.Between` cannot produce a key strictly between the filtered prev/next neighbors
+- **THEN** every project in the moving project's status group SHALL be assigned a fresh evenly-spaced order_key in its current order, with the moving project slotted between its filtered neighbors
+- **AND** the relative order of every non-moving project in that status group SHALL be preserved

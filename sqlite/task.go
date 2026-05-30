@@ -34,32 +34,7 @@ func (d *DB) GetTask(ctx context.Context, id int64) (gtd.Task, error) {
 }
 
 func (d *DB) ListTasks(ctx context.Context, filter gtd.TaskFilter) ([]gtd.Task, error) {
-	q := sq.Select(taskColumns...).From("tasks t")
-
-	if filter.Status != nil {
-		q = q.Where(sq.Eq{"t.status": string(*filter.Status)})
-	}
-	if len(filter.TaskIDs) > 0 {
-		q = q.Where(sq.Eq{"t.id": filter.TaskIDs})
-	}
-	if filter.ProjectID != nil {
-		q = q.Where(sq.Eq{"t.project_id": *filter.ProjectID})
-	}
-	if !filter.IncludeSomedayProjects {
-		q = q.LeftJoin("projects p ON p.id = t.project_id").
-			Where("(p.status IS NULL OR p.status != ?)", string(gtd.ProjectStatusSomeday))
-	}
-	if filter.Assignee != nil {
-		q = q.Where("t.assignee IS NOT NULL AND lower(t.assignee) LIKE ?", likeContains(*filter.Assignee))
-	}
-	for _, term := range filter.Search {
-		pattern := likeContains(term)
-		q = q.Where("(lower(t.title) LIKE ? OR lower(t.description) LIKE ? OR (t.assignee IS NOT NULL AND lower(t.assignee) LIKE ?))",
-			pattern, pattern, pattern)
-	}
-	q = applyDatePredicate(q, "t.due", filter.Due)
-	q = applyDatePredicate(q, "t.defer_until", filter.Ready)
-	q = applyDatePredicate(q, "t.defer_until", filter.Defer)
+	q := applyTaskListFilter(sq.Select(taskColumns...).From("tasks t"), filter)
 
 	// Pending tasks sort by order_key; closed (done/dropped) tasks have a
 	// NULL order_key and fall through to updated_at descending.
@@ -94,6 +69,38 @@ func (d *DB) ListTasks(ctx context.Context, filter gtd.TaskFilter) ([]gtd.Task, 
 // substring. The column side is lowercased by the caller; term is lowercased here.
 func likeContains(term string) string {
 	return "%" + strings.ToLower(term) + "%"
+}
+
+// applyTaskListFilter translates a gtd.TaskFilter into SQL WHERE clauses on q.
+// Columns reference the "tasks t" alias; the IncludeSomedayProjects branch
+// adds a LEFT JOIN on "projects p". Used by ListTasks and by the move-helpers
+// to compute filtered candidate orderings.
+func applyTaskListFilter(q sq.SelectBuilder, filter gtd.TaskFilter) sq.SelectBuilder {
+	if filter.Status != nil {
+		q = q.Where(sq.Eq{"t.status": string(*filter.Status)})
+	}
+	if len(filter.TaskIDs) > 0 {
+		q = q.Where(sq.Eq{"t.id": filter.TaskIDs})
+	}
+	if filter.ProjectID != nil {
+		q = q.Where(sq.Eq{"t.project_id": *filter.ProjectID})
+	}
+	if !filter.IncludeSomedayProjects {
+		q = q.LeftJoin("projects p ON p.id = t.project_id").
+			Where("(p.status IS NULL OR p.status != ?)", string(gtd.ProjectStatusSomeday))
+	}
+	if filter.Assignee != nil {
+		q = q.Where("t.assignee IS NOT NULL AND lower(t.assignee) LIKE ?", likeContains(*filter.Assignee))
+	}
+	for _, term := range filter.Search {
+		pattern := likeContains(term)
+		q = q.Where("(lower(t.title) LIKE ? OR lower(t.description) LIKE ? OR (t.assignee IS NOT NULL AND lower(t.assignee) LIKE ?))",
+			pattern, pattern, pattern)
+	}
+	q = applyDatePredicate(q, "t.due", filter.Due)
+	q = applyDatePredicate(q, "t.defer_until", filter.Ready)
+	q = applyDatePredicate(q, "t.defer_until", filter.Defer)
+	return q
 }
 
 // applyDatePredicate adds the SQL constraint for p against column, if non-nil.
@@ -306,25 +313,27 @@ func nullInt64(i *int64) sql.NullInt64 {
 	return sql.NullInt64{Int64: *i, Valid: true}
 }
 
-// MoveUp shifts the task one slot earlier within pending tasks.
-// No-op when already at the top.
-func (d *DB) MoveUp(ctx context.Context, id int64) error {
+// MoveTaskUp shifts the task one slot earlier within the open tasks matching
+// filter. No-op when already at the top of the filtered set.
+func (d *DB) MoveTaskUp(ctx context.Context, id int64, filter gtd.TaskFilter) error {
 	return d.RunTx(ctx, func(ctx context.Context, tx *DB) error {
-		return tx.shiftTask(ctx, id, -1)
+		return tx.shiftTask(ctx, id, -1, filter)
 	})
 }
 
-// MoveDown shifts the task one slot later within pending tasks.
-// No-op when already at the bottom.
-func (d *DB) MoveDown(ctx context.Context, id int64) error {
+// MoveTaskDown shifts the task one slot later within the open tasks matching
+// filter. No-op when already at the bottom of the filtered set.
+func (d *DB) MoveTaskDown(ctx context.Context, id int64, filter gtd.TaskFilter) error {
 	return d.RunTx(ctx, func(ctx context.Context, tx *DB) error {
-		return tx.shiftTask(ctx, id, +1)
+		return tx.shiftTask(ctx, id, +1, filter)
 	})
 }
 
-// shiftTask moves id by delta slots within pending tasks. The fast path swaps
-// a single key via orderkey.Between; on exhaustion the whole group is renumbered.
-func (d *DB) shiftTask(ctx context.Context, id int64, delta int) error {
+// shiftTask moves id by delta slots within the open tasks matching filter. The
+// fast path slots a new key via orderkey.Between against the filtered
+// neighbors; on exhaustion the entire open-task set is renumbered, preserving
+// the relative order of every non-moving task.
+func (d *DB) shiftTask(ctx context.Context, id int64, delta int, filter gtd.TaskFilter) error {
 	task, err := d.GetTask(ctx, id)
 	if err != nil {
 		return err
@@ -337,7 +346,7 @@ func (d *DB) shiftTask(ctx context.Context, id int64, delta int) error {
 	if err != nil {
 		return err
 	}
-	others, err := d.pendingOrder(ctx, id)
+	others, err := d.pendingOrder(ctx, filter, id)
 	if err != nil {
 		return err
 	}
@@ -365,17 +374,34 @@ func (d *DB) shiftTask(ctx context.Context, id int64, delta int) error {
 		return d.setOrderKey(ctx, id, newKey)
 	}
 
-	keys := orderkey.Renumber(len(others) + 1)
-	for i, t := range others[:newPos] {
+	// Exhaustion fallback: renumber every open task. Splice the moving id into
+	// the full ordering between its filtered prev/next neighbors so the visible
+	// move is preserved and every other task keeps its relative position.
+	full, err := d.pendingOrder(ctx, gtd.TaskFilter{}, id)
+	if err != nil {
+		return err
+	}
+	insertAt := 0
+	if newPos > 0 {
+		prevID := others[newPos-1].id
+		for i, e := range full {
+			if e.id == prevID {
+				insertAt = i + 1
+				break
+			}
+		}
+	}
+	keys := orderkey.Renumber(len(full) + 1)
+	for i, t := range full[:insertAt] {
 		if err := d.setOrderKey(ctx, t.id, keys[i]); err != nil {
 			return err
 		}
 	}
-	if err := d.setOrderKey(ctx, id, keys[newPos]); err != nil {
+	if err := d.setOrderKey(ctx, id, keys[insertAt]); err != nil {
 		return err
 	}
-	for i, t := range others[newPos:] {
-		if err := d.setOrderKey(ctx, t.id, keys[newPos+1+i]); err != nil {
+	for i, t := range full[insertAt:] {
+		if err := d.setOrderKey(ctx, t.id, keys[insertAt+1+i]); err != nil {
 			return err
 		}
 	}
@@ -391,16 +417,21 @@ type statusEntry struct {
 	key string
 }
 
-// pendingOrder returns id/order_key pairs for all pending tasks ordered by
-// order_key, excluding excludeID.
-func (d *DB) pendingOrder(ctx context.Context, excludeID int64) ([]statusEntry, error) {
-	q := sq.Select("id", "order_key").
-		From("tasks").
-		Where(sq.Eq{"status": string(gtd.TaskStatusOpen)}).
-		OrderBy("order_key ASC", "id ASC")
+// pendingOrder returns id/order_key pairs for the open tasks matching filter,
+// ordered by (order_key, id) and excluding excludeID. Status in filter is
+// always overridden to open. Pass an empty TaskFilter to load all open tasks.
+func (d *DB) pendingOrder(ctx context.Context, filter gtd.TaskFilter, excludeID int64) ([]statusEntry, error) {
+	open := gtd.TaskStatusOpen
+	filter.Status = &open
+	q := applyTaskListFilter(sq.Select("t.id", "t.order_key").From("tasks t"), filter)
 	if excludeID != 0 {
-		q = q.Where(sq.NotEq{"id": excludeID})
+		q = q.Where(sq.NotEq{"t.id": excludeID})
 	}
+	q = q.OrderBy("t.order_key ASC", "t.id ASC")
+	return scanStatusEntries(ctx, d, q)
+}
+
+func scanStatusEntries(ctx context.Context, d *DB, q sq.SelectBuilder) ([]statusEntry, error) {
 	query, args, err := q.ToSql()
 	if err != nil {
 		return nil, err
