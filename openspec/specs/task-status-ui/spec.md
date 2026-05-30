@@ -6,7 +6,7 @@ Defines the task status transition UI: space to toggle, delete to drop, confirma
 ## Requirements
 
 ### Requirement: Toggle status with space
-Pressing `space` on the selected task SHALL initiate a status transition determined by the task's current status: an open task transitions to done (Complete), and a done or dropped task transitions to open (Reopen). The transition SHALL be confirmed before it is applied.
+Pressing `space` on the selected task SHALL initiate a status transition determined by the task's current status: an open task transitions to done (Complete), and a done or dropped task transitions to open (Reopen). The transition SHALL be confirmed before it is applied. The keymap field carrying this binding SHALL be named `ToggleComplete` (the key is `space`; the displayed label flips between `complete` and `reopen` via `SetHelp`).
 
 #### Scenario: Complete an open task
 - **WHEN** the selected task is open and the user presses `space` and confirms
@@ -19,6 +19,10 @@ Pressing `space` on the selected task SHALL initiate a status transition determi
 #### Scenario: Reopen a dropped task
 - **WHEN** the selected task is dropped and the user presses `space` and confirms
 - **THEN** the task is reopened via ReopenTask and its status becomes open
+
+#### Scenario: Binding field name reflects primary action
+- **WHEN** code or tests reference the toggle binding via the tasklist keymap
+- **THEN** the field SHALL be `tasklist.KeyMap.ToggleComplete`, not `Toggle`
 
 ### Requirement: Drop with delete
 Pressing `delete` on the selected task SHALL drop it (transition to dropped) only when its status is open, after confirmation. Drop is invalid from a done or dropped task (a done task must be reopened first), so for those statuses `delete` SHALL be a no-op and SHALL NOT be advertised in the help bar.

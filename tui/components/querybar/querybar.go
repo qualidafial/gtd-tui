@@ -34,31 +34,6 @@ type ApplyMsg struct{ Query string }
 // debounceMsg fires after a configurable delay following the last keystroke.
 type debounceMsg struct{ seq int }
 
-// KeyMap holds the bindings the query bar consumes when focused. It also
-// satisfies help.KeyMap so parent screens can return it from their own KeyMap
-// while editing, without knowing what bindings the query bar uses.
-type KeyMap struct {
-	Apply  key.Binding
-	Cancel key.Binding
-}
-
-// DefaultKeyMap returns the standard query-bar bindings: enter applies, esc
-// cancels.
-func DefaultKeyMap() KeyMap {
-	return KeyMap{
-		Apply:  key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "apply")),
-		Cancel: key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "cancel")),
-	}
-}
-
-func (k KeyMap) ShortHelp() []key.Binding {
-	return []key.Binding{k.Apply, k.Cancel}
-}
-
-func (k KeyMap) FullHelp() [][]key.Binding {
-	return [][]key.Binding{{k.Apply, k.Cancel}}
-}
-
 var errorHighlight = lipgloss.NewStyle().Foreground(lipgloss.Color("9")).Underline(true)
 
 // Model is the query bar component state.
@@ -99,6 +74,14 @@ func (m *Model) SetValue(s string) {
 // SetWidth sets the width of the underlying textinput.
 func (m *Model) SetWidth(w int) {
 	m.input.SetWidth(w)
+}
+
+func (m Model) ShortHelp() []key.Binding {
+	return m.KeyMap.ShortHelp()
+}
+
+func (m Model) FullHelp() [][]key.Binding {
+	return m.KeyMap.FullHelp()
 }
 
 // CapturingInput reports whether the query bar is focused.

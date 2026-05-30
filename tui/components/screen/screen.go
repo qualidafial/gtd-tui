@@ -10,7 +10,8 @@ type Screen interface {
 	Init() tea.Cmd
 	Update(msg tea.Msg) (Screen, tea.Cmd)
 	View() string
-	KeyMap() help.KeyMap
+
+	help.KeyMap
 }
 
 // InputCapturer is an optional Screen capability. When a screen reports that it

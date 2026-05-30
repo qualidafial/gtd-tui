@@ -3,6 +3,7 @@ package tui
 import (
 	"context"
 	"log/slog"
+	"slices"
 
 	"charm.land/bubbles/v2/help"
 	"charm.land/bubbles/v2/key"
@@ -18,11 +19,6 @@ import (
 )
 
 var (
-	keyToggleHelp = key.NewBinding(key.WithKeys("?"), key.WithHelp("?", "toggle help"))
-	keyQuit       = key.NewBinding(key.WithKeys("ctrl+c"), key.WithHelp("ctrl+c", "quit"))
-)
-
-var (
 	appStyle    = lipgloss.NewStyle().Margin(1, 2)
 	appErrStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("9")).Bold(true)
 )
@@ -30,6 +26,7 @@ var (
 type Model struct {
 	active screen.Screen
 	help   help.Model
+	KeyMap KeyMap
 	err    error
 	width  int
 	height int
@@ -61,6 +58,7 @@ func New(
 	return Model{
 		active: tabs,
 		help:   help.New(),
+		KeyMap: DefaultKeyMap(),
 	}
 }
 
@@ -99,9 +97,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			cmds = append(cmds, cmd)
 		}
 		switch {
-		case key.Matches(msg, keyQuit):
+		case key.Matches(msg, m.KeyMap.Quit):
 			return m, tea.Quit
-		case key.Matches(msg, keyToggleHelp):
+		case key.Matches(msg, m.KeyMap.Help):
 			if !screen.CapturingInput(m.active) {
 				m.help.ShowAll = !m.help.ShowAll
 				return m.resizeActive()
@@ -111,9 +109,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	var cmd tea.Cmd
 	m.active, cmd = m.active.Update(msg)
+	m.updateKeyBindings()
 	cmds = append(cmds, cmd)
 
 	return m, tea.Batch(cmds...)
+}
+
+func (m *Model) updateKeyBindings() {
+	capturingInput := screen.CapturingInput(m.active)
+	m.KeyMap.Help.SetEnabled(!capturingInput)
 }
 
 func (m Model) resizeActive() (Model, tea.Cmd) {
@@ -151,19 +155,19 @@ func (m Model) renderFooter() string {
 	if m.err != nil {
 		return "\n" + appErrStyle.Render(m.err.Error())
 	}
-	km := appKeyMap{inner: m.active.KeyMap()}
-	return "\n" + m.help.View(km)
+	return "\n" + m.help.View(m)
 }
 
-type appKeyMap struct {
-	inner help.KeyMap
+func (m Model) ShortHelp() []key.Binding {
+	return slices.Concat(
+		m.KeyMap.ShortHelp(),
+		m.active.ShortHelp(),
+	)
 }
 
-func (k appKeyMap) ShortHelp() []key.Binding {
-	return append(k.inner.ShortHelp(), keyQuit)
-}
-
-func (k appKeyMap) FullHelp() [][]key.Binding {
-	groups := k.inner.FullHelp()
-	return append(groups, []key.Binding{keyToggleHelp, keyQuit})
+func (m Model) FullHelp() [][]key.Binding {
+	return slices.Concat(
+		m.KeyMap.FullHelp(),
+		m.active.FullHelp(),
+	)
 }

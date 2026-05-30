@@ -8,7 +8,6 @@ import (
 	"strings"
 	"time"
 
-	"charm.land/bubbles/v2/help"
 	"charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/huh/v2"
@@ -201,8 +200,12 @@ func (m Model) CapturingInput() bool {
 	return m.form.State == huh.StateNormal
 }
 
-func (m Model) KeyMap() help.KeyMap {
-	return keyMap{m.form.KeyBinds()}
+func (m Model) ShortHelp() []key.Binding {
+	return m.form.KeyBinds()
+}
+
+func (m Model) FullHelp() [][]key.Binding {
+	return [][]key.Binding{m.form.KeyBinds()}
 }
 
 type projectSavedMsg struct {
@@ -210,10 +213,3 @@ type projectSavedMsg struct {
 	created bool
 	err     error
 }
-
-type keyMap struct {
-	keyBinds []key.Binding
-}
-
-func (k keyMap) ShortHelp() []key.Binding  { return k.keyBinds }
-func (k keyMap) FullHelp() [][]key.Binding { return [][]key.Binding{k.keyBinds} }

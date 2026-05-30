@@ -1,19 +1,14 @@
 package tabcontainer
 
 import (
+	"slices"
 	"strings"
 
-	"charm.land/bubbles/v2/help"
 	"charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 
 	"github.com/qualidafial/gtd-tui/tui/components/screen"
-)
-
-var (
-	keyTab      = key.NewBinding(key.WithKeys("tab"), key.WithHelp("tab", "next view"))
-	keyShiftTab = key.NewBinding(key.WithKeys("shift+tab"), key.WithHelp("shift+tab", "prev view"))
 )
 
 var (
@@ -30,13 +25,17 @@ type Tab struct {
 
 type Model struct {
 	tabs      []Tab
+	KeyMap    KeyMap
 	activeTab int
 	width     int
 	height    int
 }
 
 func New(tabs ...Tab) Model {
-	return Model{tabs: tabs}
+	return Model{
+		tabs:   tabs,
+		KeyMap: DefaultKeyMap(),
+	}
 }
 
 func (m Model) Init() tea.Cmd {
@@ -56,23 +55,29 @@ func (m Model) Update(msg tea.Msg) (screen.Screen, tea.Cmd) {
 		}
 		var cmd tea.Cmd
 		m.tabs[m.activeTab].Screen, cmd = m.tabs[m.activeTab].Screen.Update(innerMsg)
+		m.updateKeyBindings()
 		return m, cmd
 	case tea.KeyPressMsg:
-		if !screen.CapturingInput(m.tabs[m.activeTab].Screen) {
-			switch {
-			case key.Matches(msg, keyTab):
-				m.activeTab = (m.activeTab + 1) % len(m.tabs)
-				return m, m.tabs[m.activeTab].Screen.Init()
-			case key.Matches(msg, keyShiftTab):
-				m.activeTab = (m.activeTab + len(m.tabs) - 1) % len(m.tabs)
-				return m, m.tabs[m.activeTab].Screen.Init()
-			}
+		switch {
+		case key.Matches(msg, m.KeyMap.Next):
+			m.activeTab = (m.activeTab + 1) % len(m.tabs)
+			return m, m.tabs[m.activeTab].Screen.Init()
+		case key.Matches(msg, m.KeyMap.Prev):
+			m.activeTab = (m.activeTab + len(m.tabs) - 1) % len(m.tabs)
+			return m, m.tabs[m.activeTab].Screen.Init()
 		}
 	}
 
 	var cmd tea.Cmd
 	m.tabs[m.activeTab].Screen, cmd = m.tabs[m.activeTab].Screen.Update(msg)
+	m.updateKeyBindings()
 	return m, cmd
+}
+
+func (m *Model) updateKeyBindings() {
+	capturingInput := screen.CapturingInput(m.tabs[m.activeTab].Screen)
+	m.KeyMap.Next.SetEnabled(!capturingInput)
+	m.KeyMap.Prev.SetEnabled(!capturingInput)
 }
 
 func (m Model) View() string {
@@ -98,33 +103,20 @@ func (m Model) renderHeader() string {
 	return logo + "\n\n" + tabBar + "\n"
 }
 
-func (m Model) KeyMap() help.KeyMap {
-	return tabKeyMap{
-		inner:          m.tabs[m.activeTab].Screen.KeyMap(),
-		capturingInput: screen.CapturingInput(m.tabs[m.activeTab].Screen),
-	}
+func (m Model) ShortHelp() []key.Binding {
+	return slices.Concat(
+		m.KeyMap.ShortHelp(),
+		m.tabs[m.activeTab].Screen.ShortHelp(),
+	)
+}
+
+func (m Model) FullHelp() [][]key.Binding {
+	return slices.Concat(
+		m.KeyMap.FullHelp(),
+		m.tabs[m.activeTab].Screen.FullHelp(),
+	)
 }
 
 func (m Model) CapturingInput() bool {
 	return screen.CapturingInput(m.tabs[m.activeTab].Screen)
-}
-
-type tabKeyMap struct {
-	inner          help.KeyMap
-	capturingInput bool
-}
-
-func (k tabKeyMap) ShortHelp() []key.Binding {
-	if k.capturingInput {
-		return k.inner.ShortHelp()
-	}
-	return append(k.inner.ShortHelp(), keyTab)
-}
-
-func (k tabKeyMap) FullHelp() [][]key.Binding {
-	groups := k.inner.FullHelp()
-	if k.capturingInput {
-		return groups
-	}
-	return append(groups, []key.Binding{keyTab, keyShiftTab})
 }

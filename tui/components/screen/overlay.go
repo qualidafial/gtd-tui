@@ -3,20 +3,22 @@ package screen
 import (
 	"slices"
 
-	"charm.land/bubbles/v2/help"
 	"charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
 )
 
-var keyEsc = key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "back"))
-
 type overlay struct {
 	inner  Screen
 	parent Screen
+	KeyMap KeyMap
 }
 
 func Overlay(parent, child Screen) Screen {
-	return overlay{inner: child, parent: parent}
+	return overlay{
+		inner:  child,
+		parent: parent,
+		KeyMap: DefaultKeyMap(),
+	}
 }
 
 func (o overlay) Pop() Screen {
@@ -28,7 +30,7 @@ func (o overlay) Init() tea.Cmd {
 }
 
 func (o overlay) Update(msg tea.Msg) (Screen, tea.Cmd) {
-	if msg, ok := msg.(tea.KeyPressMsg); ok && key.Matches(msg, keyEsc) {
+	if msg, ok := msg.(tea.KeyPressMsg); ok && key.Matches(msg, o.KeyMap.Back) {
 		if !CapturingInput(o.inner) {
 			return o, Dismiss()
 		}
@@ -42,36 +44,28 @@ func (o overlay) View() string {
 	return o.inner.View()
 }
 
-func (o overlay) KeyMap() help.KeyMap {
-	return overlayKeyMap{inner: o.inner.KeyMap()}
-}
-
-func (o overlay) CapturingInput() bool {
-	return CapturingInput(o.inner)
-}
-
-type overlayKeyMap struct {
-	inner help.KeyMap
-}
-
-func (k overlayKeyMap) ShortHelp() []key.Binding {
-	bindings := k.inner.ShortHelp()
-	if hasEsc(bindings) {
-		return bindings
+func (o overlay) ShortHelp() []key.Binding {
+	inner := o.inner.ShortHelp()
+	if hasEsc(inner) {
+		return inner
 	}
-	return append(bindings, keyEsc)
+	return slices.Concat(o.KeyMap.ShortHelp(), inner)
 }
 
-func (k overlayKeyMap) FullHelp() [][]key.Binding {
-	groups := k.inner.FullHelp()
-	if slices.ContainsFunc(groups, hasEsc) {
-		return groups
+func (o overlay) FullHelp() [][]key.Binding {
+	inner := o.inner.FullHelp()
+	if slices.ContainsFunc(inner, hasEsc) {
+		return inner
 	}
-	return append(groups, []key.Binding{keyEsc})
+	return slices.Concat(o.KeyMap.FullHelp(), inner)
 }
 
 func hasEsc(bindings []key.Binding) bool {
 	return slices.ContainsFunc(bindings, func(b key.Binding) bool {
 		return slices.Contains(b.Keys(), "esc")
 	})
+}
+
+func (o overlay) CapturingInput() bool {
+	return CapturingInput(o.inner)
 }

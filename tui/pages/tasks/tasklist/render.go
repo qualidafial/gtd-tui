@@ -171,7 +171,7 @@ func endOfLocalDay(t time.Time) time.Time {
 var (
 	doneTitleStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("65")).Faint(true)
 	droppedTitleStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("240")).Faint(true).Strikethrough(true)
-	openTitleStyle = lipgloss.NewStyle()
+	openTitleStyle    = lipgloss.NewStyle()
 )
 
 // statusMarker returns the leading marker for a task status.
@@ -206,12 +206,12 @@ func titleStyle(s gtd.TaskStatus) lipgloss.Style {
 type projectResolver func(gtd.Task) string
 
 type delegate struct {
-	keys      keyMap
+	keys      KeyMap
 	hasDarkBg bool
 	project   projectResolver
 }
 
-func newDelegate(keys keyMap, project projectResolver) *delegate {
+func newDelegate(keys KeyMap, project projectResolver) *delegate {
 	if project == nil {
 		project = func(gtd.Task) string { return "" }
 	}

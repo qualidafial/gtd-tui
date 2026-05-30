@@ -3,10 +3,10 @@ package projectview
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
-	"charm.land/bubbles/v2/help"
 	"charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
@@ -17,8 +17,6 @@ import (
 	"github.com/qualidafial/gtd-tui/tui/pages/projects/projectedit"
 	"github.com/qualidafial/gtd-tui/tui/pages/tasks/tasklist"
 )
-
-var keyEdit = key.NewBinding(key.WithKeys("e"), key.WithHelp("e", "edit"))
 
 var (
 	titleStyle  = lipgloss.NewStyle().Bold(true)
@@ -33,6 +31,7 @@ type Model struct {
 	taskSvc    gtd.TaskService
 	pickerFn   tasklist.PickerFactory
 	tasks      screen.Screen
+	KeyMap     KeyMap
 	width      int
 	height     int
 }
@@ -53,6 +52,7 @@ func New(
 		taskSvc:    taskSvc,
 		pickerFn:   pickerFn,
 		tasks:      tasks,
+		KeyMap:     DefaultKeyMap(),
 	}
 }
 
@@ -98,7 +98,7 @@ func (m Model) Update(msg tea.Msg) (screen.Screen, tea.Cmd) {
 		return m, cmd
 
 	case tea.KeyPressMsg:
-		if key.Matches(msg, keyEdit) && !screen.CapturingInput(m.tasks) {
+		if key.Matches(msg, m.KeyMap.Edit) && !screen.CapturingInput(m.tasks) {
 			return m, screen.Push(projectedit.New(m.project, m.projectSvc, nil))
 		}
 	}
@@ -151,19 +151,10 @@ func (m Model) CapturingInput() bool {
 	return screen.CapturingInput(m.tasks)
 }
 
-func (m Model) KeyMap() help.KeyMap {
-	return viewKeyMap{edit: keyEdit, inner: m.tasks.KeyMap()}
+func (m Model) ShortHelp() []key.Binding {
+	return slices.Concat(m.KeyMap.ShortHelp(), m.tasks.ShortHelp())
 }
 
-type viewKeyMap struct {
-	edit  key.Binding
-	inner help.KeyMap
-}
-
-func (k viewKeyMap) ShortHelp() []key.Binding {
-	return append([]key.Binding{k.edit}, k.inner.ShortHelp()...)
-}
-
-func (k viewKeyMap) FullHelp() [][]key.Binding {
-	return append([][]key.Binding{{k.edit}}, k.inner.FullHelp()...)
+func (m Model) FullHelp() [][]key.Binding {
+	return slices.Concat(m.KeyMap.FullHelp(), m.tasks.FullHelp())
 }

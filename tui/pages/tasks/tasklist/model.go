@@ -4,10 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
-	"charm.land/bubbles/v2/help"
 	"charm.land/bubbles/v2/key"
 	"charm.land/bubbles/v2/list"
 	tea "charm.land/bubbletea/v2"
@@ -39,7 +39,7 @@ type Model struct {
 	filter        gtd.TaskFilter
 	query         querybar.Model
 	list          list.Model
-	keys          keyMap
+	KeyMap        KeyMap
 	width         int
 }
 
@@ -93,7 +93,7 @@ func New(svc gtd.TaskService, query string, pickerFn PickerFactory, projectNameF
 		filter:        filter,
 		query:         qb,
 		list:          l,
-		keys:          keys,
+		KeyMap:        keys,
 	}
 	m.updateKeybindings()
 	return m
@@ -183,24 +183,24 @@ func (m Model) Update(msg tea.Msg) (screen.Screen, tea.Cmd) {
 			return m, cmd
 		}
 		switch {
-		case key.Matches(msg, m.keys.FocusQuery):
+		case key.Matches(msg, m.KeyMap.FocusQuery):
 			var cmd tea.Cmd
 			m.query, cmd = m.query.Focus()
 			return m, cmd
-		case key.Matches(msg, m.keys.New):
+		case key.Matches(msg, m.KeyMap.New):
 			t := gtd.Task{
 				Status: gtd.TaskStatusOpen,
 			}
 			return m, screen.Push(taskedit.New(t, m.svc, ""))
-		case key.Matches(msg, m.keys.Edit):
+		case key.Matches(msg, m.KeyMap.Edit):
 			if ti, ok := m.list.SelectedItem().(Item); ok {
 				return m, screen.Push(taskedit.New(ti.task, m.svc, m.resolveProjectName(ti.task)))
 			}
-		case key.Matches(msg, m.keys.Project):
+		case key.Matches(msg, m.KeyMap.Project):
 			if ti, ok := m.list.SelectedItem().(Item); ok && m.pickerFn != nil {
 				return m, screen.Push(m.pickerFn(ti.task))
 			}
-		case key.Matches(msg, m.keys.Toggle):
+		case key.Matches(msg, m.KeyMap.ToggleComplete):
 			if ti, ok := m.list.SelectedItem().(Item); ok {
 				transition := taskstatus.Complete
 				if ti.task.Status != gtd.TaskStatusOpen {
@@ -208,16 +208,16 @@ func (m Model) Update(msg tea.Msg) (screen.Screen, tea.Cmd) {
 				}
 				return m, screen.Push(taskstatus.New(ti.task, m.svc, transition))
 			}
-		case key.Matches(msg, m.keys.Drop):
+		case key.Matches(msg, m.KeyMap.Drop):
 			// Drop is enabled only for pending tasks, so a match implies pending.
 			if ti, ok := m.list.SelectedItem().(Item); ok {
 				return m, screen.Push(taskstatus.New(ti.task, m.svc, taskstatus.Drop))
 			}
-		case key.Matches(msg, m.keys.MoveUp):
+		case key.Matches(msg, m.KeyMap.MoveUp):
 			if cmd := m.moveCmd(-1); cmd != nil {
 				return m, cmd
 			}
-		case key.Matches(msg, m.keys.MoveDown):
+		case key.Matches(msg, m.KeyMap.MoveDown):
 			if cmd := m.moveCmd(+1); cmd != nil {
 				return m, cmd
 			}
@@ -239,13 +239,38 @@ func (m Model) Update(msg tea.Msg) (screen.Screen, tea.Cmd) {
 	return m, cmd
 }
 
-func (m Model) KeyMap() help.KeyMap {
-	k := m.keys
-	k.nav = m.list.KeyMap
+func (m Model) ShortHelp() []key.Binding {
 	if m.query.CapturingInput() {
-		k.editing = m.query.KeyMap
+		return m.query.ShortHelp()
 	}
-	return k
+	return slices.Concat(
+		m.KeyMap.ShortHelp(),
+		[]key.Binding{
+			m.list.KeyMap.CursorUp,
+			m.list.KeyMap.CursorDown,
+		},
+	)
+}
+
+func (m Model) FullHelp() [][]key.Binding {
+	if m.query.CapturingInput() {
+		return m.query.FullHelp()
+	}
+	return slices.Concat(
+		m.KeyMap.FullHelp(),
+		[][]key.Binding{
+			{
+				m.list.KeyMap.CursorUp,
+				m.list.KeyMap.CursorDown,
+				m.list.KeyMap.GoToStart,
+				m.list.KeyMap.GoToEnd,
+			},
+			{
+				m.list.KeyMap.PrevPage,
+				m.list.KeyMap.NextPage,
+			},
+		},
+	)
 }
 
 // updateKeybindings reconciles the per-selection action bindings with the
@@ -267,19 +292,19 @@ func (m *Model) updateKeybindings() {
 	default:
 		label = "reopen"
 	}
-	m.keys.Toggle.SetHelp("space", label)
-	m.keys.Project.SetEnabled(selected && m.pickerFn != nil)
+	m.KeyMap.ToggleComplete.SetHelp("space", label)
+	m.KeyMap.Project.SetEnabled(selected && m.pickerFn != nil)
 
 	// Drop is valid only for pending tasks: the service rejects dropping a
 	// done/dropped task (it must be reopened first).
-	m.keys.Drop.SetEnabled(pending)
+	m.KeyMap.Drop.SetEnabled(pending)
 
 	// Reorder is limited to pending tasks, which sort above closed ones. Move
 	// up is disabled on the first task; move down is disabled on the last
 	// pending task (the next item is closed or there is none).
 	idx := m.list.Index()
-	m.keys.MoveUp.SetEnabled(pending && idx > 0)
-	m.keys.MoveDown.SetEnabled(pending && statusAt(m.list, idx+1) == gtd.TaskStatusOpen)
+	m.KeyMap.MoveUp.SetEnabled(pending && idx > 0)
+	m.KeyMap.MoveDown.SetEnabled(pending && statusAt(m.list, idx+1) == gtd.TaskStatusOpen)
 }
 
 // CapturingInput reports that the query bar is focused, so the app should not

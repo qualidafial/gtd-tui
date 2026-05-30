@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log/slog"
 
-	"charm.land/bubbles/v2/help"
 	"charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/huh/v2"
@@ -141,11 +140,18 @@ func (m Model) CapturingInput() bool {
 	return m.form != nil && m.form.State == huh.StateNormal
 }
 
-func (m Model) KeyMap() help.KeyMap {
+func (m Model) ShortHelp() []key.Binding {
 	if m.form == nil {
-		return emptyKeyMap{}
+		return nil
 	}
-	return formKeyMap{m.form.KeyBinds()}
+	return m.form.KeyBinds()
+}
+
+func (m Model) FullHelp() [][]key.Binding {
+	if m.form == nil {
+		return nil
+	}
+	return [][]key.Binding{m.form.KeyBinds()}
 }
 
 func ptrEqual(a, b *int64) bool {
@@ -167,15 +173,3 @@ type projectsLoadedMsg struct {
 type savedMsg struct {
 	err error
 }
-
-type formKeyMap struct {
-	binds []key.Binding
-}
-
-func (k formKeyMap) ShortHelp() []key.Binding  { return k.binds }
-func (k formKeyMap) FullHelp() [][]key.Binding { return [][]key.Binding{k.binds} }
-
-type emptyKeyMap struct{}
-
-func (emptyKeyMap) ShortHelp() []key.Binding  { return nil }
-func (emptyKeyMap) FullHelp() [][]key.Binding { return nil }

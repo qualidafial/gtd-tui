@@ -151,11 +151,11 @@ func truncateToDay(t time.Time) time.Time {
 }
 
 type delegate struct {
-	keys      keyMap
+	keys      KeyMap
 	hasDarkBg bool
 }
 
-func newDelegate(keys keyMap) *delegate {
+func newDelegate(keys KeyMap) *delegate {
 	return &delegate{keys: keys, hasDarkBg: true}
 }
 

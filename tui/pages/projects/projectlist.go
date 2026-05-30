@@ -4,10 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
-	"charm.land/bubbles/v2/help"
 	"charm.land/bubbles/v2/key"
 	"charm.land/bubbles/v2/list"
 	tea "charm.land/bubbletea/v2"
@@ -33,7 +33,7 @@ type Model struct {
 	projects []gtd.Project
 	query    querybar.Model
 	list     list.Model
-	keys     keyMap
+	KeyMap   KeyMap
 	width    int
 }
 
@@ -51,7 +51,7 @@ type projectsReorderedMsg struct {
 }
 
 func New(svc gtd.ProjectService, taskSvc gtd.TaskService, pickerFn tasklist.PickerFactory) Model {
-	keys := defaultKeyMap()
+	keys := DefaultKeyMap()
 	l := list.New(nil, newDelegate(keys), 0, 0)
 	l.SetStatusBarItemName("project", "projects")
 	l.SetShowTitle(false)
@@ -80,7 +80,7 @@ func New(svc gtd.ProjectService, taskSvc gtd.TaskService, pickerFn tasklist.Pick
 		filter:   filter,
 		query:    qb,
 		list:     l,
-		keys:     keys,
+		KeyMap:   keys,
 	}
 	m.updateKeybindings()
 	return m
@@ -175,25 +175,25 @@ func (m Model) Update(msg tea.Msg) (screen.Screen, tea.Cmd) {
 			return m, cmd
 		}
 		switch {
-		case key.Matches(msg, m.keys.FocusQuery):
+		case key.Matches(msg, m.KeyMap.FocusQuery):
 			var cmd tea.Cmd
 			m.query, cmd = m.query.Focus()
 			return m, cmd
 
-		case key.Matches(msg, m.keys.New):
+		case key.Matches(msg, m.KeyMap.New):
 			return m, screen.Push(projectedit.New(gtd.Project{}, m.svc, m.viewFactory()))
 
-		case key.Matches(msg, m.keys.Edit):
+		case key.Matches(msg, m.KeyMap.Edit):
 			if it, ok := m.list.SelectedItem().(Item); ok {
 				return m, screen.Push(projectedit.New(it.project, m.svc, nil))
 			}
 
-		case key.Matches(msg, m.keys.Enter):
+		case key.Matches(msg, m.KeyMap.View):
 			if it, ok := m.list.SelectedItem().(Item); ok {
 				return m, screen.Push(projectview.New(it.project, m.taskSvc, m.svc, m.pickerFn))
 			}
 
-		case key.Matches(msg, m.keys.Toggle):
+		case key.Matches(msg, m.KeyMap.ToggleComplete):
 			it, ok := m.list.SelectedItem().(Item)
 			if !ok {
 				break
@@ -205,22 +205,22 @@ func (m Model) Update(msg tea.Msg) (screen.Screen, tea.Cmd) {
 				return m, m.reopenCmd(it.project.ID)
 			}
 
-		case key.Matches(msg, m.keys.Drop):
+		case key.Matches(msg, m.KeyMap.Drop):
 			if it, ok := m.list.SelectedItem().(Item); ok {
 				return m, screen.Push(projectstatus.New(it.project, it.counts.Total-it.counts.Complete, m.svc, projectstatus.Drop))
 			}
 
-		case key.Matches(msg, m.keys.Park):
+		case key.Matches(msg, m.KeyMap.Park):
 			if it, ok := m.list.SelectedItem().(Item); ok {
 				return m, m.parkCmd(it.project.ID)
 			}
 
-		case key.Matches(msg, m.keys.MoveUp):
+		case key.Matches(msg, m.KeyMap.MoveUp):
 			if cmd := m.moveCmd(-1); cmd != nil {
 				return m, cmd
 			}
 
-		case key.Matches(msg, m.keys.MoveDown):
+		case key.Matches(msg, m.KeyMap.MoveDown):
 			if cmd := m.moveCmd(+1); cmd != nil {
 				return m, cmd
 			}
@@ -346,16 +346,16 @@ func (m *Model) updateKeybindings() {
 	default:
 		label = "reopen"
 	}
-	m.keys.Toggle.SetHelp("space", label)
-	m.keys.Edit.SetEnabled(selected)
-	m.keys.Enter.SetEnabled(selected)
-	m.keys.Toggle.SetEnabled(selected)
-	m.keys.Drop.SetEnabled(open || someday)
-	m.keys.Park.SetEnabled(open)
+	m.KeyMap.ToggleComplete.SetHelp("space", label)
+	m.KeyMap.Edit.SetEnabled(selected)
+	m.KeyMap.View.SetEnabled(selected)
+	m.KeyMap.ToggleComplete.SetEnabled(selected)
+	m.KeyMap.Drop.SetEnabled(open || someday)
+	m.KeyMap.Park.SetEnabled(open)
 
 	idx := m.list.Index()
-	m.keys.MoveUp.SetEnabled(orderable && idx > 0 && isOrderable(m.list, idx-1))
-	m.keys.MoveDown.SetEnabled(orderable && isOrderable(m.list, idx+1))
+	m.KeyMap.MoveUp.SetEnabled(orderable && idx > 0 && isOrderable(m.list, idx-1))
+	m.KeyMap.MoveDown.SetEnabled(orderable && isOrderable(m.list, idx+1))
 }
 
 // isOrderable reports whether the project at index i belongs to the reorderable
@@ -373,13 +373,38 @@ func isOrderable(l list.Model, i int) bool {
 	return s == gtd.ProjectStatusOpen || s == gtd.ProjectStatusSomeday
 }
 
-func (m Model) KeyMap() help.KeyMap {
-	k := m.keys
-	k.nav = m.list.KeyMap
+func (m Model) ShortHelp() []key.Binding {
 	if m.query.CapturingInput() {
-		k.editing = m.query.KeyMap
+		return m.query.KeyMap.ShortHelp()
 	}
-	return k
+	return slices.Concat(
+		m.KeyMap.ShortHelp(),
+		[]key.Binding{
+			m.list.KeyMap.CursorUp,
+			m.list.KeyMap.CursorDown,
+		},
+	)
+}
+
+func (m Model) FullHelp() [][]key.Binding {
+	if m.query.CapturingInput() {
+		return m.query.KeyMap.FullHelp()
+	}
+	return slices.Concat(
+		[][]key.Binding{
+			{
+				m.list.KeyMap.CursorUp,
+				m.list.KeyMap.CursorDown,
+				m.list.KeyMap.GoToStart,
+				m.list.KeyMap.GoToEnd,
+			},
+			{
+				m.list.KeyMap.PrevPage,
+				m.list.KeyMap.NextPage,
+			},
+		},
+		m.KeyMap.FullHelp(),
+	)
 }
 
 func (m Model) CapturingInput() bool { return m.query.CapturingInput() }

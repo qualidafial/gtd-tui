@@ -184,10 +184,10 @@ func TestModel_MoveBindings_Boundaries(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := tt.model.keys.MoveUp.Enabled(); got != tt.wantUp {
+			if got := tt.model.KeyMap.MoveUp.Enabled(); got != tt.wantUp {
 				t.Errorf("MoveUp enabled = %v, want %v", got, tt.wantUp)
 			}
-			if got := tt.model.keys.MoveDown.Enabled(); got != tt.wantDn {
+			if got := tt.model.KeyMap.MoveDown.Enabled(); got != tt.wantDn {
 				t.Errorf("MoveDown enabled = %v, want %v", got, tt.wantDn)
 			}
 		})
