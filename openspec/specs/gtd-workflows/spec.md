@@ -1,7 +1,37 @@
 # gtd-workflows Specification
 
 ## Purpose
-TBD - created by archiving change foundation. Update Purpose after archive.
+Defines the user-facing GTD workflows the app implements — Capture, Clarify, Organize, Engage, Capture Context, and Reflect — as behavioral requirements independent of UI layout. This is the authoritative description of *how the system behaves* for each stage of the GTD loop, including the five clarify outcomes that drain the inbox.
+
+```mermaid
+---
+title: "GTD: Clarify Workflow"
+---
+flowchart
+    Capture([Capture]) --> Actionable{Is it actionable?}
+
+    Actionable -- No --> Trash[Trash]
+    Actionable -- No --> Someday[Someday / Maybe]
+    Actionable -- No --> Reference[Reference]
+
+    Actionable -- Yes --> MultipleSteps{Does it<br>require more than<br>one step?}
+
+    MultipleSteps -- Yes --> Project[Project]
+    Project --> DefineOutcome[Determine Ultimate Outcome]
+    DefineOutcome --> DetermineNextAction[What is the next physical, visible action?]
+    
+    MultipleSteps -- No --> DetermineNextAction
+    
+    DetermineNextAction --> UnderTwoMinutes{Can it be<br>done in under<br>2 minutes?}
+    
+    UnderTwoMinutes -- Yes --> DoItNow[Do it immediately]
+    UnderTwoMinutes -- No --> DoneByYou{Are you<br>the right person<br>to do it?}
+    
+    DoneByYou -- Yes --> Delegate[Delegate it]
+    DoneByYou -- No --> Defer[Defer]
+    DoneByYou -- No --> AddToNextActions[Add to Next Actions List]
+```
+
 ## Requirements
 ### Requirement: Capture workflow for inbox
 The system SHALL provide a Capture workflow for quickly adding items to the inbox without friction. The inbox SHALL be the default entry point when it contains unprocessed items.
@@ -31,12 +61,12 @@ The Discard outcome SHALL mark an Item as discarded for non-actionable, unwanted
 - **AND** no destination entity is created
 
 ### Requirement: Incubate clarify outcome
-The Incubate outcome SHALL spawn a Someday entity for non-actionable items to revisit later. The Item SHALL point to the new Someday.
+The Incubate outcome SHALL create a Project in `someday` status for non-actionable items to revisit later. The Item SHALL point to the new Project. There is no separate Someday entity.
 
 #### Scenario: Incubate inbox item
 - **WHEN** user incubates an inbox item
-- **THEN** system creates a Someday entity
-- **AND** Item.ClarifiedInto points to the Someday
+- **THEN** system creates a Project with status someday
+- **AND** Item.ClarifiedIntoProjectID points to the Project
 
 ### Requirement: FileAsReference clarify outcome
 The FileAsReference outcome SHALL spawn a Reference entity for non-actionable content to keep for retrieval. The Item SHALL point to the new Reference.

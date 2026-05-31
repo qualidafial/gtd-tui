@@ -35,7 +35,7 @@ Tasks do not currently have a comment mechanism. The `UpdateTask` method takes o
 1. Separate `task_comments` and `project_comments` tables - simpler constraints but duplicates schema and code
 2. Polymorphic association with `parent_type`/`parent_id` - loses FK integrity, harder to query
 
-**Rationale:** Dual-FK with CHECK is the established pattern in this codebase (see MeetingLink design in DESIGN.md). SQLite enforces the invariant, the schema is self-documenting, and FK integrity/cascades work naturally.
+**Rationale:** Dual-FK with CHECK is the established pattern in this codebase (see the MeetingLink requirement in `openspec/specs/domain-model/spec.md` and the "Schema constraints via CHECK" requirement in `openspec/specs/architecture/spec.md`). SQLite enforces the invariant, the schema is self-documenting, and FK integrity/cascades work naturally.
 
 ### Decision: Extend service method signatures for comment parameter
 

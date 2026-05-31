@@ -1,8 +1,8 @@
 ## Context
 
-The GTD TUI currently has Task, Project (which covers someday via `Status=someday`), Item (inbox), Reference, and Comment entities. Meeting records are identified in DESIGN.md as a key capture mechanism: action items captured during meetings should flow to the inbox automatically with a link back to the meeting.
+The GTD TUI currently has Task, Project (which covers someday via `Status=someday`), Item (inbox), Reference, and Comment entities. Meeting records are identified in `openspec/specs/gtd-workflows/spec.md` (Capture Context workflow) as a key capture mechanism: action items captured during meetings should flow to the inbox automatically with a link back to the meeting.
 
-This change introduces Meeting and MeetingLink entities to enable meeting-centric action item capture. The foundation specs in `openspec/changes/foundation/specs/domain-model/spec.md` already define the requirements - this design focuses on implementation approach.
+This change introduces Meeting and MeetingLink entities to enable meeting-centric action item capture. The Meeting and MeetingLink requirements in `openspec/specs/domain-model/spec.md` already define the entity shape — this design focuses on implementation approach.
 
 ## Goals / Non-Goals
 
@@ -15,7 +15,7 @@ This change introduces Meeting and MeetingLink entities to enable meeting-centri
 
 **Non-Goals:**
 - TUI views for meetings (separate change)
-- Attendee contact management (deferred per DESIGN.md)
+- Attendee contact management (deferred — JSON `[]string` is sufficient until query-by-attendee becomes a concrete use case)
 - Calendar integration or scheduling features
 - Parsing action items from meeting prose (action items are captured via explicit API)
 
@@ -25,7 +25,7 @@ This change introduces Meeting and MeetingLink entities to enable meeting-centri
 
 Store attendees in a single JSON column rather than a separate attendees table.
 
-**Rationale**: DESIGN.md explicitly states "JSON []string for now; promote to a contacts table if querying by attendee becomes useful." This keeps the schema simple and matches the documented intent.
+**Rationale**: JSON `[]string` keeps the schema simple. Promotion to a contacts table is an additive change if querying by attendee ever becomes useful; until then, the simpler representation matches the project's "no premature abstraction" stance.
 
 **Alternatives considered**:
 - Separate attendees table with foreign key: Rejected as premature complexity given no attendee query use cases.
@@ -50,7 +50,7 @@ AddActionItem creates the inbox Item, inserts the MeetingLink, and updates the M
 
 When an Item with a MeetingLink is clarified, the InboxService clarify methods must update the MeetingLink to point at the resulting entity (Task or Project).
 
-**Rationale**: DESIGN.md specifies "the link follows the Item through clarification (it is rewritten to point at the resulting entity) so the meeting's provenance trail is preserved permanently."
+**Rationale**: `openspec/specs/domain-model/spec.md` (MeetingLink requirement, "MeetingLink follows clarification" scenario) specifies that the link follows the Item through clarification — it is rewritten to point at the resulting entity so the meeting's provenance trail is preserved permanently.
 
 **Implementation**: Clarify methods (ClarifyAsTask, ClarifyAsProject) query for MeetingLinks referencing the Item and update them to point at the new entity. This happens within the existing clarify transaction.
 
@@ -64,6 +64,6 @@ AddActionItem appends a uniform line to the Meeting body. Format: `- [ ] <action
 
 **[Risk] MeetingLink rewriting adds complexity to clarify flow** -> Mitigation: Query for MeetingLinks is a simple WHERE ItemID = ? lookup; update is a single UPDATE statement within existing transaction.
 
-**[Risk] Attendees as JSON limits query flexibility** -> Mitigation: Acceptable per DESIGN.md. Migration path exists if needed later.
+**[Risk] Attendees as JSON limits query flexibility** -> Mitigation: Acceptable trade-off; migration path to a contacts table exists if a real use case appears.
 
-**[Trade-off] Meeting body becomes denormalized (contains action item text)** -> This is intentional per DESIGN.md: "the meeting body is the source of truth for the original phrasing of any action items captured during the meeting."
+**[Trade-off] Meeting body becomes denormalized (contains action item text)** -> Intentional: the meeting body is the source of truth for the original phrasing of any action items captured during the meeting; spawned inbox items are derivatives with their own editable lifecycle.

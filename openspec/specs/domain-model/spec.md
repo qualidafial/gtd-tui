@@ -1,10 +1,10 @@
 # domain-model Specification
 
 ## Purpose
-TBD - created by archiving change foundation. Update Purpose after archive.
+Defines the GTD domain entities — their fields, relationships, and value semantics — independent of storage and UI. This is the authoritative description of *what the data is*: Item, Task, Project, Reference, Meeting, Comment, and MeetingLink, plus the relationship topology that connects them. Parked ideas are not a separate entity; they are projects in `someday` status.
 ## Requirements
 ### Requirement: Item entity for inbox capture
-The system SHALL provide an Item entity representing unprocessed captures in the inbox. An Item SHALL have title, description, and timestamps. When clarified, an Item SHALL be soft-deleted via a ClarifiedInto pointer to whatever it became (Task, Project, Someday, Reference). Discarded items SHALL be marked rather than hard-deleted.
+The system SHALL provide an Item entity representing unprocessed captures in the inbox. An Item SHALL have title, description, and timestamps. When clarified, an Item SHALL be soft-deleted via a ClarifiedInto pointer to whatever it became (Task, Project, or Reference). Discarded items SHALL be marked rather than hard-deleted.
 
 #### Scenario: Create inbox item
 - **WHEN** user captures a thought to the inbox
@@ -18,23 +18,23 @@ The system SHALL provide an Item entity representing unprocessed captures in the
 ### Requirement: Task entity for actionable items
 The system SHALL provide a Task entity representing a single actionable item. A Task SHALL have:
 - Kind: `next_action` (do ASAP) or `delegated` (waiting on someone else, with Assignee string)
-- Status: `pending`, `done`, or `dropped`
+- Status: `open`, `done`, or `dropped`
 - Optional Due date (firm deadline)
 - Optional DeferUntil date (soft "don't show until" date)
 - Optional ProjectID (0..1 relationship to Project)
 
 #### Scenario: Create next action task
 - **WHEN** user creates a task with kind next_action
-- **THEN** system creates a Task with pending status and no assignee
+- **THEN** system creates a Task with open status and no assignee
 
 #### Scenario: Create delegated task
 - **WHEN** user creates a task with kind delegated
-- **THEN** system creates a Task with pending status and an Assignee string
+- **THEN** system creates a Task with open status and an Assignee string
 
 #### Scenario: Deferred tasks filter from default views
 - **WHEN** a Task has DeferUntil in the future
 - **THEN** the Task SHALL be filtered out of default task views
-- **AND** the Task status remains pending
+- **AND** the Task status remains open
 
 ### Requirement: Project entity for multi-step outcomes
 The system SHALL provide a Project entity representing a multi-step outcome. A Project SHALL have:
@@ -42,19 +42,19 @@ The system SHALL provide a Project entity representing a multi-step outcome. A P
 - Outcome statement (desired end state)
 - Description
 - Optional Due date
-- Status: `active`, `someday` (parked), `done`, or `dropped`
+- Status: `open`, `someday` (parked), `done`, or `dropped`
 
-#### Scenario: Create active project
+#### Scenario: Create open project
 - **WHEN** user creates a project
-- **THEN** system creates a Project with active status
+- **THEN** system creates a Project with open status
 
 #### Scenario: Complete project cascades to tasks
 - **WHEN** user completes a project with cascade flag
-- **THEN** all pending tasks under the project are marked done
+- **THEN** all open tasks under the project are marked done
 
 #### Scenario: Complete project detaches tasks
 - **WHEN** user completes a project with detach flag
-- **THEN** all pending tasks have ProjectID set to nil
+- **THEN** all open tasks have ProjectID set to nil
 - **AND** tasks become standalone
 
 #### Scenario: Park project filters tasks
@@ -62,20 +62,20 @@ The system SHALL provide a Project entity representing a multi-step outcome. A P
 - **THEN** tasks under the project are filtered from default views
 - **AND** task statuses remain unchanged
 
-#### Scenario: No pending tasks under closed projects
+#### Scenario: No open tasks under closed projects
 - **WHEN** a project transitions to done or dropped
-- **THEN** no pending tasks SHALL remain under the project
+- **THEN** no open tasks SHALL remain under the project
 
-### Requirement: Someday entity for parked ideas
-The system SHALL provide a Someday entity representing a parked idea not yet fleshed out enough to be a Project. A Someday SHALL have title, description, and ReviewedAt timestamp (defaults to creation time, used to surface stalest items in periodic review). A Someday SHALL be promotable to Project or Task.
+### Requirement: Parked ideas as someday projects
+Parked ideas SHALL NOT be a distinct entity. An idea to revisit later SHALL be a Project in `someday` status. Incubating an inbox Item creates such a Project; it surfaces in the projects view under the `status:someday` filter and is promoted to active work by transitioning its status to `open`.
 
-#### Scenario: Create someday item
-- **WHEN** user incubates an idea
-- **THEN** system creates a Someday with ReviewedAt set to creation time
+#### Scenario: Incubate creates a someday project
+- **WHEN** user incubates an inbox idea
+- **THEN** system creates a Project with status someday
 
-#### Scenario: Promote someday to project
-- **WHEN** user promotes a Someday to Project
-- **THEN** system creates a Project from the Someday
+#### Scenario: Promote someday project to active
+- **WHEN** user promotes a someday project
+- **THEN** the Project status transitions to open
 
 ### Requirement: Reference entity for retrieval content
 The system SHALL provide a Reference entity representing standalone markdown content kept for retrieval (recipes, config snippets, link dumps). A Reference SHALL have title and body. References are NOT linked to projects or tasks.

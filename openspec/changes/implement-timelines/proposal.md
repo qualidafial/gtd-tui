@@ -1,6 +1,6 @@
 ## Why
 
-The Reflect workflow in DESIGN.md specifies activity timelines scoped to project, task, or meeting, plus a global timeline across all entities. Because capture is low-friction, timelines become an accurate historical record useful for retroactive reports, status updates, and remembering why decisions were made. This capability is currently unimplemented.
+The Reflect workflow in `openspec/specs/gtd-workflows/spec.md` specifies activity timelines scoped to project, task, or meeting, plus a global timeline across all entities. Because capture is low-friction, timelines become an accurate historical record useful for retroactive reports, status updates, and remembering why decisions were made. This capability is currently unimplemented.
 
 ## What Changes
 

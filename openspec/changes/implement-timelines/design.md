@@ -1,6 +1,6 @@
 ## Context
 
-The GTD TUI app needs activity timelines to support the Reflect workflow. DESIGN.md specifies that every entity has a history viewable in chronological order, and that low-friction capture makes timelines an accurate historical record.
+The GTD TUI app needs activity timelines to support the Reflect workflow. `openspec/specs/gtd-workflows/spec.md` (Reflect workflow) and `openspec/specs/product-vision/spec.md` ("Timeline as context") together specify that every entity has a history viewable in chronological order, and that low-friction capture makes timelines an accurate historical record.
 
 Current state: The system has entities (Task, Project, Item, Meeting, Comment) with timestamps but no unified event log. Comments exist but are not integrated into a timeline view. Clarification lineage exists (Item.ClarifiedInto) but is not surfaced chronologically.
 
@@ -96,8 +96,8 @@ This allows viewing the timeline from either perspective and preserves the full 
 
 **[Trade-off] No timeline for Reference entities** → References are static retrieval content without lifecycle changes. Omitting them simplifies the model. Can add later if needed.
 
-**[Trade-off] Someday entities get minimal timeline** → Only creation and promotion events, since Someday has minimal state transitions.
+**[Trade-off] Someday projects get minimal timeline** → Someday projects (Project with `Status=someday`) typically only see creation and a single status transition to `open`, so their timelines are sparser than active projects.
 
 ## Open Questions
 
-(none - design is straightforward given the well-defined requirements in DESIGN.md)
+(none — design is straightforward given the well-defined requirements in `openspec/specs/gtd-workflows/spec.md` and `openspec/specs/domain-model/spec.md`)

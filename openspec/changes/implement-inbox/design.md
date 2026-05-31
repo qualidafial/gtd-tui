@@ -7,7 +7,7 @@ The existing codebase demonstrates patterns we will follow:
 - SQLite implementations using squirrel query builder
 - Migrations as embedded SQL files with CHECK constraints
 - Value semantics throughout (no pointers in service returns)
-- Service-layer transaction ownership for cross-store operations (per ARCHITECTURE.md)
+- Service-layer transaction ownership for cross-store operations (per `openspec/specs/architecture/spec.md`)
 
 ## Goals / Non-Goals
 
@@ -30,7 +30,7 @@ The existing codebase demonstrates patterns we will follow:
 
 **Choice**: Multiple nullable FK columns (`clarified_into_task_id`, `clarified_into_project_id`; `clarified_into_reference_id` is added by `implement-references`).
 
-**Rationale**: SQLite CHECK constraints can enforce mutual exclusion directly. Matches the existing pattern for multi-target FKs (see ARCHITECTURE.md on meeting_links). A polymorphic approach (type + id columns) would lose FK integrity and complicate queries.
+**Rationale**: SQLite CHECK constraints can enforce mutual exclusion directly. Matches the existing pattern for multi-target FKs (see `openspec/specs/architecture/spec.md` "Schema constraints via CHECK"). A polymorphic approach (type + id columns) would lose FK integrity and complicate queries.
 
 **Alternatives considered**:
 - Polymorphic `clarified_into_type` + `clarified_into_id`: Loses FK integrity, requires application-level validation
@@ -70,7 +70,7 @@ The existing codebase demonstrates patterns we will follow:
 
 **Choice**: Place the clarify-orchestrating InboxService in the `service/` package, not on the SQLite layer. The capture-side `InboxService` (Create/List/Get) lives in the root package as an interface and is implemented by the SQLite layer; the service package's `InboxService` consumes that store plus TaskStore / ProjectStore (`implement-references` extends the dependency set to include ReferenceStore).
 
-**Rationale**: Clarify operations span multiple stores (Item + Task / Project) inside one transaction. The `service/` package exists for cross-store orchestration per ARCHITECTURE.md. Keeping the SQLite store single-table preserves its single responsibility.
+**Rationale**: Clarify operations span multiple stores (Item + Task / Project) inside one transaction. The `service/` package exists for cross-store orchestration per `openspec/specs/architecture/spec.md`. Keeping the SQLite store single-table preserves its single responsibility.
 
 **Alternatives considered**:
 - Put clarify methods directly on `sqlite.ItemStore`: violates single-responsibility — a store should only manage its own table

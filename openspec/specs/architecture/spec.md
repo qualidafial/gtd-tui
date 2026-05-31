@@ -1,7 +1,7 @@
 # architecture Specification
 
 ## Purpose
-TBD - created by archiving change foundation. Update Purpose after archive.
+Defines the system's structural and storage conventions: the layered Go package layout (domain → sqlite → service → tui), service-interface design, the SQLite persistence strategy (driver, query builder, migrations, constraints, transactions), and testing conventions. This is the authoritative description of *how the code is organized and how persistence works*, independent of the domain semantics in `domain-model`.
 ## Requirements
 ### Requirement: Go project layout
 The system SHALL follow Ben Johnson's Go application structure:
@@ -124,6 +124,17 @@ List endpoints SHALL load relationship rows in a single WHERE id IN (...) query 
 #### Scenario: List tasks with projects
 - **WHEN** listing tasks
 - **THEN** project data is loaded in bulk, not per-task
+
+### Requirement: Value semantics and ID conventions
+Domain types SHALL use value semantics — no `*Task` or `*Project` in service interfaces. IDs SHALL be `int64` (matching SQLite's `INTEGER PRIMARY KEY`). Nullable timestamps and FKs SHALL use `*T`; timestamps SHALL be stored as UTC. Code SHALL use `new(expr)` (Go 1.26) to take the address of an expression result rather than ad-hoc pointer helpers like `ptrTime`.
+
+#### Scenario: Service returns value, not pointer
+- **WHEN** a service method returns a domain type
+- **THEN** it returns the value (e.g. `Task`), not a pointer (`*Task`)
+
+#### Scenario: Address of an expression
+- **WHEN** code needs a pointer to an expression result
+- **THEN** it uses `new(expr)` rather than a helper function
 
 ### Requirement: Testing conventions
 Tests SHALL use `github.com/stretchr/testify` (assert/require) and prefer table-driven style. Test databases SHALL use `:memory:` via a shared `openTestDB(t)` helper.
