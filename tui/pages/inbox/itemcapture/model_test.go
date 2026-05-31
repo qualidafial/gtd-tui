@@ -1,0 +1,154 @@
+package itemcapture_test
+
+import (
+	"context"
+	"errors"
+	"testing"
+
+	tea "charm.land/bubbletea/v2"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/qualidafial/gtd-tui"
+	"github.com/qualidafial/gtd-tui/service"
+	"github.com/qualidafial/gtd-tui/sqlite"
+	"github.com/qualidafial/gtd-tui/tui/components/screen"
+	"github.com/qualidafial/gtd-tui/tui/components/screen/screentest"
+	"github.com/qualidafial/gtd-tui/tui/pages/inbox/itemcapture"
+)
+
+func openTestDB(t *testing.T) *sqlite.DB {
+	t.Helper()
+	db, err := sqlite.Open(":memory:")
+	require.NoError(t, err)
+	t.Cleanup(func() { db.Close() })
+	return db
+}
+
+func TestCapture_TypingAndSubmitting_CreatesItem(t *testing.T) {
+	db := openTestDB(t)
+	svc := service.NewInboxService(db)
+
+	var s screen.Screen = itemcapture.New(svc)
+	s = screentest.Init(t, s)
+
+	s = screentest.TypeText(t, s, "Call dentist")
+	// Advance from Title to Description.
+	s = screentest.Send(t, s, tea.KeyPressMsg{Code: tea.KeyEnter})
+	s = screentest.TypeText(t, s, "before friday")
+
+	// Submit. The huh text-area uses Ctrl+D / Tab to leave; pressing Tab
+	// advances past Description and the form completes, triggering save.
+	var dismissed bool
+	for _, msg := range screentest.PumpSend(t, s, tea.KeyPressMsg{Code: tea.KeyEnter}) {
+		if _, ok := msg.(screen.DismissMsg); ok {
+			dismissed = true
+			break
+		}
+	}
+	require.True(t, dismissed, "expected the overlay to dismiss after save")
+
+	// Real assertion: the item is in the inbox.
+	items, err := svc.List(t.Context())
+	require.NoError(t, err)
+	require.Len(t, items, 1)
+	assert.Equal(t, "Call dentist", items[0].Title)
+	assert.Equal(t, "before friday", items[0].Description)
+}
+
+func TestCapture_TitleOnly_StillCreates(t *testing.T) {
+	db := openTestDB(t)
+	svc := service.NewInboxService(db)
+
+	var s screen.Screen = itemcapture.New(svc)
+	s = screentest.Init(t, s)
+
+	s = screentest.TypeText(t, s, "Quick capture")
+	s = screentest.Send(t, s, tea.KeyPressMsg{Code: tea.KeyEnter}) // Title → Description
+
+	var dismissed bool
+	for _, msg := range screentest.PumpSend(t, s, tea.KeyPressMsg{Code: tea.KeyEnter}) {
+		if _, ok := msg.(screen.DismissMsg); ok {
+			dismissed = true
+			break
+		}
+	}
+	require.True(t, dismissed)
+
+	items, err := svc.List(t.Context())
+	require.NoError(t, err)
+	require.Len(t, items, 1)
+	assert.Equal(t, "Quick capture", items[0].Title)
+	assert.Empty(t, items[0].Description)
+}
+
+func TestCapture_EmptyTitle_DoesNotCreate(t *testing.T) {
+	db := openTestDB(t)
+	svc := service.NewInboxService(db)
+
+	var s screen.Screen = itemcapture.New(svc)
+	s = screentest.Init(t, s)
+
+	// Try to advance past the empty Title — the validator should reject it
+	// and no item should be created.
+	for _, msg := range screentest.PumpSend(t, s, tea.KeyPressMsg{Code: tea.KeyEnter}) {
+		if _, ok := msg.(screen.DismissMsg); ok {
+			t.Fatalf("overlay should not dismiss with an empty title")
+		}
+	}
+
+	items, err := svc.List(t.Context())
+	require.NoError(t, err)
+	assert.Empty(t, items)
+}
+
+func TestCapture_Cancel_DoesNotCreate(t *testing.T) {
+	db := openTestDB(t)
+	svc := service.NewInboxService(db)
+
+	var s screen.Screen = itemcapture.New(svc)
+	s = screentest.Init(t, s)
+
+	s = screentest.TypeText(t, s, "Will be cancelled")
+	s = screentest.Send(t, s, tea.KeyPressMsg{Code: tea.KeyEscape})
+
+	items, err := svc.List(t.Context())
+	require.NoError(t, err)
+	assert.Empty(t, items)
+}
+
+// errSvc wraps a real InboxService and forces Create to fail. Used only to
+// drive the save-error path, which the real :memory: stack cannot reach for a
+// valid item.
+type errSvc struct {
+	gtd.InboxService
+	err error
+}
+
+func (e *errSvc) Create(context.Context, gtd.Item) (gtd.Item, error) {
+	return gtd.Item{}, e.err
+}
+
+func TestCapture_SaveError_EmitsErrorMessageAndStaysOpen(t *testing.T) {
+	db := openTestDB(t)
+	svc := &errSvc{InboxService: service.NewInboxService(db), err: errors.New("disk full")}
+
+	var s screen.Screen = itemcapture.New(svc)
+	s = screentest.Init(t, s)
+
+	s = screentest.TypeText(t, s, "doomed")
+	s = screentest.Send(t, s, tea.KeyPressMsg{Code: tea.KeyEnter}) // → description
+
+	var sawError, dismissed bool
+	for st, msg := range screentest.PumpSend(t, s, tea.KeyPressMsg{Code: tea.KeyEnter}) {
+		s = st
+		if err, ok := msg.(error); ok && err != nil {
+			sawError = true
+		}
+		if _, ok := msg.(screen.DismissMsg); ok {
+			dismissed = true
+		}
+	}
+	require.True(t, sawError, "expected an error message to be emitted on save failure")
+	assert.False(t, dismissed, "overlay must not dismiss when save fails")
+}

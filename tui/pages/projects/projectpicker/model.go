@@ -63,7 +63,7 @@ func (m Model) Update(msg tea.Msg) (screen.Screen, tea.Cmd) {
 			err := msg.err
 			return m, func() tea.Msg { return fmt.Errorf("save failed: %w", err) }
 		}
-		return m, screen.Dismiss()
+		return screen.Dismiss()
 	}
 
 	if m.form == nil || m.saving {
@@ -77,10 +77,10 @@ func (m Model) Update(msg tea.Msg) (screen.Screen, tea.Cmd) {
 
 	switch m.form.State {
 	case huh.StateAborted:
-		return m, tea.Batch(cmd, screen.Dismiss())
+		return screen.Dismiss(cmd)
 	case huh.StateCompleted:
 		if ptrEqual(*m.selected, *m.original) {
-			return m, tea.Batch(cmd, screen.Dismiss())
+			return screen.Dismiss(cmd)
 		}
 		m.saving = true
 		return m, tea.Batch(cmd, m.saveCmd())

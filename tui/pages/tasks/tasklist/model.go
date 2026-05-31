@@ -123,7 +123,7 @@ func (m Model) resolveProjectName(task gtd.Task) string {
 }
 
 func (m Model) Init() tea.Cmd {
-	return m.loadCmd()
+	return tea.Batch(m.loadCmd(), tea.RequestWindowSize)
 }
 
 func (m Model) loadCmd() tea.Cmd {

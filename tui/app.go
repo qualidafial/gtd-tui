@@ -13,6 +13,7 @@ import (
 	"github.com/qualidafial/gtd-tui"
 	"github.com/qualidafial/gtd-tui/tui/components/screen"
 	"github.com/qualidafial/gtd-tui/tui/components/tabcontainer"
+	"github.com/qualidafial/gtd-tui/tui/pages/inbox"
 	"github.com/qualidafial/gtd-tui/tui/pages/projects"
 	"github.com/qualidafial/gtd-tui/tui/pages/projects/projectpicker"
 	"github.com/qualidafial/gtd-tui/tui/pages/tasks/tasklist"
@@ -35,6 +36,7 @@ type Model struct {
 func New(
 	taskSvc gtd.TaskService,
 	projectSvc gtd.ProjectService,
+	inboxSvc gtd.InboxService,
 ) Model {
 	pickerFn := func(task gtd.Task) screen.Screen {
 		return projectpicker.New(task, taskSvc, projectSvc)
@@ -49,8 +51,10 @@ func New(
 	}
 	pending := tasklist.New(taskSvc, "status:open ready:now", pickerFn, projectNameFn, true)
 	projectList := projects.New(projectSvc, taskSvc, pickerFn)
+	inboxPage := inbox.New(inboxSvc, taskSvc)
 
 	tabs := tabcontainer.New(
+		tabcontainer.Tab{Label: "Inbox", Screen: inboxPage},
 		tabcontainer.Tab{Label: "Tasks", Screen: pending},
 		tabcontainer.Tab{Label: "Projects", Screen: projectList},
 	)

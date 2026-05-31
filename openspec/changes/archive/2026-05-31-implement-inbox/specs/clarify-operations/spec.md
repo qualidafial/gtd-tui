@@ -97,10 +97,12 @@ The ClarifyAsTask operation SHALL create a Task entity for actionable single-ste
 - **WHEN** ClarifyAsTask is called without explicit title
 - **THEN** the Task title is copied from the Item title
 
-#### Scenario: ClarifyAsTask do-it-now creates done task
-- **WHEN** ClarifyAsTask is called with Status=done
-- **THEN** the created Task has Status done
-- **AND** timeline preserves the captured-to-done transition
+#### Scenario: ClarifyAsTask always creates an open task
+- **WHEN** ClarifyAsTask is called
+- **THEN** the created Task has Status open regardless of any caller-supplied status
+- **AND** if the caller supplied a non-open Status, the operation returns an error before any writes occur
+
+Do-it-now is handled at the wizard layer: the wizard calls ClarifyAsTask to create an open task, prompts the user to do the work, then calls TaskService.CompleteTask after the user confirms. This keeps clarify a pure "make it actionable" operation and routes completion through the existing completion code path.
 
 #### Scenario: ClarifyAsTask fails for already-clarified item
 - **WHEN** ClarifyAsTask is called on an Item with ClarifiedInto already set
@@ -111,28 +113,42 @@ The ClarifyAsTask operation SHALL create a Task entity for actionable single-ste
 - **THEN** the system returns an error
 
 ### Requirement: ClarifyAsProject clarify operation
-The ClarifyAsProject operation SHALL create a Project with `Status=open` for actionable multi-step outcomes. The Item's `ClarifiedIntoProjectID` SHALL point to the new Project. The operation SHALL be transactional. This differs from Incubate only in the project's initial status.
+The ClarifyAsProject operation SHALL create a Project with `Status=open` together with its first Task, all in a single transaction. The Item's `ClarifiedIntoProjectID` SHALL point to the new Project. The first task is the checkpoint — once ClarifyAsProject returns successfully the item is fully clarified and no work is at risk from accidental wizard dismissal mid-loop.
 
-#### Scenario: ClarifyAsProject creates project
-- **WHEN** ClarifyAsProject is called with item ID and Project data
+The first task is always created in `Status=open`. Do-it-now is handled at the wizard layer: after ClarifyAsProject returns, the wizard prompts the user to do the work, then calls `TaskService.CompleteTask` to mark it done. Subsequent tasks added during the wizard's per-task loop are created via `TaskService.CreateTask` with the new project's ID pre-set, NOT via additional ClarifyAsProject calls.
+
+The caller MUST NOT pre-set `firstTask.ProjectID`; it is owned by this operation.
+
+#### Scenario: ClarifyAsProject creates open project with one open first task
+- **WHEN** ClarifyAsProject is called with item ID, Project data, and a first Task
 - **THEN** the system creates a Project with `Status=open`
+- **AND** creates the first Task with `ProjectID` set to the new Project's ID and `Status=open`
 - **AND** Item.ClarifiedIntoProjectID points to the new Project
 
 #### Scenario: ClarifyAsProject is atomic
 - **WHEN** ClarifyAsProject is called
-- **THEN** Project creation and Item update occur in one transaction
+- **THEN** Project creation, first Task creation, and the Item update occur in one transaction
 
-#### Scenario: ClarifyAsProject returns both entities
+#### Scenario: ClarifyAsProject returns the created entities
 - **WHEN** ClarifyAsProject is called successfully
-- **THEN** it returns both the created Project and updated Item
+- **THEN** it returns the created Project, the created first Task, and the updated Item
 
-#### Scenario: ClarifyAsProject copies item title by default
-- **WHEN** ClarifyAsProject is called without explicit title
-- **THEN** the Project title is copied from the Item title
+#### Scenario: ClarifyAsProject copies item fields by default
+- **WHEN** ClarifyAsProject is called without explicit project Title or Description
+- **THEN** the Project title and description are copied from the Item
 
 #### Scenario: ClarifyAsProject fails for already-clarified item
 - **WHEN** ClarifyAsProject is called on an Item with ClarifiedInto already set
 - **THEN** the system returns an error
+
+#### Scenario: ClarifyAsProject rejects non-open first task status
+- **WHEN** ClarifyAsProject is called with a firstTask whose Status is not open (and not empty)
+- **THEN** the system returns an error before any writes occur
+- **AND** the Item remains unclarified
+
+#### Scenario: ClarifyAsProject rejects caller-supplied first task ProjectID
+- **WHEN** ClarifyAsProject is called with a firstTask whose ProjectID is already set
+- **THEN** the system returns an error indicating ProjectID is owned by the operation
 
 ### Requirement: Item ClarifiedInto mutual exclusion
 The Item entity SHALL have at most one ClarifiedInto field set at any time. A CHECK constraint SHALL enforce that at most one of `ClarifiedIntoTaskID`, `ClarifiedIntoProjectID` is non-null, and Discarded is false when either is set. Incubate and ClarifyAsProject both target `ClarifiedIntoProjectID`; the project's status distinguishes the two outcomes. `implement-references` extends this requirement to include `ClarifiedIntoReferenceID`.

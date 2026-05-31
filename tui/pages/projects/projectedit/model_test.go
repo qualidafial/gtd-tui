@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/huh/v2"
 	"github.com/charmbracelet/x/ansi"
@@ -14,6 +15,15 @@ import (
 	"github.com/qualidafial/gtd-tui"
 	"github.com/qualidafial/gtd-tui/tui/components/screen"
 )
+
+// stubScreen is a no-op Screen used as the result of a test view factory.
+type stubScreen struct{}
+
+func (stubScreen) Init() tea.Cmd                            { return nil }
+func (stubScreen) Update(tea.Msg) (screen.Screen, tea.Cmd)  { return stubScreen{}, nil }
+func (stubScreen) View() string                             { return "" }
+func (stubScreen) ShortHelp() []key.Binding                 { return nil }
+func (stubScreen) FullHelp() [][]key.Binding                { return nil }
 
 func TestView_HeaderShown_ExistingProject(t *testing.T) {
 	p := gtd.Project{
@@ -77,20 +87,21 @@ func TestSaveError_OtherKeysSwallowed(t *testing.T) {
 	assert.Nil(t, cmd)
 }
 
-func TestUpdate_CreateSuccess_DismissAndPushView(t *testing.T) {
+func TestUpdate_CreateSuccess_ReplacesWithView(t *testing.T) {
 	viewCalled := false
 	factory := func(p gtd.Project) screen.Screen {
 		viewCalled = true
-		return nil
+		return stubScreen{}
 	}
 	m := New(gtd.Project{}, nil, factory)
 
 	created := gtd.Project{ID: 42, Title: "New"}
 	updated, cmd := m.Update(projectSavedMsg{project: created, created: true})
-	_ = updated
 
-	assert.NotNil(t, cmd)
-	assert.True(t, viewCalled)
+	assert.NotNil(t, cmd, "expected a cmd batching window-size + init")
+	assert.True(t, viewCalled, "view factory should run")
+	_, ok := updated.(stubScreen)
+	assert.True(t, ok, "expected the model to be replaced by the view; got %T", updated)
 }
 
 func TestUpdate_UpdateSuccess_DismissOnly(t *testing.T) {

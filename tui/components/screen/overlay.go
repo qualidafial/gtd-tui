@@ -32,7 +32,7 @@ func (o overlay) Init() tea.Cmd {
 func (o overlay) Update(msg tea.Msg) (Screen, tea.Cmd) {
 	if msg, ok := msg.(tea.KeyPressMsg); ok && key.Matches(msg, o.KeyMap.Back) {
 		if !CapturingInput(o.inner) {
-			return o, Dismiss()
+			return o, DismissCmd()
 		}
 	}
 	inner, cmd := o.inner.Update(msg)

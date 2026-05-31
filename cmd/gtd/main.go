@@ -37,10 +37,12 @@ func run() error {
 
 	projects := service.NewProjectService(db)
 	tasks := service.NewTaskService(db)
+	inbox := service.NewInboxService(db)
 
 	m := tui.New(
 		tasks,
 		projects,
+		inbox,
 	)
 	p := tea.NewProgram(m)
 	if _, err := p.Run(); err != nil {

@@ -117,7 +117,7 @@ func (m Model) Update(msg tea.Msg) (screen.Screen, tea.Cmd) {
 			err := msg.err
 			return m, func() tea.Msg { return fmt.Errorf("transition failed: %w", err) }
 		}
-		return m, screen.Dismiss()
+		return screen.Dismiss()
 	}
 
 	if m.applying {
@@ -131,10 +131,10 @@ func (m Model) Update(msg tea.Msg) (screen.Screen, tea.Cmd) {
 
 	switch m.form.State {
 	case huh.StateAborted:
-		return m, tea.Batch(cmd, screen.Dismiss())
+		return screen.Dismiss(cmd)
 	case huh.StateCompleted:
 		if !*m.confirm {
-			return m, tea.Batch(cmd, screen.Dismiss())
+			return screen.Dismiss(cmd)
 		}
 		m.applying = true
 		return m, tea.Batch(cmd, m.applyCmd())

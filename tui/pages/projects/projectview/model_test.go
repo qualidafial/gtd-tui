@@ -78,7 +78,7 @@ func TestTaskScoping(t *testing.T) {
 	require.NoError(t, err)
 
 	m := New(p, e.taskSvc, e.projectSvc, nil)
-	m = screentest.Init(m).(Model)
+	m = screentest.Init(t, m).(Model)
 
 	s, _ := m.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
 	m = s.(Model)

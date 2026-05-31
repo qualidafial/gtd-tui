@@ -99,10 +99,10 @@ func (m Model) Update(msg tea.Msg) (screen.Screen, tea.Cmd) {
 			err := msg.err
 			return m, func() tea.Msg { return fmt.Errorf("save failed: %w", err) }
 		}
-		if msg.created {
-			return m, tea.Sequence(screen.Dismiss(), m.pushViewCmd(msg.project))
+		if msg.created && m.viewFactory != nil {
+			return screen.Replace(m.viewFactory(msg.project))
 		}
-		return m, screen.Dismiss()
+		return screen.Dismiss()
 	case tea.KeyPressMsg:
 		if m.err != nil {
 			if key.Matches(msg, keyBack) {
@@ -124,7 +124,7 @@ func (m Model) Update(msg tea.Msg) (screen.Screen, tea.Cmd) {
 
 	switch m.form.State {
 	case huh.StateAborted:
-		return m, tea.Batch(cmd, screen.Dismiss())
+		return screen.Dismiss(cmd)
 	case huh.StateCompleted:
 		m.saving = true
 		return m, tea.Batch(cmd, m.saveCmd())
@@ -154,14 +154,6 @@ func (m Model) saveCmd() tea.Cmd {
 			err:     err,
 		}
 	}
-}
-
-func (m Model) pushViewCmd(project gtd.Project) tea.Cmd {
-	viewFactory := m.viewFactory
-	if viewFactory == nil {
-		return nil
-	}
-	return screen.Push(viewFactory(project))
 }
 
 func (m Model) View() string {

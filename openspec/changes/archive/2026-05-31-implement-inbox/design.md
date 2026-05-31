@@ -102,16 +102,14 @@ func (s *InboxService) ClarifyAsTask(ctx context.Context, itemID int64, task Tas
 **Trade-off**: MeetingLink rewriting on clarify is not handled here.
 **Accepted**: Meetings are owned by implement-meetings, which already specifies how its MeetingLinks follow Items through clarification (including the Incubate-creates-someday-project case). That coupling is documented in the meetings change, not duplicated here.
 
-## Open Questions
+## Resolved Decisions
 
-### ClarifyAsProject with a completed first action ("I chose do-it-now for the first task of a new project")
+### ClarifyAsProject checkpoints the project and first task; do-it-now is wizard-orchestrated
 
-`ClarifyAsTask` already supports the do-it-now path: the spawned Task can start in `Status=done` (see `specs/clarify-operations/spec.md`, "ClarifyAsTask do-it-now creates done task"). The analogous case for projects is unresolved: the user clarifies an Item into a *project* but has already performed the first concrete action, so that first action's Task should be created in `done` status, letting the UI immediately prompt for the actual next action.
+The original draft of this design left open how `ClarifyAsProject` should handle a do-it-now first action. The clarify-wizard UX makes the answer concrete and points to a stronger constraint: the user must not lose work if they accidentally dismiss the wizard mid-loop on a project with multiple do-it-now tasks.
 
-Today `ClarifyAsProject` creates only the Project (no spawned Task), so there is no place for a pre-completed first action.
+**Decision**: `ClarifyAsProject(ctx, itemID, project, firstTask Task) (Project, Task, Item, error)`. The service persists the project plus its first task in one transaction, stamps the task's `ProjectID` to the new project, and stamps the item's `ClarifiedIntoProjectID`. The first task is always created in `Status=open`; the service rejects any other status.
 
-**Open:**
-- Is this a parameter on `ClarifyAsProject` (e.g., an optional first-action Task that is created in `done` status in the same transaction), or a follow-on call (`ClarifyAsProject` then a separate `ClarifyAsTask`/`CreateTask` targeting the new project)?
-- If a parameter: does `ClarifyAsProject` then return three entities (Item, Project, Task) instead of two, and how does that interact with the "returns both entities" scenario?
+Do-it-now is orchestrated at the wizard layer: after the checkpoint commit, the wizard shows a "do it now, then confirm" prompt. On confirm the wizard calls `TaskService.CompleteTask`; on Esc the task remains open and the wizard closes (no work lost). Subsequent tasks in the project's per-task loop are created via `TaskService.CreateTask` with the project ID pre-set, NOT via additional ClarifyAsProject calls.
 
-Out of scope for this change's specs until resolved; tracked here so the decision lands alongside the rest of the clarify surface.
+For symmetry `ClarifyAsTask` follows the same contract: always creates an open task, rejects non-open status, and lets the wizard complete via TaskService.CompleteTask after the do-it-now confirmation. The wizard owns the GTD ritual; the service exposes the minimum primitives needed to support it without losing user work.
