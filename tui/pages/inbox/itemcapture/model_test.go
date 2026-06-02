@@ -33,22 +33,15 @@ func TestCapture_TypingAndSubmitting_CreatesItem(t *testing.T) {
 	s = screentest.Init(t, s)
 
 	s = screentest.TypeText(t, s, "Call dentist")
-	// Advance from Title to Description.
-	s = screentest.Send(t, s, tea.KeyPressMsg{Code: tea.KeyEnter})
+	// Tab advances Title → Description in the new form toolkit.
+	s = screentest.Send(t, s, tea.KeyPressMsg{Code: tea.KeyTab})
 	s = screentest.TypeText(t, s, "before friday")
 
-	// Submit. The huh text-area uses Ctrl+D / Tab to leave; pressing Tab
-	// advances past Description and the form completes, triggering save.
-	var dismissed bool
-	for _, msg := range screentest.PumpSend(t, s, tea.KeyPressMsg{Code: tea.KeyEnter}) {
-		if _, ok := msg.(screen.DismissMsg); ok {
-			dismissed = true
-			break
-		}
-	}
+	// Tab to the trailing Save button, then Enter to submit.
+	s = screentest.Send(t, s, tea.KeyPressMsg{Code: tea.KeyTab})
+	_, dismissed := screentest.RunUntilDismiss(t, s, tea.KeyPressMsg{Code: tea.KeyEnter})
 	require.True(t, dismissed, "expected the overlay to dismiss after save")
 
-	// Real assertion: the item is in the inbox.
 	items, err := svc.List(t.Context())
 	require.NoError(t, err)
 	require.Len(t, items, 1)
@@ -64,15 +57,9 @@ func TestCapture_TitleOnly_StillCreates(t *testing.T) {
 	s = screentest.Init(t, s)
 
 	s = screentest.TypeText(t, s, "Quick capture")
-	s = screentest.Send(t, s, tea.KeyPressMsg{Code: tea.KeyEnter}) // Title → Description
 
-	var dismissed bool
-	for _, msg := range screentest.PumpSend(t, s, tea.KeyPressMsg{Code: tea.KeyEnter}) {
-		if _, ok := msg.(screen.DismissMsg); ok {
-			dismissed = true
-			break
-		}
-	}
+	// Ctrl+s submits from anywhere; an empty Description is allowed.
+	_, dismissed := screentest.RunUntilDismiss(t, s, tea.KeyPressMsg{Code: 's', Mod: tea.ModCtrl})
 	require.True(t, dismissed)
 
 	items, err := svc.List(t.Context())
@@ -89,13 +76,47 @@ func TestCapture_EmptyTitle_DoesNotCreate(t *testing.T) {
 	var s screen.Screen = itemcapture.New(svc)
 	s = screentest.Init(t, s)
 
-	// Try to advance past the empty Title — the validator should reject it
-	// and no item should be created.
-	for _, msg := range screentest.PumpSend(t, s, tea.KeyPressMsg{Code: tea.KeyEnter}) {
+	// Try to submit with empty Title — Submit validates in declaration
+	// order, Title's validator rejects empty input, the form does not
+	// emit SubmittedMsg, and the overlay stays open.
+	for _, msg := range screentest.PumpSend(t, s, tea.KeyPressMsg{Code: 's', Mod: tea.ModCtrl}) {
 		if _, ok := msg.(screen.DismissMsg); ok {
 			t.Fatalf("overlay should not dismiss with an empty title")
 		}
 	}
+
+	items, err := svc.List(t.Context())
+	require.NoError(t, err)
+	assert.Empty(t, items)
+}
+
+func TestCapture_CtrlEnter_SavesFromTitle(t *testing.T) {
+	db := openTestDB(t)
+	svc := service.NewInboxService(db)
+
+	var s screen.Screen = itemcapture.New(svc)
+	s = screentest.Init(t, s)
+
+	s = screentest.TypeText(t, s, "Quick capture via ctrl+enter")
+
+	_, dismissed := screentest.RunUntilDismiss(t, s, tea.KeyPressMsg{Code: 's', Mod: tea.ModCtrl})
+	require.True(t, dismissed)
+
+	items, err := svc.List(t.Context())
+	require.NoError(t, err)
+	require.Len(t, items, 1)
+	assert.Equal(t, "Quick capture via ctrl+enter", items[0].Title)
+}
+
+func TestCapture_CtrlEnter_EmptyTitle_DoesNotCreate(t *testing.T) {
+	db := openTestDB(t)
+	svc := service.NewInboxService(db)
+
+	var s screen.Screen = itemcapture.New(svc)
+	s = screentest.Init(t, s)
+
+	_, dismissed := screentest.RunUntilDismiss(t, s, tea.KeyPressMsg{Code: 's', Mod: tea.ModCtrl})
+	require.False(t, dismissed, "overlay must not dismiss with empty title")
 
 	items, err := svc.List(t.Context())
 	require.NoError(t, err)
@@ -137,10 +158,9 @@ func TestCapture_SaveError_EmitsErrorMessageAndStaysOpen(t *testing.T) {
 	s = screentest.Init(t, s)
 
 	s = screentest.TypeText(t, s, "doomed")
-	s = screentest.Send(t, s, tea.KeyPressMsg{Code: tea.KeyEnter}) // → description
 
 	var sawError, dismissed bool
-	for st, msg := range screentest.PumpSend(t, s, tea.KeyPressMsg{Code: tea.KeyEnter}) {
+	for st, msg := range screentest.PumpSend(t, s, tea.KeyPressMsg{Code: 's', Mod: tea.ModCtrl}) {
 		s = st
 		if err, ok := msg.(error); ok && err != nil {
 			sawError = true

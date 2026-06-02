@@ -8,99 +8,99 @@ import (
 
 	"charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
-	"charm.land/huh/v2"
+	"github.com/qualidafial/gtd-tui/tui/cmds"
 
 	"github.com/qualidafial/gtd-tui"
+	"github.com/qualidafial/gtd-tui/tui/components/form"
+	"github.com/qualidafial/gtd-tui/tui/components/form/inputfield"
+	"github.com/qualidafial/gtd-tui/tui/components/form/savefield"
+	"github.com/qualidafial/gtd-tui/tui/components/form/textfield"
 	"github.com/qualidafial/gtd-tui/tui/components/screen"
 )
 
 var keyBack = key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "back"))
 
 // Model is the new-inbox-item capture overlay. Items are write-once: this
-// overlay is the only way to set Title and Description on an Item — all later
-// refinement happens via the clarify wizard, which inherits both fields and
-// lets the user override when committing to a destination entity.
+// overlay is the only way to set Title and Description on an Item — all
+// later refinement happens via the clarify wizard.
 type Model struct {
-	item   *gtd.Item
 	svc    gtd.InboxService
-	form   *huh.Form
+	form   form.Model
 	saving bool
 	err    error
 }
 
 func New(svc gtd.InboxService) Model {
-	item := &gtd.Item{}
-	m := Model{item: item, svc: svc}
+	title := inputfield.New("title", "Title",
+		inputfield.WithValidator(func(s string) error {
+			if len(s) == 0 {
+				return errors.New("title is required")
+			}
+			return nil
+		}),
+	)
+	desc := textfield.New("description", "Description")
+	save := savefield.New("save")
 
-	fields := []huh.Field{
-		huh.NewInput().
-			Title("Title").
-			Value(&item.Title).
-			Validate(func(s string) error {
-				if len(s) == 0 {
-					return errors.New("title is required")
-				}
-				return nil
-			}),
-		huh.NewText().
-			Title("Description").
-			Value(&item.Description),
+	return Model{
+		svc:  svc,
+		form: form.New(title, desc, save),
 	}
-
-	keymap := huh.NewDefaultKeyMap()
-	keymap.Quit = keyBack
-
-	m.form = huh.NewForm(huh.NewGroup(fields...)).
-		WithShowErrors(true).
-		WithShowHelp(false).
-		WithKeyMap(keymap)
-	return m
 }
 
 func (m Model) Init() tea.Cmd { return m.form.Init() }
 
 func (m Model) Update(msg tea.Msg) (screen.Screen, tea.Cmd) {
-	// Save-error standoff: the form has completed but the save failed, so the
-	// user must press Esc to dismiss the error before the form can be re-driven.
-	// Swallow everything else to avoid re-firing save or any form transition.
+	// Save-error standoff: an earlier save failed; require Esc to clear
+	// the error before the form can be re-driven.
 	if m.err != nil {
 		if kp, ok := msg.(tea.KeyPressMsg); ok && key.Matches(kp, keyBack) {
 			m.err = nil
-			m.form.State = huh.StateNormal
 		}
 		return m, nil
 	}
-	if savedMsg, ok := msg.(itemSavedMsg); ok {
-		if savedMsg.err != nil {
-			m.err = savedMsg.err
-			m.saving = false
-			err := savedMsg.err
-			return m, func() tea.Msg { return fmt.Errorf("save failed: %w", err) }
+
+	// Save in flight: only the saved-msg can move us forward.
+	if m.saving {
+		if savedMsg, ok := msg.(itemSavedMsg); ok {
+			return m.handleSaved(savedMsg)
 		}
+		return m, nil
+	}
+
+	// Esc cancels the overlay before any save is in flight.
+	if kp, ok := msg.(tea.KeyPressMsg); ok && key.Matches(kp, keyBack) {
 		return screen.Dismiss()
 	}
 
-	if m.saving {
-		return m, nil
-	}
-
-	form, cmd := m.form.Update(msg)
-	if f, ok := form.(*huh.Form); ok {
-		m.form = f
-	}
-
-	switch m.form.State {
-	case huh.StateAborted:
-		return screen.Dismiss(cmd)
-	case huh.StateCompleted:
+	switch msg := msg.(type) {
+	case form.SubmittedMsg:
 		m.saving = true
-		return m, tea.Batch(cmd, m.saveCmd())
+		return m, m.saveCmd()
+	case itemSavedMsg:
+		return m.handleSaved(msg)
 	}
+
+	var cmd tea.Cmd
+	m.form, cmd = m.form.Update(msg)
 	return m, cmd
 }
 
+func (m Model) handleSaved(msg itemSavedMsg) (screen.Screen, tea.Cmd) {
+	if msg.err != nil {
+		m.err = msg.err
+		m.saving = false
+		err := msg.err
+		return m, cmds.Emit(fmt.Errorf("save failed: %w", err))
+	}
+	return screen.Dismiss()
+}
+
 func (m Model) saveCmd() tea.Cmd {
-	item := *m.item
+	values := m.form.FieldValues()
+	title, _ := values["title"].(string)
+	desc, _ := values["description"].(string)
+	item := gtd.Item{Title: title, Description: desc}
 	svc := m.svc
 	return func() tea.Msg {
 		saved, err := svc.Create(context.Background(), item)
@@ -113,10 +113,15 @@ func (m Model) saveCmd() tea.Cmd {
 
 func (m Model) View() string { return m.form.View() }
 
-func (m Model) CapturingInput() bool { return m.form.State == huh.StateNormal }
+func (m Model) CapturingInput() bool { return m.err == nil && !m.saving }
 
-func (m Model) ShortHelp() []key.Binding  { return m.form.KeyBinds() }
-func (m Model) FullHelp() [][]key.Binding { return [][]key.Binding{m.form.KeyBinds()} }
+func (m Model) ShortHelp() []key.Binding {
+	return append(m.form.ShortHelp(), keyBack)
+}
+
+func (m Model) FullHelp() [][]key.Binding {
+	return [][]key.Binding{append(m.form.ShortHelp(), keyBack)}
+}
 
 type itemSavedMsg struct {
 	item gtd.Item

@@ -8,14 +8,18 @@ import (
 
 	"charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
-	"charm.land/huh/v2"
+	"charm.land/lipgloss/v2"
 
 	"github.com/qualidafial/gtd-tui"
-	"github.com/qualidafial/gtd-tui/tui/components/date"
+	"github.com/qualidafial/gtd-tui/tui/cmds"
+	"github.com/qualidafial/gtd-tui/tui/components/form"
+	"github.com/qualidafial/gtd-tui/tui/components/form/datefield"
+	"github.com/qualidafial/gtd-tui/tui/components/form/savefield"
 	"github.com/qualidafial/gtd-tui/tui/components/screen"
 )
 
-// Transition identifies a project status change initiated from the project list.
+// Transition identifies a project status change initiated from the
+// project list.
 type Transition int
 
 const (
@@ -59,86 +63,74 @@ var specs = map[Transition]spec{
 	},
 }
 
+var (
+	keyBack    = key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "cancel"))
+	titleStyle = lipgloss.NewStyle().Bold(true)
+	descStyle  = lipgloss.NewStyle().Faint(true)
+)
+
 type Model struct {
 	project    gtd.Project
+	pending    int
 	svc        gtd.ProjectService
 	transition Transition
-	confirm    *bool
-	at         **time.Time
-	err        error
-	form       *huh.Form
+	form       form.Model
 	applying   bool
 }
 
 func New(project gtd.Project, pending int, svc gtd.ProjectService, transition Transition) Model {
-	m := Model{
+	s := specs[transition]
+	now := time.Now()
+
+	when := datefield.New("when", "When", datefield.WithValue(&now))
+	save := savefield.New("save", savefield.WithLabel(s.affirmative))
+
+	return Model{
 		project:    project,
+		pending:    pending,
 		svc:        svc,
 		transition: transition,
-		confirm:    new(true),
-		at:         new(new(time.Now())),
+		form:       form.New(when, save),
 	}
-
-	s := specs[transition]
-	when := date.NewField().
-		Title("When").
-		Value(m.at)
-	confirm := huh.NewConfirm().
-		Title(s.title).
-		Description(s.description(project.Title, pending)).
-		Affirmative(s.affirmative).
-		Negative("Cancel").
-		Value(m.confirm)
-
-	keymap := huh.NewDefaultKeyMap()
-	keymap.Quit = key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "cancel"))
-
-	m.form = huh.NewForm(huh.NewGroup(when, confirm)).
-		WithShowErrors(true).
-		WithShowHelp(false).
-		WithKeyMap(keymap)
-	return m
 }
 
-func (m Model) Transition() Transition {
-	return m.transition
-}
+func (m Model) Transition() Transition { return m.transition }
 
-func (m Model) Init() tea.Cmd {
-	return m.form.Init()
-}
+func (m Model) Init() tea.Cmd { return m.form.Init() }
 
 func (m Model) Update(msg tea.Msg) (screen.Screen, tea.Cmd) {
+	if m.applying {
+		if tm, ok := msg.(projectTransitionedMsg); ok {
+			if tm.err != nil {
+				m.applying = false
+				err := tm.err
+				return m, cmds.Emit(fmt.Errorf("transition failed: %w", err))
+			}
+			return screen.Dismiss()
+		}
+		return m, nil
+	}
+
+	if kp, ok := msg.(tea.KeyPressMsg); ok && key.Matches(kp, keyBack) {
+		return screen.Dismiss()
+	}
+
 	switch msg := msg.(type) {
+	case form.SubmittedMsg:
+		_ = msg
+		m.applying = true
+		return m, m.applyCmd()
 	case projectTransitionedMsg:
 		if msg.err != nil {
-			m.err = msg.err
 			m.applying = false
 			err := msg.err
-			return m, func() tea.Msg { return fmt.Errorf("transition failed: %w", err) }
+			return m, cmds.Emit(fmt.Errorf("transition failed: %w", err))
 		}
 		return screen.Dismiss()
 	}
 
-	if m.applying {
-		return m, nil
-	}
-
-	form, cmd := m.form.Update(msg)
-	if f, ok := form.(*huh.Form); ok {
-		m.form = f
-	}
-
-	switch m.form.State {
-	case huh.StateAborted:
-		return screen.Dismiss(cmd)
-	case huh.StateCompleted:
-		if !*m.confirm {
-			return screen.Dismiss(cmd)
-		}
-		m.applying = true
-		return m, tea.Batch(cmd, m.applyCmd())
-	}
+	var cmd tea.Cmd
+	m.form, cmd = m.form.Update(msg)
 	return m, cmd
 }
 
@@ -147,8 +139,8 @@ func (m Model) applyCmd() tea.Cmd {
 	svc := m.svc
 	apply := specs[m.transition].apply
 	at := time.Now()
-	if m.at != nil && *m.at != nil {
-		at = **m.at
+	if t, _ := m.form.FieldValues()["when"].(*time.Time); t != nil {
+		at = *t
 	}
 	return func() tea.Msg {
 		_, err := apply(svc, context.Background(), id, at)
@@ -160,19 +152,22 @@ func (m Model) applyCmd() tea.Cmd {
 }
 
 func (m Model) View() string {
-	return m.form.View()
+	s := specs[m.transition]
+	header := lipgloss.JoinVertical(lipgloss.Left,
+		titleStyle.Render(s.title),
+		descStyle.Render(s.description(m.project.Title, m.pending)),
+	)
+	return lipgloss.JoinVertical(lipgloss.Left, header, "", m.form.View())
 }
 
-func (m Model) CapturingInput() bool {
-	return m.form.State == huh.StateNormal
-}
+func (m Model) CapturingInput() bool { return !m.applying }
 
 func (m Model) ShortHelp() []key.Binding {
-	return m.form.KeyBinds()
+	return append(m.form.ShortHelp(), keyBack)
 }
 
 func (m Model) FullHelp() [][]key.Binding {
-	return [][]key.Binding{m.form.KeyBinds()}
+	return [][]key.Binding{append(m.form.ShortHelp(), keyBack)}
 }
 
 type projectTransitionedMsg struct {

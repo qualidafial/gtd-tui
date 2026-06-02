@@ -9,7 +9,6 @@ import (
 	"charm.land/bubbles/v2/key"
 	"charm.land/bubbles/v2/list"
 	tea "charm.land/bubbletea/v2"
-	"charm.land/huh/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 
@@ -47,14 +46,13 @@ type chipColors struct {
 	project  lipgloss.Style // green
 }
 
-// newChipColors pulls red from huh.ThemeCharm (where it is named) and uses
-// static lipgloss colors for the urgency bands huh does not name.
+// newChipColors returns the urgency palette. Dark theme is the only tuned
+// target. The hasDarkBg parameter is retained for forward compatibility
+// with a future light-mode tune.
 func newChipColors(hasDarkBg bool) chipColors {
-	theme := huh.ThemeFunc(huh.ThemeCharm).Theme(hasDarkBg)
-	red := theme.Focused.ErrorMessage.GetForeground()
-
+	_ = hasDarkBg
 	return chipColors{
-		overdue:  lipgloss.NewStyle().Foreground(red),
+		overdue:  lipgloss.NewStyle().Foreground(lipgloss.Color("9")),   // red
 		dueToday: lipgloss.NewStyle().Foreground(lipgloss.Color("208")), // orange
 		dueSoon:  lipgloss.NewStyle().Foreground(lipgloss.Color("11")),  // yellow
 		dueLater: lipgloss.NewStyle().Foreground(lipgloss.Color("245")), // dim

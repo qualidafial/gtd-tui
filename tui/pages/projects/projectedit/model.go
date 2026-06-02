@@ -10,12 +10,16 @@ import (
 
 	"charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
-	"charm.land/huh/v2"
 	"charm.land/lipgloss/v2"
 
 	"github.com/qualidafial/gtd-tui"
 	"github.com/qualidafial/gtd-tui/internal/reltime"
-	"github.com/qualidafial/gtd-tui/tui/components/date"
+	"github.com/qualidafial/gtd-tui/tui/cmds"
+	"github.com/qualidafial/gtd-tui/tui/components/form"
+	"github.com/qualidafial/gtd-tui/tui/components/form/datefield"
+	"github.com/qualidafial/gtd-tui/tui/components/form/inputfield"
+	"github.com/qualidafial/gtd-tui/tui/components/form/savefield"
+	"github.com/qualidafial/gtd-tui/tui/components/form/textfield"
 	"github.com/qualidafial/gtd-tui/tui/components/screen"
 )
 
@@ -29,11 +33,11 @@ var (
 type ViewFactory func(project gtd.Project) screen.Screen
 
 type Model struct {
-	project     *gtd.Project
+	project     gtd.Project
 	svc         gtd.ProjectService
 	viewFactory ViewFactory
 	err         error
-	form        *huh.Form
+	form        form.Model
 	saving      bool
 }
 
@@ -42,98 +46,103 @@ func New(project gtd.Project, svc gtd.ProjectService, viewFactory ViewFactory) M
 		project.Status = gtd.ProjectStatusOpen
 	}
 
-	m := Model{
-		project:     &project,
+	requireNonEmpty := func(label string) func(string) error {
+		return func(s string) error {
+			if len(s) == 0 {
+				return errors.New(label + " is required")
+			}
+			return nil
+		}
+	}
+
+	title := inputfield.New("title", "Title",
+		inputfield.WithValue(project.Title),
+		inputfield.WithValidator(requireNonEmpty("title")),
+	)
+	outcome := inputfield.New("outcome", "Outcome",
+		inputfield.WithValue(project.Outcome),
+		inputfield.WithValidator(requireNonEmpty("outcome")),
+	)
+	desc := textfield.New("description", "Description",
+		textfield.WithValue(project.Description),
+	)
+	dueOpts := []datefield.Option{}
+	if project.Due != nil {
+		dueOpts = append(dueOpts, datefield.WithValue(project.Due))
+	}
+	due := datefield.New("due", "Due", dueOpts...)
+
+	saveLabel := "Save"
+	if project.ID == 0 {
+		saveLabel = "Create"
+	}
+	save := savefield.New("save", savefield.WithLabel(saveLabel))
+
+	return Model{
+		project:     project,
 		svc:         svc,
 		viewFactory: viewFactory,
+		form:        form.New(title, outcome, desc, due, save),
 	}
-
-	fields := []huh.Field{
-		huh.NewInput().
-			Title("Title").
-			Value(&project.Title).
-			Validate(func(s string) error {
-				if len(s) == 0 {
-					return errors.New("title is required")
-				}
-				return nil
-			}),
-		huh.NewInput().
-			Title("Outcome").
-			Value(&project.Outcome).
-			Validate(func(s string) error {
-				if len(s) == 0 {
-					return errors.New("outcome is required")
-				}
-				return nil
-			}),
-		huh.NewText().
-			Title("Description").
-			Value(&project.Description),
-		date.NewField().
-			Title("Due").
-			Value(&project.Due),
-	}
-	group := huh.NewGroup(fields...)
-
-	keymap := huh.NewDefaultKeyMap()
-	keymap.Quit = keyBack
-
-	m.form = huh.NewForm(group).
-		WithShowErrors(true).
-		WithShowHelp(false).
-		WithKeyMap(keymap)
-	return m
 }
 
-func (m Model) Init() tea.Cmd {
-	return m.form.Init()
-}
+func (m Model) Init() tea.Cmd { return m.form.Init() }
 
 func (m Model) Update(msg tea.Msg) (screen.Screen, tea.Cmd) {
-	switch msg := msg.(type) {
-	case projectSavedMsg:
-		if msg.err != nil {
-			m.err = msg.err
-			m.saving = false
-			err := msg.err
-			return m, func() tea.Msg { return fmt.Errorf("save failed: %w", err) }
+	// Save-error standoff: an earlier save failed; Esc clears the error.
+	if m.err != nil {
+		if kp, ok := msg.(tea.KeyPressMsg); ok && key.Matches(kp, keyBack) {
+			m.err = nil
 		}
-		if msg.created && m.viewFactory != nil {
-			return screen.Replace(m.viewFactory(msg.project))
-		}
-		return screen.Dismiss()
-	case tea.KeyPressMsg:
-		if m.err != nil {
-			if key.Matches(msg, keyBack) {
-				m.err = nil
-				m.form.State = huh.StateNormal
-			}
-			return m, nil
-		}
-	}
-
-	if m.saving {
 		return m, nil
 	}
 
-	form, cmd := m.form.Update(msg)
-	if f, ok := form.(*huh.Form); ok {
-		m.form = f
+	if m.saving {
+		if sm, ok := msg.(projectSavedMsg); ok {
+			return m.handleSaved(sm)
+		}
+		return m, nil
 	}
 
-	switch m.form.State {
-	case huh.StateAborted:
-		return screen.Dismiss(cmd)
-	case huh.StateCompleted:
-		m.saving = true
-		return m, tea.Batch(cmd, m.saveCmd())
+	if kp, ok := msg.(tea.KeyPressMsg); ok && key.Matches(kp, keyBack) {
+		return screen.Dismiss()
 	}
+
+	switch msg := msg.(type) {
+	case form.SubmittedMsg:
+		_ = msg
+		m.saving = true
+		return m, m.saveCmd()
+	case projectSavedMsg:
+		return m.handleSaved(msg)
+	}
+
+	var cmd tea.Cmd
+	m.form, cmd = m.form.Update(msg)
 	return m, cmd
 }
 
+func (m Model) handleSaved(msg projectSavedMsg) (screen.Screen, tea.Cmd) {
+	if msg.err != nil {
+		m.err = msg.err
+		m.saving = false
+		err := msg.err
+		return m, cmds.Emit(fmt.Errorf("save failed: %w", err))
+	}
+	if msg.created && m.viewFactory != nil {
+		return screen.Replace(m.viewFactory(msg.project))
+	}
+	return screen.Dismiss()
+}
+
 func (m Model) saveCmd() tea.Cmd {
-	project := *m.project
+	project := m.project
+	values := m.form.FieldValues()
+	project.Title, _ = values["title"].(string)
+	project.Outcome, _ = values["outcome"].(string)
+	project.Description, _ = values["description"].(string)
+	project.Due, _ = values["due"].(*time.Time)
+
 	svc := m.svc
 	creating := project.ID == 0
 	return func() tea.Msg {
@@ -188,16 +197,14 @@ func titleStatus(s gtd.ProjectStatus) string {
 	return strings.ToUpper(str[:1]) + str[1:]
 }
 
-func (m Model) CapturingInput() bool {
-	return m.form.State == huh.StateNormal
-}
+func (m Model) CapturingInput() bool { return m.err == nil && !m.saving }
 
 func (m Model) ShortHelp() []key.Binding {
-	return m.form.KeyBinds()
+	return append(m.form.ShortHelp(), keyBack)
 }
 
 func (m Model) FullHelp() [][]key.Binding {
-	return [][]key.Binding{m.form.KeyBinds()}
+	return [][]key.Binding{append(m.form.ShortHelp(), keyBack)}
 }
 
 type projectSavedMsg struct {

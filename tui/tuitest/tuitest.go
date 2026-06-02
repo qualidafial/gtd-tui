@@ -8,6 +8,7 @@ import (
 	"time"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/qualidafial/gtd-tui/tui/cmds"
 )
 
 const (
@@ -81,7 +82,7 @@ func PumpSend[M Updater[M]](t *testing.T, m M, msg tea.Msg) iter.Seq2[M, tea.Msg
 	t.Helper()
 	return func(yield func(M, tea.Msg) bool) {
 		t.Helper()
-		cmd := func() tea.Msg { return msg }
+		cmd := cmds.Emit(msg)
 		pump(t, m, cmd, yield)
 	}
 }

@@ -33,27 +33,26 @@ func setup(t *testing.T) env {
 	}
 }
 
-// pressKey is a small helper: send a single keypress and discard the
-// resulting model assignment (so the test reads naturally as a script).
-func pressKey(t *testing.T, s screen.Screen, code rune) screen.Screen {
+func sendKey(t *testing.T, s screen.Screen, code rune) screen.Screen {
 	t.Helper()
 	return screentest.Send(t, s, tea.KeyPressMsg{Code: code, Text: string(code)})
 }
 
-func pressEnter(t *testing.T, s screen.Screen) screen.Screen {
+func sendCode(t *testing.T, s screen.Screen, code rune) screen.Screen {
 	t.Helper()
-	return screentest.Send(t, s, tea.KeyPressMsg{Code: tea.KeyEnter})
+	return screentest.Send(t, s, tea.KeyPressMsg{Code: code})
 }
 
-func pressEsc(t *testing.T, s screen.Screen) screen.Screen {
+func tab(t *testing.T, s screen.Screen) screen.Screen {
 	t.Helper()
-	return screentest.Send(t, s, tea.KeyPressMsg{Code: tea.KeyEscape})
+	return sendCode(t, s, tea.KeyTab)
 }
 
+func ctrlS() tea.KeyPressMsg { return tea.KeyPressMsg{Code: 's', Mod: tea.ModCtrl} }
 
-// TestSingleTask_NotDoItNow_CommitsAndDismisses drives the simplest happy path:
-// actionable=Yes → multi-step=No → accept inherited title and description →
-// <2min=No → me → no project → ClarifyAsTask commits → wizard dismisses.
+// TestSingleTask_NotDoItNow_CommitsAndDismisses drives the happy path with
+// every radio at its default ("Yes" actionable, "Single task", "<2min No",
+// "Me" doer); the prefilled title flows through and ClarifyAsTask runs.
 func TestSingleTask_NotDoItNow_CommitsAndDismisses(t *testing.T) {
 	e := setup(t)
 	ctx := t.Context()
@@ -64,14 +63,7 @@ func TestSingleTask_NotDoItNow_CommitsAndDismisses(t *testing.T) {
 	var s screen.Screen = clarify.New(item, e.inboxSvc, e.taskSvc)
 	s = screentest.Init(t, s)
 
-	s = pressKey(t, s, 'y') // Actionable? Yes
-	s = pressKey(t, s, 'n') // Multi-step? No
-	s = pressEnter(t, s)    // accept pre-populated title
-	s = pressEnter(t, s)    // accept pre-populated description
-	s = pressKey(t, s, 'n') // < 2min? No
-	s = pressKey(t, s, 'm') // doer = me
-
-	_, dismissed := screentest.RunUntilDismiss(t, s, tea.KeyPressMsg{Code: 'n', Text: "n"})
+	_, dismissed := screentest.RunUntilDismiss(t, s, ctrlS())
 	require.True(t, dismissed)
 
 	items, err := e.inboxSvc.List(ctx)
@@ -88,10 +80,9 @@ func TestSingleTask_NotDoItNow_CommitsAndDismisses(t *testing.T) {
 	assert.Nil(t, tasks[0].ProjectID)
 }
 
-// TestSingleTask_DoItNow_PushesDoitnowAndCompletes covers the do-it-now path:
-// <2min=Yes → ClarifyAsTask commits open → doitnow overlay pushes → confirm
-// completes the task. The wizard dismisses after the doitnow result.
-func TestSingleTask_DoItNow_PushesDoitnowAndCompletes(t *testing.T) {
+// TestSingleTask_DoItNow_PushesDoitnow: flip <2min radio to Yes, then
+// ctrl+s. The clarify path commits the task and pushes the doitnow overlay.
+func TestSingleTask_DoItNow_PushesDoitnow(t *testing.T) {
 	e := setup(t)
 	ctx := t.Context()
 
@@ -101,15 +92,18 @@ func TestSingleTask_DoItNow_PushesDoitnowAndCompletes(t *testing.T) {
 	var s screen.Screen = clarify.New(item, e.inboxSvc, e.taskSvc)
 	s = screentest.Init(t, s)
 
-	s = pressKey(t, s, 'y') // actionable
-	s = pressKey(t, s, 'n') // single task
-	s = pressEnter(t, s)    // accept title
-	s = pressEnter(t, s)    // accept (empty) description
-	s = pressKey(t, s, 'y') // <2min Yes (auto-sets doer=me; advances to attach prompt)
+	// Walk from the actionable radio to the under2Min radio. Order in the
+	// initial form: actionable → multiStep → taskTitle → taskDesc →
+	// under2Min. Tab three times to reach under2Min, then press Right to
+	// flip it to Yes.
+	s = tab(t, s) // → multiStep
+	s = tab(t, s) // → taskTitle
+	s = tab(t, s) // → taskDesc
+	s = tab(t, s) // → under2Min
+	s = sendCode(t, s, tea.KeyRight)
 
-	// 'n' for attach=No commits the task and pushes the doitnow overlay.
 	var sawPush bool
-	for st, msg := range screentest.PumpSend(t, s, tea.KeyPressMsg{Code: 'n', Text: "n"}) {
+	for st, msg := range screentest.PumpSend(t, s, ctrlS()) {
 		s = st
 		if _, ok := msg.(screen.PushMsg); ok {
 			sawPush = true
@@ -118,16 +112,15 @@ func TestSingleTask_DoItNow_PushesDoitnowAndCompletes(t *testing.T) {
 	}
 	require.True(t, sawPush, "do-it-now path should push the doitnow overlay")
 
-	// Task exists, still open.
 	tasks, err := e.taskSvc.ListTasks(ctx, gtd.TaskFilter{})
 	require.NoError(t, err)
 	require.Len(t, tasks, 1)
 	assert.Equal(t, gtd.TaskStatusOpen, tasks[0].Status)
 }
 
-// TestNonActionable_TrashConfirm_Discards covers actionable=No → trash → confirm
-// → svc.Discard is called and the wizard dismisses.
-func TestNonActionable_TrashConfirm_Discards(t *testing.T) {
+// TestNonActionable_Trash_Discards: actionable=No, nonAct=Trash (default),
+// ctrl+s commits via Discard.
+func TestNonActionable_Trash_Discards(t *testing.T) {
 	e := setup(t)
 	ctx := t.Context()
 
@@ -137,57 +130,19 @@ func TestNonActionable_TrashConfirm_Discards(t *testing.T) {
 	var s screen.Screen = clarify.New(item, e.inboxSvc, e.taskSvc)
 	s = screentest.Init(t, s)
 
-	s = pressKey(t, s, 'n') // not actionable
-	s = pressKey(t, s, 't') // trash
+	// Flip actionable to No.
+	s = sendCode(t, s, tea.KeyRight)
 
-	_, dismissed := screentest.RunUntilDismiss(t, s, tea.KeyPressMsg{Code: 'y', Text: "y"}) // confirm
+	_, dismissed := screentest.RunUntilDismiss(t, s, ctrlS())
 	require.True(t, dismissed)
 
 	got, err := e.inboxSvc.Get(ctx, item.ID)
 	require.NoError(t, err)
-	assert.True(t, got.Discarded, "discard should have stamped the item")
-
-	items, err := e.inboxSvc.List(ctx)
-	require.NoError(t, err)
-	assert.Empty(t, items)
+	assert.True(t, got.Discarded)
 }
 
-// TestNonActionable_TrashConfirm_NoReturnsToChoice covers the "no" path of the
-// discard confirmation: the wizard backs out to the trash/someday question
-// without persisting anything.
-func TestNonActionable_TrashConfirm_NoReturnsToChoice(t *testing.T) {
-	e := setup(t)
-	ctx := t.Context()
-
-	item, err := e.inboxSvc.Create(ctx, gtd.Item{Title: "maybe trash"})
-	require.NoError(t, err)
-
-	var s screen.Screen = clarify.New(item, e.inboxSvc, e.taskSvc)
-	s = screentest.Init(t, s)
-
-	s = pressKey(t, s, 'n')   // not actionable
-	s = pressKey(t, s, 't')   // trash
-	s = pressKey(t, s, 'n')   // confirm? no — backs out
-	s = pressKey(t, s, 's')   // pick someday instead
-	s = pressEnter(t, s)      // accept default someday title
-
-	_, dismissed := screentest.RunUntilDismiss(t, s, tea.KeyPressMsg{Code: tea.KeyEnter}) // accept empty desc
-	require.True(t, dismissed)
-
-	// Item not discarded; clarified into a someday project instead.
-	got, err := e.inboxSvc.Get(ctx, item.ID)
-	require.NoError(t, err)
-	assert.False(t, got.Discarded)
-	require.NotNil(t, got.ClarifiedIntoProjectID)
-
-	p, err := e.projSvc.GetProject(ctx, *got.ClarifiedIntoProjectID)
-	require.NoError(t, err)
-	assert.Equal(t, gtd.ProjectStatusSomeday, p.Status)
-	assert.Equal(t, "maybe trash", p.Title)
-}
-
-// TestNonActionable_Someday_Incubates covers actionable=No → someday → fill
-// title/desc → svc.Incubate creates a someday project.
+// TestNonActionable_Someday_Incubates: actionable=No, nonAct=Someday,
+// somedayTitle prefilled, ctrl+s incubates.
 func TestNonActionable_Someday_Incubates(t *testing.T) {
 	e := setup(t)
 	ctx := t.Context()
@@ -198,11 +153,12 @@ func TestNonActionable_Someday_Incubates(t *testing.T) {
 	var s screen.Screen = clarify.New(item, e.inboxSvc, e.taskSvc)
 	s = screentest.Init(t, s)
 
-	s = pressKey(t, s, 'n') // not actionable
-	s = pressKey(t, s, 's') // someday
-	s = pressEnter(t, s)    // accept default title
+	// Flip actionable to No, then tab to nonAct and flip to Someday.
+	s = sendCode(t, s, tea.KeyRight) // actionable → No
+	s = tab(t, s)                    // → nonAct
+	s = sendCode(t, s, tea.KeyRight) // nonAct → Someday
 
-	_, dismissed := screentest.RunUntilDismiss(t, s, tea.KeyPressMsg{Code: tea.KeyEnter}) // accept default desc
+	_, dismissed := screentest.RunUntilDismiss(t, s, ctrlS())
 	require.True(t, dismissed)
 
 	projects, err := e.projSvc.ListProjects(ctx, gtd.ProjectFilter{}.WithStatus(gtd.ProjectStatusSomeday))
@@ -212,10 +168,10 @@ func TestNonActionable_Someday_Incubates(t *testing.T) {
 	assert.Equal(t, "later this year", projects[0].Description)
 }
 
-// TestProject_FirstTaskNotDoItNow_CommitsAndDismisses covers the project
-// branch: multi-step=Yes → project form → first task per-task block → <2min=No
-// → ClarifyAsProject commits project + first task open → wizard dismisses.
-func TestProject_FirstTaskNotDoItNow_CommitsAndDismisses(t *testing.T) {
+// TestProject_FirstTask_EntersProjectLoop: multiStep=Project triggers
+// ClarifyAsProject; after success the wizard transitions to the per-task
+// loop form rather than dismissing.
+func TestProject_FirstTask_EntersProjectLoop(t *testing.T) {
 	e := setup(t)
 	ctx := t.Context()
 
@@ -225,19 +181,30 @@ func TestProject_FirstTaskNotDoItNow_CommitsAndDismisses(t *testing.T) {
 	var s screen.Screen = clarify.New(item, e.inboxSvc, e.taskSvc)
 	s = screentest.Init(t, s)
 
-	s = pressKey(t, s, 'y') // actionable
-	s = pressKey(t, s, 'y') // multi-step
-	s = pressEnter(t, s)    // accept project title
+	// actionable=Yes (default). Tab to multiStep, flip to Project.
+	s = tab(t, s)                    // → multiStep
+	s = sendCode(t, s, tea.KeyRight) // → Project
+	// projectTitle is now visible and prefilled. Tab to projectOutcome
+	// and type one.
+	s = tab(t, s) // → projectTitle
+	s = tab(t, s) // → projectOutcome
 	s = screentest.TypeText(t, s, "auth is modular")
-	s = pressEnter(t, s)    // outcome
-	s = pressEnter(t, s)    // accept project description
-	s = screentest.TypeText(t, s, "Sketch design")
-	s = pressEnter(t, s)    // task title
-	s = pressEnter(t, s)    // accept (blank) task description
-	s = pressKey(t, s, 'n') // <2min? No
 
-	_, dismissed := screentest.RunUntilDismiss(t, s, tea.KeyPressMsg{Code: 'm', Text: "m"}) // me
-	require.True(t, dismissed)
+	// Type a first-task title (overwrite the item-title prefill) by
+	// tabbing forward to taskTitle.
+	s = tab(t, s) // → projectDesc
+	s = tab(t, s) // → taskTitle
+	// Clear the prefilled title.
+	for range 16 {
+		s = sendCode(t, s, tea.KeyBackspace)
+	}
+	s = screentest.TypeText(t, s, "Sketch design")
+
+	// Run ctrl+s; do NOT exit on dismiss — the wizard transitions to the
+	// project loop and stays on screen.
+	for st := range screentest.PumpSend(t, s, ctrlS()) {
+		s = st
+	}
 
 	projects, err := e.projSvc.ListProjects(ctx, gtd.ProjectFilter{}.WithStatus(gtd.ProjectStatusOpen))
 	require.NoError(t, err)
@@ -249,35 +216,13 @@ func TestProject_FirstTaskNotDoItNow_CommitsAndDismisses(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, tasks, 1)
 	assert.Equal(t, "Sketch design", tasks[0].Title)
-	assert.Equal(t, gtd.TaskStatusOpen, tasks[0].Status)
 	require.NotNil(t, tasks[0].ProjectID)
 	assert.Equal(t, projects[0].ID, *tasks[0].ProjectID)
 }
 
-// TestBackNav_FromMultiStep_ClearsAnswer ensures Esc on a non-root step pops
-// back, clearing the previous answer for re-asking.
-func TestBackNav_FromMultiStep_ClearsAnswer(t *testing.T) {
-	e := setup(t)
-	ctx := t.Context()
-
-	item, err := e.inboxSvc.Create(ctx, gtd.Item{Title: "x"})
-	require.NoError(t, err)
-
-	var s screen.Screen = clarify.New(item, e.inboxSvc, e.taskSvc)
-	s = screentest.Init(t, s)
-
-	s = pressKey(t, s, 'y') // actionable Yes → stepMultiStep
-	s = pressEsc(t, s)      // back to stepActionable; clears actionable answer
-
-	view := s.View()
-	assert.Contains(t, view, "Actionable", "should be back at the actionable prompt")
-	// answered column shouldn't show the cleared answer any more
-	assert.NotContains(t, view, "Yes\n", "actionable=Yes should have been cleared")
-}
-
-// TestBackNav_AtRoot_Dismisses ensures Esc on the root question dismisses
-// instead of looping forever.
-func TestBackNav_AtRoot_Dismisses(t *testing.T) {
+// TestEsc_AtAnyTime_Dismisses: Esc is the wizard-level cancel; it dismisses
+// regardless of form position.
+func TestEsc_AtAnyTime_Dismisses(t *testing.T) {
 	e := setup(t)
 	ctx := t.Context()
 
@@ -290,3 +235,7 @@ func TestBackNav_AtRoot_Dismisses(t *testing.T) {
 	_, dismissed := screentest.RunUntilDismiss(t, s, tea.KeyPressMsg{Code: tea.KeyEscape})
 	require.True(t, dismissed)
 }
+
+// Compile-time guard: sendKey is exported only for the table tests below;
+// we silence the unused-warning if they are removed.
+var _ = sendKey

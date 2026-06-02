@@ -10,12 +10,16 @@ import (
 
 	"charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
-	"charm.land/huh/v2"
 	"charm.land/lipgloss/v2"
 
 	"github.com/qualidafial/gtd-tui"
 	"github.com/qualidafial/gtd-tui/internal/reltime"
-	"github.com/qualidafial/gtd-tui/tui/components/date"
+	"github.com/qualidafial/gtd-tui/tui/cmds"
+	"github.com/qualidafial/gtd-tui/tui/components/form"
+	"github.com/qualidafial/gtd-tui/tui/components/form/datefield"
+	"github.com/qualidafial/gtd-tui/tui/components/form/inputfield"
+	"github.com/qualidafial/gtd-tui/tui/components/form/savefield"
+	"github.com/qualidafial/gtd-tui/tui/components/form/textfield"
 	"github.com/qualidafial/gtd-tui/tui/components/screen"
 )
 
@@ -27,12 +31,11 @@ var (
 )
 
 type Model struct {
-	task        *gtd.Task
+	task        gtd.Task
 	svc         gtd.TaskService
 	projectName string
-	assignee    string
 	err         error
-	form        *huh.Form
+	form        form.Model
 	saving      bool
 }
 
@@ -46,106 +49,106 @@ func New(task gtd.Task, svc gtd.TaskService, projectName string) Model {
 		assignee = *task.Assignee
 	}
 
-	m := Model{
-		task:        &task,
+	title := inputfield.New("title", "Title",
+		inputfield.WithValue(task.Title),
+		inputfield.WithValidator(func(s string) error {
+			if len(s) == 0 {
+				return errors.New("title is required")
+			}
+			return nil
+		}),
+	)
+	desc := textfield.New("description", "Description",
+		textfield.WithValue(task.Description),
+	)
+	asg := inputfield.New("assignee", "Assignee",
+		inputfield.WithValue(assignee),
+	)
+
+	dueOpts := []datefield.Option{}
+	if task.Due != nil {
+		dueOpts = append(dueOpts, datefield.WithValue(task.Due))
+	}
+	due := datefield.New("due", "Due", dueOpts...)
+
+	deferOpts := []datefield.Option{}
+	if task.DeferUntil != nil {
+		deferOpts = append(deferOpts, datefield.WithValue(task.DeferUntil))
+	}
+	deferUntil := datefield.New("defer", "Defer Until", deferOpts...)
+
+	saveLabel := "Save"
+	if task.ID == 0 {
+		saveLabel = "Create"
+	}
+	save := savefield.New("save", savefield.WithLabel(saveLabel))
+
+	return Model{
+		task:        task,
 		svc:         svc,
 		projectName: projectName,
-		assignee:    assignee,
+		form:        form.New(title, desc, asg, due, deferUntil, save),
 	}
-
-	fields := []huh.Field{
-		huh.NewInput().
-			Title("Title").
-			Value(&task.Title).
-			Validate(func(s string) error {
-				if len(s) == 0 {
-					return errors.New("title is required")
-				}
-				return nil
-			}),
-		huh.NewText().
-			Title("Description").
-			Value(&task.Description),
-		huh.NewInput().
-			Title("Assignee").
-			Value(&m.assignee),
-		date.NewField().
-			Title("Due").
-			Value(&task.Due),
-		date.NewField().
-			Title("Defer Until").
-			Value(&task.DeferUntil),
-	}
-	group := huh.NewGroup(fields...)
-
-	// Extend the form's Quit binding so esc aborts in addition to ctrl+c.
-	// ctrl+c is intercepted at app level for whole-program quit; here esc
-	// aborts the form, which we translate into HideOverlay below.
-	keymap := huh.NewDefaultKeyMap()
-	keymap.Quit = keyBack
-
-	m.form = huh.NewForm(group).
-		WithShowErrors(true).
-		WithShowHelp(false).
-		WithKeyMap(keymap)
-	return m
 }
 
-func (m Model) Init() tea.Cmd {
-	return m.form.Init()
-}
+func (m Model) Init() tea.Cmd { return m.form.Init() }
 
 func (m Model) Update(msg tea.Msg) (screen.Screen, tea.Cmd) {
-	switch msg := msg.(type) {
-	case taskSavedMsg:
-		if msg.err != nil {
-			m.err = msg.err
-			m.saving = false
-			err := msg.err
-			return m, func() tea.Msg { return fmt.Errorf("save failed: %w", err) }
+	if m.err != nil {
+		if kp, ok := msg.(tea.KeyPressMsg); ok && key.Matches(kp, keyBack) {
+			m.err = nil
 		}
-		return screen.Dismiss()
-	case tea.KeyPressMsg:
-		// After a save error the form is stuck in StateCompleted, so
-		// any key that fell through to the form would re-trigger the
-		// save loop. Esc clears the error and rewinds the form to
-		// StateNormal so the user can edit and retry; other keys are
-		// swallowed until the error is cleared.
-		if m.err != nil {
-			if key.Matches(msg, keyBack) {
-				m.err = nil
-				m.form.State = huh.StateNormal
-			}
-			return m, nil
-		}
-	}
-
-	if m.saving {
 		return m, nil
 	}
 
-	form, cmd := m.form.Update(msg)
-	if f, ok := form.(*huh.Form); ok {
-		m.form = f
+	if m.saving {
+		if sm, ok := msg.(taskSavedMsg); ok {
+			return m.handleSaved(sm)
+		}
+		return m, nil
 	}
 
-	switch m.form.State {
-	case huh.StateAborted:
-		return screen.Dismiss(cmd)
-	case huh.StateCompleted:
-		m.saving = true
-		return m, tea.Batch(cmd, m.saveCmd())
+	if kp, ok := msg.(tea.KeyPressMsg); ok && key.Matches(kp, keyBack) {
+		return screen.Dismiss()
 	}
+
+	switch msg := msg.(type) {
+	case form.SubmittedMsg:
+		_ = msg
+		m.saving = true
+		return m, m.saveCmd()
+	case taskSavedMsg:
+		return m.handleSaved(msg)
+	}
+
+	var cmd tea.Cmd
+	m.form, cmd = m.form.Update(msg)
 	return m, cmd
 }
 
+func (m Model) handleSaved(msg taskSavedMsg) (screen.Screen, tea.Cmd) {
+	if msg.err != nil {
+		m.err = msg.err
+		m.saving = false
+		err := msg.err
+		return m, cmds.Emit(fmt.Errorf("save failed: %w", err))
+	}
+	return screen.Dismiss()
+}
+
 func (m Model) saveCmd() tea.Cmd {
-	task := *m.task
-	if m.assignee != "" {
-		task.Assignee = new(m.assignee)
+	values := m.form.FieldValues()
+	task := m.task
+	task.Title, _ = values["title"].(string)
+	task.Description, _ = values["description"].(string)
+	if asg, _ := values["assignee"].(string); asg != "" {
+		task.Assignee = new(asg)
 	} else {
 		task.Assignee = nil
 	}
+	task.Due, _ = values["due"].(*time.Time)
+	task.DeferUntil, _ = values["defer"].(*time.Time)
+
 	svc := m.svc
 	return func() tea.Msg {
 		var saved gtd.Task
@@ -159,10 +162,7 @@ func (m Model) saveCmd() tea.Cmd {
 		if err != nil {
 			slog.Error("saving task: " + err.Error())
 		}
-		return taskSavedMsg{
-			task: saved,
-			err:  err,
-		}
+		return taskSavedMsg{task: saved, err: err}
 	}
 }
 
@@ -188,15 +188,11 @@ func (m Model) metaLine(label, value string) string {
 	return metaLabelStyle.Render(label+":") + " " + metaValueStyle.Render(value)
 }
 
-// statusValue renders the status name (first letter capitalized) followed by a
-// relative WHEN of the last status change: "Pending (3d)", "Done (today)".
 func (m Model) statusValue() string {
 	when := reltime.Format(m.task.StatusChangedAt, time.Now())
 	return fmt.Sprintf("%s (%s)", titleStatus(m.task.Status), when)
 }
 
-// titleStatus maps a lowercase TaskStatus to a display form with its first
-// letter capitalized (e.g. "open" -> "Open").
 func titleStatus(s gtd.TaskStatus) string {
 	str := string(s)
 	if str == "" {
@@ -205,16 +201,14 @@ func titleStatus(s gtd.TaskStatus) string {
 	return strings.ToUpper(str[:1]) + str[1:]
 }
 
-func (m Model) CapturingInput() bool {
-	return m.form.State == huh.StateNormal
-}
+func (m Model) CapturingInput() bool { return m.err == nil && !m.saving }
 
 func (m Model) ShortHelp() []key.Binding {
-	return m.form.KeyBinds()
+	return append(m.form.ShortHelp(), keyBack)
 }
 
 func (m Model) FullHelp() [][]key.Binding {
-	return [][]key.Binding{m.form.KeyBinds()}
+	return [][]key.Binding{append(m.form.ShortHelp(), keyBack)}
 }
 
 type taskSavedMsg struct {

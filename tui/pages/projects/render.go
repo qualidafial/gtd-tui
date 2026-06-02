@@ -9,7 +9,6 @@ import (
 	"charm.land/bubbles/v2/key"
 	"charm.land/bubbles/v2/list"
 	tea "charm.land/bubbletea/v2"
-	"charm.land/huh/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 
@@ -68,10 +67,9 @@ type chipColors struct {
 }
 
 func newChipColors(hasDarkBg bool) chipColors {
-	theme := huh.ThemeFunc(huh.ThemeCharm).Theme(hasDarkBg)
-	red := theme.Focused.ErrorMessage.GetForeground()
+	_ = hasDarkBg
 	return chipColors{
-		overdue:  lipgloss.NewStyle().Foreground(red),
+		overdue:  lipgloss.NewStyle().Foreground(lipgloss.Color("9")), // red
 		dueToday: lipgloss.NewStyle().Foreground(lipgloss.Color("208")),
 		dueSoon:  lipgloss.NewStyle().Foreground(lipgloss.Color("11")),
 		dueLater: lipgloss.NewStyle().Foreground(lipgloss.Color("245")),

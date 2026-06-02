@@ -7,11 +7,24 @@ import (
 	"time"
 
 	tea "charm.land/bubbletea/v2"
-	"charm.land/huh/v2"
 	"github.com/charmbracelet/x/ansi"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/qualidafial/gtd-tui"
+	"github.com/qualidafial/gtd-tui/service"
+	"github.com/qualidafial/gtd-tui/sqlite"
+	"github.com/qualidafial/gtd-tui/tui/components/screen"
+	"github.com/qualidafial/gtd-tui/tui/components/screen/screentest"
 )
+
+func openTestDB(t *testing.T) *sqlite.DB {
+	t.Helper()
+	db, err := sqlite.Open(":memory:")
+	require.NoError(t, err)
+	t.Cleanup(func() { db.Close() })
+	return db
+}
 
 func TestModel_StatusLine(t *testing.T) {
 	tests := []struct {
@@ -49,51 +62,31 @@ func TestModel_SaveError_ReturnsErrorCmd(t *testing.T) {
 	m := New(gtd.Task{ID: 1, Title: "Existing"}, nil, "")
 
 	_, cmd := m.Update(taskSavedMsg{err: errors.New("disk full")})
-	if cmd == nil {
-		t.Fatal("expected error cmd on save failure")
-	}
+	require.NotNil(t, cmd, "expected error cmd on save failure")
 	msg := cmd()
 	err, ok := msg.(error)
-	if !ok {
-		t.Fatalf("expected error msg, got %T", msg)
-	}
-	if !strings.Contains(err.Error(), "disk full") {
-		t.Fatalf("error msg = %q, want to contain 'disk full'", err.Error())
-	}
+	require.True(t, ok, "expected error msg, got %T", msg)
+	assert.Contains(t, err.Error(), "disk full")
 }
 
-func TestModel_SaveError_EscClearsErrorAndResumesForm(t *testing.T) {
+func TestModel_SaveError_EscClearsError(t *testing.T) {
 	m := New(gtd.Task{ID: 1, Title: "Existing"}, nil, "")
 
 	withErr, _ := m.Update(taskSavedMsg{err: errors.New("disk full")})
-	if withErr.(Model).err == nil {
-		t.Fatal("precondition: expected error to be set after save failure")
-	}
+	require.NotNil(t, withErr.(Model).err, "precondition: error must be set")
 
 	cleared, cmd := withErr.(Model).Update(tea.KeyPressMsg{Code: tea.KeyEscape})
-	if cmd != nil {
-		t.Fatalf("expected no cmd from esc-clear; got %v", cmd)
-	}
-	if cleared.(Model).err != nil {
-		t.Fatalf("expected err to be cleared after esc; got %v", cleared.(Model).err)
-	}
-	if cleared.(Model).form.State != huh.StateNormal {
-		t.Fatalf("expected form state reset to StateNormal so user can retry; got %v", cleared.(Model).form.State)
-	}
+	assert.Nil(t, cmd)
+	assert.Nil(t, cleared.(Model).err)
 }
 
 func TestModel_SaveError_OtherKeysSwallowed(t *testing.T) {
-	// Regression guard: after a save error the form is stuck in
-	// StateCompleted, so any keypress that fell through to the form would
-	// re-fire the save and spin in a loop. Non-esc keys must be swallowed.
 	m := New(gtd.Task{ID: 1, Title: "Existing"}, nil, "")
 
 	withErr, _ := m.Update(taskSavedMsg{err: errors.New("disk full")})
 
 	_, cmd := withErr.(Model).Update(tea.KeyPressMsg{Code: 'x', Text: "x"})
-	if cmd != nil {
-		t.Fatalf("expected nil cmd on non-esc key after save error, got %v", cmd)
-	}
+	assert.Nil(t, cmd)
 }
 
 func TestModel_ProjectLine_Shown(t *testing.T) {
@@ -110,4 +103,41 @@ func TestModel_ProjectLine_Hidden(t *testing.T) {
 	if strings.Contains(view, "Project:") {
 		t.Fatalf("expected no project line in view, got:\n%s", view)
 	}
+}
+
+func TestCtrlEnter_SavesFromTitleField(t *testing.T) {
+	db := openTestDB(t)
+	svc := service.NewTaskService(db)
+	created, err := svc.CreateTask(t.Context(), gtd.Task{Title: "Original", Status: gtd.TaskStatusOpen})
+	require.NoError(t, err)
+
+	var s screen.Screen = New(created, svc, "")
+	s = screentest.Init(t, s)
+
+	// Edit the title from the Title field, then submit via ctrl+s without
+	// tabbing through Description / Assignee / Due / Defer.
+	s = screentest.TypeText(t, s, " edited")
+
+	_, dismissed := screentest.RunUntilDismiss(t, s, tea.KeyPressMsg{Code: 's', Mod: tea.ModCtrl})
+	require.True(t, dismissed, "expected overlay to dismiss after ctrl+s save")
+
+	got, err := svc.GetTask(t.Context(), created.ID)
+	require.NoError(t, err)
+	assert.Equal(t, "Original edited", got.Title)
+}
+
+func TestCtrlEnter_EmptyTitle_NoSave(t *testing.T) {
+	db := openTestDB(t)
+	svc := service.NewTaskService(db)
+
+	var s screen.Screen = New(gtd.Task{}, svc, "")
+	s = screentest.Init(t, s)
+
+	// Title is empty; ctrl+s must not dismiss or create a task.
+	_, dismissed := screentest.RunUntilDismiss(t, s, tea.KeyPressMsg{Code: 's', Mod: tea.ModCtrl})
+	require.False(t, dismissed, "overlay must not dismiss with empty title")
+
+	tasks, err := svc.ListTasks(t.Context(), gtd.TaskFilter{})
+	require.NoError(t, err)
+	assert.Empty(t, tasks, "no task should be created")
 }
