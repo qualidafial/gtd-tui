@@ -1,6 +1,10 @@
 package tui
 
-import "charm.land/bubbles/v2/key"
+import (
+	"charm.land/bubbles/v2/key"
+
+	"github.com/qualidafial/gtd-tui/tui/internal/keymap"
+)
 
 type KeyMap struct {
 	Quit key.Binding
@@ -20,17 +24,13 @@ func DefaultKeyMap() KeyMap {
 	}
 }
 
-func (m KeyMap) ShortHelp() []key.Binding {
-	return []key.Binding{
-		m.Quit,
-	}
-}
-
-func (m KeyMap) FullHelp() [][]key.Binding {
-	return [][]key.Binding{
-		{
-			m.Help,
-			m.Quit,
-		},
-	}
+// Chords exposes the global bindings as the app's lowest-priority group.
+// Quit shows in both bars; Help appears in full help only (matching the
+// prior ShortHelp/FullHelp split). Help is disabled while the active
+// screen captures input, so it then claims and displays nothing.
+func (m KeyMap) Chords() []keymap.Group {
+	return []keymap.Group{{
+		{Binding: m.Help, Vis: keymap.Full},
+		{Binding: m.Quit, Vis: keymap.Short},
+	}}
 }

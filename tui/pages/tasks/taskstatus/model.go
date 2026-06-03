@@ -16,12 +16,13 @@ import (
 	"github.com/qualidafial/gtd-tui/tui/components/form/datefield"
 	"github.com/qualidafial/gtd-tui/tui/components/form/savefield"
 	"github.com/qualidafial/gtd-tui/tui/components/screen"
+	"github.com/qualidafial/gtd-tui/tui/internal/keymap"
 )
 
 var (
-	keyBack     = key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "cancel"))
-	titleStyle  = lipgloss.NewStyle().Bold(true)
-	descStyle   = lipgloss.NewStyle().Faint(true)
+	keyBack    = key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "cancel"))
+	titleStyle = lipgloss.NewStyle().Bold(true)
+	descStyle  = lipgloss.NewStyle().Faint(true)
 )
 
 type Model struct {
@@ -120,12 +121,11 @@ func (m Model) View() string {
 
 func (m Model) CapturingInput() bool { return !m.applying }
 
-func (m Model) ShortHelp() []key.Binding {
-	return append(m.form.ShortHelp(), keyBack)
-}
-
-func (m Model) FullHelp() [][]key.Binding {
-	return [][]key.Binding{append(m.form.ShortHelp(), keyBack)}
+// Chords aggregates the form's resolved chords and appends this screen's
+// own esc binding as a trailing group; Resolve subtracts the overlay's
+// duplicate esc.
+func (m Model) Chords() []keymap.Group {
+	return append(m.form.Chords(), keymap.Group{{Binding: keyBack, Vis: keymap.Short}})
 }
 
 type taskTransitionedMsg struct {

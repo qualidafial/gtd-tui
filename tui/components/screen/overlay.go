@@ -5,6 +5,8 @@ import (
 
 	"charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
+
+	"github.com/qualidafial/gtd-tui/tui/internal/keymap"
 )
 
 type overlay struct {
@@ -44,26 +46,12 @@ func (o overlay) View() string {
 	return o.inner.View()
 }
 
-func (o overlay) ShortHelp() []key.Binding {
-	inner := o.inner.ShortHelp()
-	if hasEsc(inner) {
-		return inner
-	}
-	return slices.Concat(o.KeyMap.ShortHelp(), inner)
-}
-
-func (o overlay) FullHelp() [][]key.Binding {
-	inner := o.inner.FullHelp()
-	if slices.ContainsFunc(inner, hasEsc) {
-		return inner
-	}
-	return slices.Concat(o.KeyMap.FullHelp(), inner)
-}
-
-func hasEsc(bindings []key.Binding) bool {
-	return slices.ContainsFunc(bindings, func(b key.Binding) bool {
-		return slices.Contains(b.Keys(), "esc")
-	})
+// Chords aggregates the inner screen's full subtree (highest priority)
+// ahead of the overlay's own esc binding. Resolve subtracts the overlay's
+// esc when the inner subtree already claims it, so the previous bespoke
+// hasEsc dedup is no longer needed.
+func (o overlay) Chords() []keymap.Group {
+	return slices.Concat(o.inner.Chords(), o.KeyMap.Chords())
 }
 
 func (o overlay) CapturingInput() bool {

@@ -3,6 +3,8 @@
 ## Purpose
 Defines the unified project editor overlay — form fields, read-only header, save/cancel behavior, error handling, and create-vs-update semantics.
 
+## Requirements
+
 ### Requirement: Project editor form fields
 The project editor SHALL present a huh form for the editable fields of a project: Title, Outcome, Description, and Due, in that order. Title and Outcome SHALL be required (non-empty validation blocks saving). Description SHALL be a multi-line text field (optional). Due SHALL use the shared date field (natural-language and `YYYY-MM-DD[ HH:MM]` input). Status SHALL NOT be editable from the editor; status transitions remain in the dedicated confirmation overlays.
 

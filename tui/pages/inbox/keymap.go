@@ -1,6 +1,10 @@
 package inbox
 
-import "charm.land/bubbles/v2/key"
+import (
+	"charm.land/bubbles/v2/key"
+
+	"github.com/qualidafial/gtd-tui/tui/internal/keymap"
+)
 
 // KeyMap holds the inbox screen's action bindings. New opens the capture
 // overlay; Clarify (enter) opens the wizard on the selected item — items are
@@ -17,10 +21,9 @@ func DefaultKeyMap() KeyMap {
 	}
 }
 
-func (k KeyMap) ShortHelp() []key.Binding {
-	return []key.Binding{k.New, k.Clarify}
-}
-
-func (k KeyMap) FullHelp() [][]key.Binding {
-	return [][]key.Binding{{k.New, k.Clarify}}
+func (k KeyMap) Chords() []keymap.Group {
+	return []keymap.Group{{
+		{Binding: k.New, Vis: keymap.Short},
+		{Binding: k.Clarify, Vis: keymap.Short},
+	}}
 }

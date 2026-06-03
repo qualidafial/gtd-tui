@@ -3,6 +3,8 @@
 ## Purpose
 Defines the interactive behavior of the project list screen, including loading, navigation, keybindings, and project state transitions available from the list.
 
+## Requirements
+
 ### Requirement: Project list loads projects on init
 The system SHALL load all projects from ProjectService on initialization using the current query filter and display them in the list sorted by status group (open, someday, then done/dropped) and order_key within each group.
 

@@ -5,10 +5,10 @@ import (
 	"strings"
 	"testing"
 
-	"charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/qualidafial/gtd-tui/tui/components/screen"
+	"github.com/qualidafial/gtd-tui/tui/internal/keymap"
 )
 
 // stubScreen is a no-op Screen for testing tui.Model logic.
@@ -17,8 +17,7 @@ type stubScreen struct{}
 func (s stubScreen) Init() tea.Cmd                           { return nil }
 func (s stubScreen) Update(tea.Msg) (screen.Screen, tea.Cmd) { return s, nil }
 func (s stubScreen) View() string                            { return "" }
-func (s stubScreen) ShortHelp() []key.Binding                { return nil }
-func (s stubScreen) FullHelp() [][]key.Binding               { return nil }
+func (s stubScreen) Chords() []keymap.Group                  { return nil }
 func (s stubScreen) CapturingInput() bool                    { return false }
 
 func newTestModel() Model {

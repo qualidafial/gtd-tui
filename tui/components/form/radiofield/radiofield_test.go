@@ -120,13 +120,14 @@ func TestSelectedAndUnselectedOptionsStyledDifferently(t *testing.T) {
 	assert.Contains(t, v, "  Project  ")
 }
 
-func TestShortHelpAdvertisesArrowBinding(t *testing.T) {
+func TestChordsAdvertiseArrowBinding(t *testing.T) {
 	m := radiofield.New("kind", "Kind", sample())
-	help := m.ShortHelp()
-	require.NotEmpty(t, help)
-	// First binding's help should mention ←/→.
-	desc := help[0].Help()
-	assert.Equal(t, "←/→", desc.Key)
+	groups := m.Chords()
+	require.NotEmpty(t, groups)
+	require.NotEmpty(t, groups[0])
+	c := groups[0][0]
+	assert.Equal(t, "←/→", c.Help().Key)
+	assert.ElementsMatch(t, []string{"left", "right"}, c.Keys())
 }
 
 func TestValidatorRunsOnCurrentValue(t *testing.T) {

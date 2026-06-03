@@ -1,4 +1,9 @@
-## ADDED Requirements
+# project-task-relationship Specification
+
+## Purpose
+Defines how tasks relate to projects: at most one project per task, status-cascade rules across project transitions, default someday-project exclusion, detach-to-standalone, and the project-to-tasks reverse query.
+
+## Requirements
 
 ### Requirement: Task belongs to zero or one projects
 A Task SHALL have an optional ProjectID field (nullable int64) that references a Project. A task belongs to zero or one projects. Standalone tasks have nil ProjectID.

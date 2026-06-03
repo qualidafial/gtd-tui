@@ -20,6 +20,7 @@ import (
 	"github.com/qualidafial/gtd-tui"
 	"github.com/qualidafial/gtd-tui/tui/cmds"
 	"github.com/qualidafial/gtd-tui/tui/components/screen"
+	"github.com/qualidafial/gtd-tui/tui/internal/keymap"
 )
 
 var (
@@ -119,7 +120,6 @@ func (m Model) View() string {
 	return lipgloss.JoinVertical(lipgloss.Left, sections...)
 }
 
-func (m Model) ShortHelp() []key.Binding  { return m.KeyMap.ShortHelp() }
-func (m Model) FullHelp() [][]key.Binding { return m.KeyMap.FullHelp() }
+func (m Model) Chords() []keymap.Group { return m.KeyMap.Chords() }
 
 type completedMsg struct{ err error }

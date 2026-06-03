@@ -1,6 +1,10 @@
 package doitnow
 
-import "charm.land/bubbles/v2/key"
+import (
+	"charm.land/bubbles/v2/key"
+
+	"github.com/qualidafial/gtd-tui/tui/internal/keymap"
+)
 
 // KeyMap holds the do-it-now overlay's two bindings. Confirm marks the task
 // done; Back leaves it open and dismisses.
@@ -16,10 +20,9 @@ func DefaultKeyMap() KeyMap {
 	}
 }
 
-func (k KeyMap) ShortHelp() []key.Binding {
-	return []key.Binding{k.Confirm, k.Back}
-}
-
-func (k KeyMap) FullHelp() [][]key.Binding {
-	return [][]key.Binding{{k.Confirm, k.Back}}
+func (k KeyMap) Chords() []keymap.Group {
+	return []keymap.Group{{
+		{Binding: k.Confirm, Vis: keymap.Short},
+		{Binding: k.Back, Vis: keymap.Short},
+	}}
 }

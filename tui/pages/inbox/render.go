@@ -23,8 +23,8 @@ type delegate struct {
 
 func newDelegate(keys KeyMap) *delegate { return &delegate{keys: keys} }
 
-func (d *delegate) Height() int                       { return 1 }
-func (d *delegate) Spacing() int                      { return 0 }
+func (d *delegate) Height() int                         { return 1 }
+func (d *delegate) Spacing() int                        { return 0 }
 func (d *delegate) Update(tea.Msg, *list.Model) tea.Cmd { return nil }
 
 func (d *delegate) Render(w io.Writer, m list.Model, index int, item list.Item) {

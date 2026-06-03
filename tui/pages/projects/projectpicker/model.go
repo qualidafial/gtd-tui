@@ -13,6 +13,7 @@ import (
 	"github.com/qualidafial/gtd-tui/tui/components/form"
 	"github.com/qualidafial/gtd-tui/tui/components/form/selectfield"
 	"github.com/qualidafial/gtd-tui/tui/components/screen"
+	"github.com/qualidafial/gtd-tui/tui/internal/keymap"
 )
 
 var keyBack = key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "cancel"))
@@ -138,18 +139,14 @@ func (m Model) View() string {
 
 func (m Model) CapturingInput() bool { return m.ready && !m.saving }
 
-func (m Model) ShortHelp() []key.Binding {
+// Chords returns nothing until the project list has loaded; afterward it
+// aggregates the form's resolved chords plus this screen's own esc
+// binding (Resolve subtracts the overlay's duplicate esc).
+func (m Model) Chords() []keymap.Group {
 	if !m.ready {
 		return nil
 	}
-	return append(m.form.ShortHelp(), keyBack)
-}
-
-func (m Model) FullHelp() [][]key.Binding {
-	if !m.ready {
-		return nil
-	}
-	return [][]key.Binding{append(m.form.ShortHelp(), keyBack)}
+	return append(m.form.Chords(), keymap.Group{{Binding: keyBack, Vis: keymap.Short}})
 }
 
 type projectsLoadedMsg struct {

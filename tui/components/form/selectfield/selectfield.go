@@ -13,8 +13,23 @@ import (
 	"charm.land/lipgloss/v2"
 
 	"github.com/qualidafial/gtd-tui/tui/components/form"
+	"github.com/qualidafial/gtd-tui/tui/internal/keymap"
 )
 
+var (
+	// moveKey claims up/down (with hidden vim aliases k/j) so the list, not
+	// form navigation, receives them while focused.
+	moveKey = key.NewBinding(
+		key.WithKeys("up", "k", "down", "j"),
+		key.WithHelp("↑/↓", "choose"),
+	)
+	// filterKey advertises and claims the list's filter trigger.
+	filterKey = key.NewBinding(key.WithKeys("/"), key.WithHelp("/", "filter"))
+	// submitKey is claimed only when WithSubmitOnEnter is set, so Enter
+	// routes to the field (committing the selection) instead of advancing
+	// form focus.
+	submitKey = key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "select"))
+)
 
 // Option carries a display string and a value of T to be returned when
 // the option is selected.
@@ -244,7 +259,6 @@ func (m Model[T]) Value() any { return m.currentValue() }
 // items it returns the zero value of T.
 func (m Model[T]) SelectedValue() T { return m.currentValue() }
 
-
 func (m Model[T]) currentValue() T {
 	if it, ok := m.list.SelectedItem().(item[T]); ok {
 		return it.opt.Value
@@ -264,11 +278,21 @@ func (m Model[T]) Validate() (form.Field, error) {
 	return m, m.err
 }
 
-func (m Model[T]) ShortHelp() []key.Binding {
-	return m.list.ShortHelp()
+// Chords claims up/down (so the list moves the selection rather than the
+// form advancing fields) and the filter trigger, and advertises both. The
+// list's broader internal keymap (q, ?, page nav) is intentionally not
+// surfaced — it would shadow app/overlay bindings — but those keys still
+// reach the list via Update when pressed while focused.
+func (m Model[T]) Chords() []keymap.Group {
+	g := keymap.Group{
+		{Binding: moveKey, Show: []string{"up", "down"}, Vis: keymap.Short},
+		{Binding: filterKey, Vis: keymap.Short},
+	}
+	if m.submitOnEnter {
+		// Claim Enter so the form forwards it to Update, which commits the
+		// selection (when not filtering) or applies the filter (when
+		// filtering) — instead of the form treating Enter as next-field.
+		g = append(g, keymap.Chord{Binding: submitKey, Vis: keymap.Short})
+	}
+	return []keymap.Group{g}
 }
-
-func (m Model[T]) FullHelp() [][]key.Binding {
-	return m.list.FullHelp()
-}
-

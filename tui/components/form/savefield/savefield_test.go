@@ -10,6 +10,7 @@ import (
 	"github.com/qualidafial/gtd-tui/tui/components/form"
 	"github.com/qualidafial/gtd-tui/tui/components/form/inputfield"
 	"github.com/qualidafial/gtd-tui/tui/components/form/savefield"
+	"github.com/qualidafial/gtd-tui/tui/internal/keymap"
 )
 
 func TestNewRequiresKey(t *testing.T) {
@@ -88,13 +89,15 @@ func TestTabLeavesSavefieldWithoutSubmitting(t *testing.T) {
 	assert.False(t, hasSubmittedMsg(cmd))
 }
 
-func TestShortHelpAdvertisesEnter(t *testing.T) {
+func TestChordsAdvertiseEnter(t *testing.T) {
 	m := savefield.New("save")
-	help := m.ShortHelp()
-	require.NotEmpty(t, help)
-	desc := help[0].Help()
-	assert.Equal(t, "enter", desc.Key)
-	assert.Equal(t, "save", desc.Desc)
+	groups := m.Chords()
+	require.NotEmpty(t, groups)
+	require.NotEmpty(t, groups[0])
+	c := groups[0][0]
+	assert.Equal(t, "enter", c.Help().Key)
+	assert.Equal(t, "save", c.Help().Desc)
+	assert.Equal(t, keymap.Short, c.Vis)
 }
 
 func TestVisibleDefaultTrue(t *testing.T) {

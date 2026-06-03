@@ -21,6 +21,7 @@ import (
 	"github.com/qualidafial/gtd-tui/tui/components/form/savefield"
 	"github.com/qualidafial/gtd-tui/tui/components/form/textfield"
 	"github.com/qualidafial/gtd-tui/tui/components/screen"
+	"github.com/qualidafial/gtd-tui/tui/internal/keymap"
 )
 
 var keyBack = key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "back"))
@@ -203,12 +204,11 @@ func titleStatus(s gtd.TaskStatus) string {
 
 func (m Model) CapturingInput() bool { return m.err == nil && !m.saving }
 
-func (m Model) ShortHelp() []key.Binding {
-	return append(m.form.ShortHelp(), keyBack)
-}
-
-func (m Model) FullHelp() [][]key.Binding {
-	return [][]key.Binding{append(m.form.ShortHelp(), keyBack)}
+// Chords aggregates the form's resolved chords and appends this screen's
+// own esc/back binding as a trailing group. The overlay's esc is
+// subtracted by Resolve since this screen claims esc.
+func (m Model) Chords() []keymap.Group {
+	return append(m.form.Chords(), keymap.Group{{Binding: keyBack, Vis: keymap.Short}})
 }
 
 type taskSavedMsg struct {

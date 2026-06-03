@@ -15,12 +15,15 @@ import (
 	"charm.land/lipgloss/v2"
 
 	"github.com/qualidafial/gtd-tui/tui/components/form"
+	"github.com/qualidafial/gtd-tui/tui/internal/keymap"
 )
 
-
 var (
-	leftKey  = key.NewBinding(key.WithKeys("left"), key.WithHelp("←/→", "choose"))
+	leftKey  = key.NewBinding(key.WithKeys("left"))
 	rightKey = key.NewBinding(key.WithKeys("right"))
+	// chooseKey is the displayed/claimed binding spanning both arrows;
+	// leftKey/rightKey drive direction in Update.
+	chooseKey = key.NewBinding(key.WithKeys("left", "right"), key.WithHelp("←/→", "choose"))
 )
 
 // Option carries a display string and a value of T to be returned when
@@ -94,8 +97,8 @@ func New[T comparable](k, label string, options []Option[T], opts ...fieldOption
 
 // form.Field interface --------------------------------------------------------
 
-func (m Model[T]) Key() string                  { return m.key }
-func (m Model[T]) Focused() bool                { return m.focused }
+func (m Model[T]) Key() string   { return m.key }
+func (m Model[T]) Focused() bool { return m.focused }
 func (m Model[T]) Visible(v form.Values) bool {
 	if m.visible == nil {
 		return true
@@ -181,5 +184,9 @@ func (m Model[T]) Validate() (form.Field, error) {
 	return m, m.err
 }
 
-func (m Model[T]) ShortHelp() []key.Binding  { return []key.Binding{leftKey} }
-func (m Model[T]) FullHelp() [][]key.Binding { return [][]key.Binding{{leftKey}} }
+// Chords claims left/right so the form forwards them here for selection
+// (rather than treating them as navigation) and advertises them as
+// "←/→ choose".
+func (m Model[T]) Chords() []keymap.Group {
+	return []keymap.Group{{{Binding: chooseKey, Vis: keymap.Short}}}
+}

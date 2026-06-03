@@ -1,4 +1,9 @@
-## ADDED Requirements
+# project-entity Specification
+
+## Purpose
+Defines the domain `Project` entity: its fields, status values, status-change timestamp, and value semantics.
+
+## Requirements
 
 ### Requirement: Project entity fields
 The system SHALL provide a Project entity with the following fields:

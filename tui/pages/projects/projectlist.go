@@ -16,6 +16,7 @@ import (
 	"github.com/qualidafial/gtd-tui/internal/projectquery"
 	"github.com/qualidafial/gtd-tui/tui/components/querybar"
 	"github.com/qualidafial/gtd-tui/tui/components/screen"
+	"github.com/qualidafial/gtd-tui/tui/internal/keymap"
 	"github.com/qualidafial/gtd-tui/tui/pages/projects/projectedit"
 	"github.com/qualidafial/gtd-tui/tui/pages/projects/projectstatus"
 	"github.com/qualidafial/gtd-tui/tui/pages/projects/projectview"
@@ -373,37 +374,27 @@ func isOrderable(l list.Model, i int) bool {
 	return s == gtd.ProjectStatusOpen || s == gtd.ProjectStatusSomeday
 }
 
-func (m Model) ShortHelp() []key.Binding {
+// Chords delegates to the query bar while it is capturing input;
+// otherwise it contributes the action columns plus list-navigation and
+// paging groups. Disabled action bindings are skipped by Resolve.
+func (m Model) Chords() []keymap.Group {
 	if m.query.CapturingInput() {
-		return m.query.KeyMap.ShortHelp()
+		return m.query.Chords()
 	}
 	return slices.Concat(
-		m.KeyMap.ShortHelp(),
-		[]key.Binding{
-			m.list.KeyMap.CursorUp,
-			m.list.KeyMap.CursorDown,
-		},
-	)
-}
-
-func (m Model) FullHelp() [][]key.Binding {
-	if m.query.CapturingInput() {
-		return m.query.KeyMap.FullHelp()
-	}
-	return slices.Concat(
-		[][]key.Binding{
+		m.KeyMap.Chords(),
+		[]keymap.Group{
 			{
-				m.list.KeyMap.CursorUp,
-				m.list.KeyMap.CursorDown,
-				m.list.KeyMap.GoToStart,
-				m.list.KeyMap.GoToEnd,
+				{Binding: m.list.KeyMap.CursorUp, Vis: keymap.Short},
+				{Binding: m.list.KeyMap.CursorDown, Vis: keymap.Short},
+				{Binding: m.list.KeyMap.GoToStart, Vis: keymap.Full},
+				{Binding: m.list.KeyMap.GoToEnd, Vis: keymap.Full},
 			},
 			{
-				m.list.KeyMap.PrevPage,
-				m.list.KeyMap.NextPage,
+				{Binding: m.list.KeyMap.PrevPage, Vis: keymap.Full},
+				{Binding: m.list.KeyMap.NextPage, Vis: keymap.Full},
 			},
 		},
-		m.KeyMap.FullHelp(),
 	)
 }
 

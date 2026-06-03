@@ -13,6 +13,7 @@ import (
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/qualidafial/gtd-tui/tui/cmds"
+	"github.com/qualidafial/gtd-tui/tui/internal/keymap"
 )
 
 // ParseError reports an invalid token in a query string. Start and End are
@@ -77,12 +78,8 @@ func (m *Model) SetWidth(w int) {
 	m.input.SetWidth(w)
 }
 
-func (m Model) ShortHelp() []key.Binding {
-	return m.KeyMap.ShortHelp()
-}
-
-func (m Model) FullHelp() [][]key.Binding {
-	return m.KeyMap.FullHelp()
+func (m Model) Chords() []keymap.Group {
+	return m.KeyMap.Chords()
 }
 
 // CapturingInput reports whether the query bar is focused.

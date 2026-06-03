@@ -3,6 +3,8 @@
 ## Purpose
 Defines how individual project rows are rendered in the project list, including status markers, title styling, task progress chips, due date chips, and selection highlighting.
 
+## Requirements
+
 ### Requirement: Project row displays status marker
 The system SHALL render each project row with a leading status marker indicating the project's current status.
 

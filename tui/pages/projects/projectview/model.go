@@ -14,6 +14,7 @@ import (
 	"github.com/qualidafial/gtd-tui"
 	"github.com/qualidafial/gtd-tui/service"
 	"github.com/qualidafial/gtd-tui/tui/components/screen"
+	"github.com/qualidafial/gtd-tui/tui/internal/keymap"
 	"github.com/qualidafial/gtd-tui/tui/pages/projects/projectedit"
 	"github.com/qualidafial/gtd-tui/tui/pages/tasks/tasklist"
 )
@@ -151,10 +152,6 @@ func (m Model) CapturingInput() bool {
 	return screen.CapturingInput(m.tasks)
 }
 
-func (m Model) ShortHelp() []key.Binding {
-	return slices.Concat(m.KeyMap.ShortHelp(), m.tasks.ShortHelp())
-}
-
-func (m Model) FullHelp() [][]key.Binding {
-	return slices.Concat(m.KeyMap.FullHelp(), m.tasks.FullHelp())
+func (m Model) Chords() []keymap.Group {
+	return slices.Concat(m.KeyMap.Chords(), m.tasks.Chords())
 }

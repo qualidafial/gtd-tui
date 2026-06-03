@@ -1,6 +1,10 @@
 package projectview
 
-import "charm.land/bubbles/v2/key"
+import (
+	"charm.land/bubbles/v2/key"
+
+	"github.com/qualidafial/gtd-tui/tui/internal/keymap"
+)
 
 type KeyMap struct {
 	Edit key.Binding
@@ -15,10 +19,6 @@ func DefaultKeyMap() KeyMap {
 	}
 }
 
-func (k KeyMap) ShortHelp() []key.Binding {
-	return []key.Binding{k.Edit}
-}
-
-func (k KeyMap) FullHelp() [][]key.Binding {
-	return [][]key.Binding{{k.Edit}}
+func (k KeyMap) Chords() []keymap.Group {
+	return []keymap.Group{{{Binding: k.Edit, Vis: keymap.Short}}}
 }

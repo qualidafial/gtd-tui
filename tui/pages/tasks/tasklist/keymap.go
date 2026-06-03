@@ -2,6 +2,8 @@ package tasklist
 
 import (
 	"charm.land/bubbles/v2/key"
+
+	"github.com/qualidafial/gtd-tui/tui/internal/keymap"
 )
 
 // KeyMap holds the task list's action bindings as a stable instance on the
@@ -40,37 +42,23 @@ func DefaultKeyMap() KeyMap {
 	}
 }
 
-// ShortHelp and FullHelp return every binding unconditionally; the help
-// component skips any that are disabled, so per-selection visibility is
-// governed entirely by SetEnabled.
-func (k KeyMap) ShortHelp() []key.Binding {
-	return []key.Binding{
-		k.FocusQuery,
-		k.New,
-		k.Edit,
-		k.Project,
-		k.ToggleComplete,
-		k.Drop,
-		k.MoveUp,
-		k.MoveDown,
-	}
-}
-
-func (k KeyMap) FullHelp() [][]key.Binding {
-	return [][]key.Binding{
+// Chords returns every binding unconditionally as full-help columns; the
+// help component and Resolve skip any that are disabled, so per-selection
+// visibility is governed entirely by SetEnabled. Every binding shows in
+// both bars (Vis Short).
+func (k KeyMap) Chords() []keymap.Group {
+	return []keymap.Group{
+		{{Binding: k.FocusQuery, Vis: keymap.Short}},
 		{
-			k.FocusQuery,
+			{Binding: k.New, Vis: keymap.Short},
+			{Binding: k.Edit, Vis: keymap.Short},
+			{Binding: k.Project, Vis: keymap.Short},
+			{Binding: k.ToggleComplete, Vis: keymap.Short},
+			{Binding: k.Drop, Vis: keymap.Short},
 		},
 		{
-			k.New,
-			k.Edit,
-			k.Project,
-			k.ToggleComplete,
-			k.Drop,
-		},
-		{
-			k.MoveUp,
-			k.MoveDown,
+			{Binding: k.MoveUp, Vis: keymap.Short},
+			{Binding: k.MoveDown, Vis: keymap.Short},
 		},
 	}
 }

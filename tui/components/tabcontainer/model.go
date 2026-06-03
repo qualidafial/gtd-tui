@@ -9,6 +9,7 @@ import (
 	"charm.land/lipgloss/v2"
 
 	"github.com/qualidafial/gtd-tui/tui/components/screen"
+	"github.com/qualidafial/gtd-tui/tui/internal/keymap"
 )
 
 var (
@@ -103,17 +104,12 @@ func (m Model) renderHeader() string {
 	return logo + "\n\n" + tabBar + "\n"
 }
 
-func (m Model) ShortHelp() []key.Binding {
+// Chords contributes the view-switch group followed by the active tab's
+// aggregated chords, the single source for the app's resolved footer.
+func (m Model) Chords() []keymap.Group {
 	return slices.Concat(
-		m.KeyMap.ShortHelp(),
-		m.tabs[m.activeTab].Screen.ShortHelp(),
-	)
-}
-
-func (m Model) FullHelp() [][]key.Binding {
-	return slices.Concat(
-		m.KeyMap.FullHelp(),
-		m.tabs[m.activeTab].Screen.FullHelp(),
+		m.KeyMap.Chords(),
+		m.tabs[m.activeTab].Screen.Chords(),
 	)
 }
 

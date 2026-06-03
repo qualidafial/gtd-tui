@@ -9,6 +9,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/qualidafial/gtd-tui/tui/components/form"
+	"github.com/qualidafial/gtd-tui/tui/internal/keymap"
 )
 
 var enterKey = key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "save"))
@@ -93,5 +94,10 @@ func (m Model) View() string {
 
 func (m Model) Value() any                    { return nil }
 func (m Model) Validate() (form.Field, error) { return m, nil }
-func (m Model) ShortHelp() []key.Binding      { return []key.Binding{enterKey} }
-func (m Model) FullHelp() [][]key.Binding     { return [][]key.Binding{{enterKey}} }
+
+// Chords claims Enter so the form forwards it here (where Update emits
+// SubmitRequestMsg) instead of treating it as next-field navigation, and
+// advertises it as "enter save".
+func (m Model) Chords() []keymap.Group {
+	return []keymap.Group{{{Binding: enterKey, Vis: keymap.Short}}}
+}

@@ -17,10 +17,14 @@
 package form
 
 import (
+	"slices"
+
 	"charm.land/bubbles/v2/key"
 	"charm.land/bubbles/v2/viewport"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+
+	"github.com/qualidafial/gtd-tui/tui/internal/keymap"
 )
 
 // SubmittedMsg is emitted by [Model.Update] after a successful Submit so
@@ -34,72 +38,6 @@ type SubmittedMsg struct{}
 // External code generally should not emit this; press the Save key
 // instead.
 type SubmitRequestMsg struct{}
-
-// Values is an immutable snapshot of the visible prior fields' values
-// supplied to a field's Visible predicate.
-type Values interface {
-	// Get returns the Value() of the visible preceding field whose Key()
-	// matches key, or nil if no such field is in the snapshot. A field's
-	// own Value is never present in the snapshot supplied to its own
-	// Visible call; hidden fields are excluded from snapshots supplied to
-	// later fields.
-	Get(key string) any
-}
-
-type valuesMap map[string]any
-
-func (v valuesMap) Get(k string) any { return v[k] }
-
-// Field is a single form input. Implementations should be value types;
-// mutating methods (Focus, Blur, Update, SetWidth) return a new Field
-// value rather than mutating in place.
-type Field interface {
-	// Key is the field's unique identifier within a form. Required and
-	// non-empty.
-	Key() string
-	Focus() (Field, tea.Cmd)
-	Blur() Field
-	Focused() bool
-	// Visible reports whether the field should participate in rendering,
-	// navigation, validation, submit, and help. The provided Values
-	// contains only the values of visible preceding fields.
-	Visible(Values) bool
-	Update(tea.Msg) (Field, tea.Cmd)
-	View() string
-	Value() any
-	// Validate runs the field's validator against its current value and
-	// returns a new Field whose subsequent View reflects the result (e.g.
-	// an inline error message), along with the error itself for the
-	// form's decision logic. The caller-supplied validator function must
-	// be pure; Field.Validate is allowed to cache the result internally —
-	// the cache is what the returned Field carries.
-	Validate() (Field, error)
-	// SetWidth notifies the field of the column width available to it.
-	// Fields that wrap or truncate should honor this; trivial fields may
-	// return themselves unchanged.
-	SetWidth(int) Field
-	ShortHelp() []key.Binding
-	FullHelp() [][]key.Binding
-}
-
-// KeyMap is the navigation/submit keymap shared by every form. Cancel
-// (Esc) is intentionally not owned by the form — overlays decide what
-// cancellation means (dismiss, clear error, back out a wizard step) and
-// surface their own Esc binding in the overlay's help.
-type KeyMap struct {
-	Next key.Binding
-	Prev key.Binding
-	Save key.Binding
-}
-
-// DefaultKeyMap returns the gtd-tui form keymap.
-func DefaultKeyMap() KeyMap {
-	return KeyMap{
-		Next: key.NewBinding(key.WithKeys("tab"), key.WithHelp("tab", "next")),
-		Prev: key.NewBinding(key.WithKeys("shift+tab"), key.WithHelp("shift+tab", "prev")),
-		Save: key.NewBinding(key.WithKeys("ctrl+s"), key.WithHelp("ctrl+s", "save")),
-	}
-}
 
 // Model is a form holding an ordered list of fields with a single focus.
 type Model struct {
@@ -163,6 +101,10 @@ func (m Model) Init() tea.Cmd {
 // dispatches the message to the focused field. On a successful Submit via
 // the Save key, Update emits [SubmittedMsg].
 func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
+	var field Field
+	if m.focus >= 0 && m.focus < len(m.fields) {
+		field = m.fields[m.focus]
+	}
 	switch msg := msg.(type) {
 	case SubmitRequestMsg:
 		m, cmd := m.handleSubmit()
@@ -178,6 +120,12 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 		return m.syncViewport(), nil
 
 	case tea.KeyPressMsg:
+		// Protect keys the focused field consumes: if its aggregated
+		// Chords claim this gesture, fall through to field.Update rather
+		// than treating it as form navigation.
+		if field != nil && keymap.Handles(field, msg) {
+			break
+		}
 		switch {
 		case key.Matches(msg, m.KeyMap.Save):
 			m, cmd := m.handleSubmit()
@@ -195,8 +143,8 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 		return m.syncViewport(), nil
 	}
 
-	nf, cmd := m.fields[m.focus].Update(msg)
-	m.fields[m.focus] = nf
+	field, cmd := field.Update(msg)
+	m.fields[m.focus] = field
 
 	m, rcmd := m.refocusIfHidden()
 	return m.syncViewport(), tea.Batch(cmd, rcmd)
@@ -289,25 +237,29 @@ func (m Model) Submit() (Model, bool, tea.Cmd) {
 	return m, true, nil
 }
 
-// ShortHelp returns the form-level bindings composed with the focused
-// (visible) field's bindings. Screens can delegate help with
-// `return f.ShortHelp()`.
-func (m Model) ShortHelp() []key.Binding {
-	bs := []key.Binding{m.KeyMap.Next, m.KeyMap.Prev, m.KeyMap.Save}
-	if f := m.Focused(); f != nil {
-		bs = append(bs, f.ShortHelp()...)
+// Chords aggregates the form's keymap by concatenating the focused field's
+// Chords (its full subtree, highest priority) ahead of the form's own
+// navigation/submit group. With no field focused only the form's own group
+// is returned.
+func (m Model) Chords() []keymap.Group {
+	if field := m.Focused(); field != nil {
+		return slices.Concat(field.Chords(), m.KeyMap.Chords())
 	}
-	return bs
+	return m.KeyMap.Chords()
 }
 
-// FullHelp returns the form-level bindings on the first row and the
-// focused field's full help on subsequent rows.
+// ShortHelp returns the short-bar projection of the resolved aggregated
+// chords: a focused field's claimed keys are subtracted from the form's
+// navigation bindings and survivors relabeled. Screens delegate help with
+// `return f.ShortHelp()`.
+func (m Model) ShortHelp() []key.Binding {
+	return keymap.ShortHelp(keymap.Resolve(nil, m.Chords()...))
+}
+
+// FullHelp returns the full-help projection of the resolved aggregated
+// chords, one row per surviving group.
 func (m Model) FullHelp() [][]key.Binding {
-	rows := [][]key.Binding{{m.KeyMap.Next, m.KeyMap.Prev, m.KeyMap.Save}}
-	if f := m.Focused(); f != nil {
-		rows = append(rows, f.FullHelp()...)
-	}
-	return rows
+	return keymap.FullHelp(keymap.Resolve(nil, m.Chords()...))
 }
 
 // handleSubmit calls Submit and batches the form-emitted SubmittedMsg when

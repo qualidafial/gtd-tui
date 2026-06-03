@@ -1,9 +1,9 @@
 package screen
 
 import (
-	"charm.land/bubbles/v2/help"
-	"charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
+
+	"github.com/qualidafial/gtd-tui/tui/internal/keymap"
 )
 
 // Screen represents a full-screen view in the application.
@@ -12,7 +12,10 @@ type Screen interface {
 	Update(msg tea.Msg) (Screen, tea.Cmd)
 	View() string
 
-	help.KeyMap
+	// keymap.Map: Chords() returns the screen's keybindings already
+	// aggregated (a composite concatenates its focused child's Chords ahead
+	// of its own), the single source for both routing and resolved help.
+	keymap.Map
 }
 
 // InputCapturer is an optional Screen capability. When a screen reports that it
@@ -52,11 +55,10 @@ type DismissMsg struct{}
 // model's terminal-state branches don't re-fire on stray msgs.
 type dismissed struct{}
 
-func (dismissed) Init() tea.Cmd                        { return nil }
-func (dismissed) Update(tea.Msg) (Screen, tea.Cmd)     { return dismissed{}, nil }
-func (dismissed) View() string                         { return "" }
-func (dismissed) ShortHelp() []key.Binding             { return nil }
-func (dismissed) FullHelp() [][]key.Binding            { return nil }
+func (dismissed) Init() tea.Cmd                    { return nil }
+func (dismissed) Update(tea.Msg) (Screen, tea.Cmd) { return dismissed{}, nil }
+func (dismissed) View() string                     { return "" }
+func (dismissed) Chords() []keymap.Group           { return nil }
 
 // Dismiss returns the no-op dismissed sentinel plus the cmd that signals the
 // parent to pop this overlay. Optional extras are batched with the dispatch.

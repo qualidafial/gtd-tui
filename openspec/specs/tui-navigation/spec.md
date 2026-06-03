@@ -1,4 +1,9 @@
-## MODIFIED Requirements
+# tui-navigation Specification
+
+## Purpose
+Defines TUI navigation: back-history, tab-based view switching in the tab container, and InputCapturer propagation through containers.
+
+## Requirements
 
 ### Requirement: Navigation history with back
 The system SHALL maintain a navigation history via overlay parent chains. Users SHALL be able to go back to the previous view using esc. The history is implicit in the overlay structure, not an explicit stack data structure.

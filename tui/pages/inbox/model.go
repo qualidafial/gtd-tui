@@ -12,6 +12,7 @@ import (
 
 	"github.com/qualidafial/gtd-tui"
 	"github.com/qualidafial/gtd-tui/tui/components/screen"
+	"github.com/qualidafial/gtd-tui/tui/internal/keymap"
 	"github.com/qualidafial/gtd-tui/tui/pages/inbox/clarify"
 	"github.com/qualidafial/gtd-tui/tui/pages/inbox/itemcapture"
 )
@@ -114,21 +115,13 @@ func (m *Model) updateKeybindings() {
 	m.KeyMap.Clarify.SetEnabled(selected)
 }
 
-func (m Model) ShortHelp() []key.Binding {
-	return append(m.KeyMap.ShortHelp(),
-		m.list.KeyMap.CursorUp,
-		m.list.KeyMap.CursorDown,
-	)
-}
-
-func (m Model) FullHelp() [][]key.Binding {
-	return [][]key.Binding{
-		m.KeyMap.ShortHelp(),
-		{
-			m.list.KeyMap.CursorUp,
-			m.list.KeyMap.CursorDown,
-			m.list.KeyMap.GoToStart,
-			m.list.KeyMap.GoToEnd,
-		},
-	}
+// Chords contributes the inbox action group plus a list-navigation group.
+// CursorUp/Down show in both bars; GoToStart/End in full help only.
+func (m Model) Chords() []keymap.Group {
+	return append(m.KeyMap.Chords(), keymap.Group{
+		{Binding: m.list.KeyMap.CursorUp, Vis: keymap.Short},
+		{Binding: m.list.KeyMap.CursorDown, Vis: keymap.Short},
+		{Binding: m.list.KeyMap.GoToStart, Vis: keymap.Full},
+		{Binding: m.list.KeyMap.GoToEnd, Vis: keymap.Full},
+	})
 }

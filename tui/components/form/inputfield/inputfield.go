@@ -3,14 +3,13 @@
 package inputfield
 
 import (
-	"charm.land/bubbles/v2/key"
 	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 
 	"github.com/qualidafial/gtd-tui/tui/components/form"
+	"github.com/qualidafial/gtd-tui/tui/internal/keymap"
 )
-
 
 // Model is a single-line text input field.
 type Model struct {
@@ -137,5 +136,9 @@ func (m Model) Validate() (form.Field, error) {
 	return m, m.err
 }
 
-func (m Model) ShortHelp() []key.Binding  { return nil }
-func (m Model) FullHelp() [][]key.Binding { return nil }
+// Chords returns no bindings: a single-line text field consumes only
+// free-text runes (handled by the textinput while focused) and the cursor
+// keys, none of which it advertises or needs to claim from form
+// navigation. Left/right cursor movement does not collide with the form's
+// tab/up/down navigation.
+func (m Model) Chords() []keymap.Group { return nil }

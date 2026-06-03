@@ -13,6 +13,7 @@ import (
 	"github.com/qualidafial/gtd-tui"
 	"github.com/qualidafial/gtd-tui/tui/components/screen"
 	"github.com/qualidafial/gtd-tui/tui/components/tabcontainer"
+	"github.com/qualidafial/gtd-tui/tui/internal/keymap"
 	"github.com/qualidafial/gtd-tui/tui/pages/inbox"
 	"github.com/qualidafial/gtd-tui/tui/pages/projects"
 	"github.com/qualidafial/gtd-tui/tui/pages/projects/projectpicker"
@@ -162,16 +163,23 @@ func (m Model) renderFooter() string {
 	return "\n" + m.help.View(m)
 }
 
-func (m Model) ShortHelp() []key.Binding {
+// Chords aggregates the active screen's subtree (highest priority) ahead
+// of the app's global bindings, so a key claimed by the active screen wins
+// and is subtracted from the app's help.
+func (m Model) Chords() []keymap.Group {
 	return slices.Concat(
-		m.KeyMap.ShortHelp(),
-		m.active.ShortHelp(),
+		m.active.Chords(),
+		m.KeyMap.Chords(),
 	)
 }
 
+// ShortHelp / FullHelp render the footer via the help component. Both are
+// projections of a single Resolve pass over the aggregated chords, so a
+// key claimed by a higher-priority layer never double-lists.
+func (m Model) ShortHelp() []key.Binding {
+	return keymap.ShortHelp(keymap.Resolve(nil, m.Chords()...))
+}
+
 func (m Model) FullHelp() [][]key.Binding {
-	return slices.Concat(
-		m.KeyMap.FullHelp(),
-		m.active.FullHelp(),
-	)
+	return keymap.FullHelp(keymap.Resolve(nil, m.Chords()...))
 }

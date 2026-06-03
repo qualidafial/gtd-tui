@@ -22,7 +22,6 @@ import (
 	"sync"
 	"time"
 
-	"charm.land/bubbles/v2/key"
 	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
@@ -30,8 +29,8 @@ import (
 	"github.com/sho0pi/naturaltime"
 
 	"github.com/qualidafial/gtd-tui/tui/components/form"
+	"github.com/qualidafial/gtd-tui/tui/internal/keymap"
 )
-
 
 // Model is a date/time field bound to a *time.Time. Empty input means nil.
 type Model struct {
@@ -189,8 +188,10 @@ func (m Model) Validate() (form.Field, error) {
 	return m, nil
 }
 
-func (m Model) ShortHelp() []key.Binding  { return nil }
-func (m Model) FullHelp() [][]key.Binding { return nil }
+// Chords returns no bindings: a datefield is a free-text input whose runes
+// are consumed by the textinput while focused; it claims and advertises
+// nothing that collides with form navigation.
+func (m Model) Chords() []keymap.Group { return nil }
 
 // Parsing / formatting --------------------------------------------------------
 

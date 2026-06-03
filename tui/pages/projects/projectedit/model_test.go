@@ -5,7 +5,6 @@ import (
 	"testing"
 	"time"
 
-	"charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/stretchr/testify/assert"
@@ -16,6 +15,7 @@ import (
 	"github.com/qualidafial/gtd-tui/sqlite"
 	"github.com/qualidafial/gtd-tui/tui/components/screen"
 	"github.com/qualidafial/gtd-tui/tui/components/screen/screentest"
+	"github.com/qualidafial/gtd-tui/tui/internal/keymap"
 )
 
 func openTestDB(t *testing.T) *sqlite.DB {
@@ -32,8 +32,7 @@ type stubScreen struct{}
 func (stubScreen) Init() tea.Cmd                           { return nil }
 func (stubScreen) Update(tea.Msg) (screen.Screen, tea.Cmd) { return stubScreen{}, nil }
 func (stubScreen) View() string                            { return "" }
-func (stubScreen) ShortHelp() []key.Binding                { return nil }
-func (stubScreen) FullHelp() [][]key.Binding               { return nil }
+func (stubScreen) Chords() []keymap.Group                  { return nil }
 
 func TestView_HeaderShown_ExistingProject(t *testing.T) {
 	p := gtd.Project{

@@ -1,6 +1,10 @@
 package querybar
 
-import "charm.land/bubbles/v2/key"
+import (
+	"charm.land/bubbles/v2/key"
+
+	"github.com/qualidafial/gtd-tui/tui/internal/keymap"
+)
 
 // KeyMap holds the bindings the query bar consumes when focused. It also
 // satisfies help.KeyMap so parent screens can return it from their own KeyMap
@@ -25,10 +29,9 @@ func DefaultKeyMap() KeyMap {
 	}
 }
 
-func (k KeyMap) ShortHelp() []key.Binding {
-	return []key.Binding{k.Apply, k.Cancel}
-}
-
-func (k KeyMap) FullHelp() [][]key.Binding {
-	return [][]key.Binding{{k.Apply, k.Cancel}}
+func (k KeyMap) Chords() []keymap.Group {
+	return []keymap.Group{{
+		{Binding: k.Apply, Vis: keymap.Short},
+		{Binding: k.Cancel, Vis: keymap.Short},
+	}}
 }

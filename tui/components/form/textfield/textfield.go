@@ -9,19 +9,12 @@
 package textfield
 
 import (
-	"charm.land/bubbles/v2/key"
 	"charm.land/bubbles/v2/textarea"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 
 	"github.com/qualidafial/gtd-tui/tui/components/form"
-)
-
-
-// newlineKey is the binding that inserts a newline in a textfield.
-var newlineKey = key.NewBinding(
-	key.WithKeys("alt+enter", "ctrl+j"),
-	key.WithHelp("alt+enter", "newline"),
+	"github.com/qualidafial/gtd-tui/tui/internal/keymap"
 )
 
 // Model is a multi-line text field.
@@ -31,6 +24,8 @@ type Model struct {
 	area      textarea.Model
 	validator func(string) error
 	visible   func(form.Values) bool
+
+	KeyMap KeyMap
 
 	err     error
 	lastVal string
@@ -67,17 +62,21 @@ func New(k, label string, opts ...Option) Model {
 	if k == "" {
 		panic("textfield: key is required")
 	}
+
+	keyMap := DefaultKeyMap()
+
 	ta := textarea.New()
 	ta.ShowLineNumbers = false
 	// Rebind newline so plain Enter does not insert one — the form needs
 	// Enter to remain available (or, more precisely, the textarea should
 	// not consume it).
-	ta.KeyMap.InsertNewline = newlineKey
+	ta.KeyMap.InsertNewline = keyMap.InsertNewline
 
 	m := Model{
-		key:   k,
-		label: label,
-		area:  ta,
+		key:    k,
+		label:  label,
+		area:   ta,
+		KeyMap: keyMap,
 	}
 	for _, opt := range opts {
 		opt(&m)
@@ -165,10 +164,4 @@ func (m Model) Validate() (form.Field, error) {
 	return m, m.err
 }
 
-func (m Model) ShortHelp() []key.Binding {
-	return []key.Binding{newlineKey}
-}
-
-func (m Model) FullHelp() [][]key.Binding {
-	return [][]key.Binding{{newlineKey}}
-}
+func (m Model) Chords() []keymap.Group { return m.KeyMap.Chords() }

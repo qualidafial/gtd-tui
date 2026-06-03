@@ -76,20 +76,22 @@ func TestTabIsNotConsumed(t *testing.T) {
 	assert.Equal(t, "other", f.Focused().Key(), "tab inside textfield should bubble up to form navigation")
 }
 
-func TestShortHelpAdvertisesNewlineBinding(t *testing.T) {
+func TestChordsAdvertiseNewlineBinding(t *testing.T) {
 	m := textfield.New("body", "Body")
-	bindings := m.ShortHelp()
-	require.NotEmpty(t, bindings)
+	groups := m.Chords()
+	require.NotEmpty(t, groups)
 
 	var found bool
-	for _, b := range bindings {
-		for _, k := range b.Keys() {
-			if k == "alt+enter" || k == "ctrl+j" {
-				found = true
+	for _, g := range groups {
+		for _, c := range g {
+			for _, k := range c.Keys() {
+				if k == "alt+enter" || k == "ctrl+j" {
+					found = true
+				}
 			}
 		}
 	}
-	assert.True(t, found, "textfield ShortHelp must advertise the newline binding")
+	assert.True(t, found, "textfield Chords must advertise the newline binding")
 }
 
 func TestValidatorPasses(t *testing.T) {

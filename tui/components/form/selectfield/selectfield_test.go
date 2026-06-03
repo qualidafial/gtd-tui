@@ -66,26 +66,34 @@ func TestNavigationDoesNothingWhenUnfocused(t *testing.T) {
 	assert.Equal(t, kindTask, got.SelectedValue(), "an unfocused selectfield must not consume keys")
 }
 
-func TestShortHelpAdvertisesFilterBinding(t *testing.T) {
+func TestChordsAdvertiseFilterAndClaimArrows(t *testing.T) {
 	// Filtering is inherited from list.Model; we don't re-test bubbles'
 	// fuzzy-filter behavior here. The contract for selectfield is that the
-	// `/`-to-filter binding shows up in the form's help footer when this
-	// field is focused, which it does via list.ShortHelp.
+	// `/`-to-filter binding shows up in the form's help footer and that
+	// up/down are claimed so they route to the list, not form navigation.
 	opts := []selectfield.Option[string]{
 		{Display: "apple", Value: "apple"},
 		{Display: "banana", Value: "banana"},
 	}
 	m := selectfield.New("fruit", "Fruit", opts)
 
-	var found bool
-	for _, b := range m.ShortHelp() {
-		for _, k := range b.Keys() {
-			if k == "/" {
-				found = true
+	var foundFilter, claimsUp, claimsDown bool
+	for _, g := range m.Chords() {
+		for _, c := range g {
+			for _, k := range c.Keys() {
+				switch k {
+				case "/":
+					foundFilter = true
+				case "up":
+					claimsUp = true
+				case "down":
+					claimsDown = true
+				}
 			}
 		}
 	}
-	assert.True(t, found, "selectfield ShortHelp should expose the filter binding")
+	assert.True(t, foundFilter, "selectfield Chords should expose the filter binding")
+	assert.True(t, claimsUp && claimsDown, "selectfield Chords should claim up/down")
 }
 
 func TestWithNonePrependsZeroValueOption(t *testing.T) {

@@ -2,6 +2,8 @@ package projects
 
 import (
 	"charm.land/bubbles/v2/key"
+
+	"github.com/qualidafial/gtd-tui/tui/internal/keymap"
 )
 
 type KeyMap struct {
@@ -30,37 +32,25 @@ func DefaultKeyMap() KeyMap {
 	}
 }
 
-func (k KeyMap) ShortHelp() []key.Binding {
-	return []key.Binding{
-		k.FocusQuery,
-		k.New,
-		k.Edit,
-		k.View,
-		k.ToggleComplete,
-		k.Drop,
-		k.Park,
-		k.MoveUp,
-		k.MoveDown,
-	}
-}
-
-func (k KeyMap) FullHelp() [][]key.Binding {
-	return [][]key.Binding{
+// Chords exposes the project-list bindings as full-help columns; every
+// binding shows in both bars (Vis Short). Per-selection availability is
+// governed by SetEnabled, which Resolve and the help component honor.
+func (k KeyMap) Chords() []keymap.Group {
+	return []keymap.Group{
+		{{Binding: k.FocusQuery, Vis: keymap.Short}},
 		{
-			k.FocusQuery,
+			{Binding: k.New, Vis: keymap.Short},
+			{Binding: k.Edit, Vis: keymap.Short},
+			{Binding: k.View, Vis: keymap.Short},
 		},
 		{
-			k.New,
-			k.View,
+			{Binding: k.ToggleComplete, Vis: keymap.Short},
+			{Binding: k.Drop, Vis: keymap.Short},
+			{Binding: k.Park, Vis: keymap.Short},
 		},
 		{
-			k.ToggleComplete,
-			k.Drop,
-			k.Park,
-		},
-		{
-			k.MoveUp,
-			k.MoveDown,
+			{Binding: k.MoveUp, Vis: keymap.Short},
+			{Binding: k.MoveDown, Vis: keymap.Short},
 		},
 	}
 }

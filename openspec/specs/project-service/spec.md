@@ -1,4 +1,9 @@
-## ADDED Requirements
+# project-service Specification
+
+## Purpose
+Defines the `ProjectService` interface and its operations: create/update/get/list, status transitions (complete, drop, park, reopen) with atomicity, and project reordering.
+
+## Requirements
 
 ### Requirement: ProjectService interface
 The system SHALL provide a ProjectService interface with CRUD operations, status transitions, and reordering. The interface SHALL be defined in the root package alongside the Project domain type.

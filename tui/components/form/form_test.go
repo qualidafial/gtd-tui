@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/qualidafial/gtd-tui/tui/components/form"
+	"github.com/qualidafial/gtd-tui/tui/internal/keymap"
 )
 
 // stubField is a controllable form.Field for unit tests.
@@ -20,8 +21,7 @@ type stubField struct {
 	focused  bool
 	visible  func(form.Values) bool
 	validate func() error
-	short    []key.Binding
-	full     [][]key.Binding
+	chords   []keymap.Group
 
 	// Pointer-backed counters so they survive value copies of stubField.
 	validateCalls *int
@@ -92,8 +92,7 @@ func (s stubField) Validate() (form.Field, error) {
 	return s, s.validate()
 }
 
-func (s stubField) ShortHelp() []key.Binding  { return s.short }
-func (s stubField) FullHelp() [][]key.Binding { return s.full }
+func (s stubField) Chords() []keymap.Group { return s.chords }
 
 // setValueMsg lets a test change the value of a specific stub field through
 // the form's Update pipeline.
@@ -102,9 +101,9 @@ type setValueMsg struct {
 	val any
 }
 
-func tab() tea.KeyPressMsg       { return tea.KeyPressMsg{Code: tea.KeyTab} }
-func shiftTab() tea.KeyPressMsg  { return tea.KeyPressMsg{Code: tea.KeyTab, Mod: tea.ModShift} }
-func ctrlS() tea.KeyPressMsg     { return tea.KeyPressMsg{Code: 's', Mod: tea.ModCtrl} }
+func tab() tea.KeyPressMsg      { return tea.KeyPressMsg{Code: tea.KeyTab} }
+func shiftTab() tea.KeyPressMsg { return tea.KeyPressMsg{Code: tea.KeyTab, Mod: tea.ModShift} }
+func ctrlS() tea.KeyPressMsg    { return tea.KeyPressMsg{Code: 's', Mod: tea.ModCtrl} }
 
 // collectMsgs flattens a possibly-batched tea.Cmd into the slice of msgs it
 // would emit. Sufficient for inspecting whether SubmittedMsg fires.
@@ -295,22 +294,33 @@ func TestTabRefusesToAdvanceWhenValidatorFails(t *testing.T) {
 	assert.Equal(t, 1, *a.validateCalls)
 }
 
+// helpDescs flattens a short-help projection to its binding descriptions.
+// The resolver emits relabeled key.Binding copies, so tests assert on
+// description rather than binding identity.
+func helpDescs(bindings []key.Binding) []string {
+	out := make([]string, len(bindings))
+	for i, b := range bindings {
+		out[i] = b.Help().Desc
+	}
+	return out
+}
+
 func TestShortHelpComposesFormAndFieldBindings(t *testing.T) {
 	altEnter := key.NewBinding(key.WithKeys("alt+enter"), key.WithHelp("alt+enter", "newline"))
 	plain := newStub("plain")
 	multi := newStub("multi")
-	multi.short = []key.Binding{altEnter}
+	multi.chords = []keymap.Group{{{Binding: altEnter, Vis: keymap.Short}}}
 
 	f := form.New(plain.asField(), multi.asField())
 
-	help := f.ShortHelp()
-	assert.Contains(t, help, f.KeyMap.Next)
-	assert.Contains(t, help, f.KeyMap.Save)
-	assert.NotContains(t, help, altEnter, "plain field has no extra bindings")
+	descs := helpDescs(f.ShortHelp())
+	assert.Contains(t, descs, "next")
+	assert.Contains(t, descs, "save")
+	assert.NotContains(t, descs, "newline", "plain field has no extra bindings")
 
 	f, _ = f.Update(tab())
-	help = f.ShortHelp()
-	assert.Contains(t, help, altEnter, "after focus moves, multi-line bindings appear")
+	descs = helpDescs(f.ShortHelp())
+	assert.Contains(t, descs, "newline", "after focus moves, multi-line bindings appear")
 }
 
 func TestHiddenFieldIsNotRendered(t *testing.T) {
