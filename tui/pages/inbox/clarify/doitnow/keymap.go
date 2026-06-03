@@ -9,7 +9,7 @@ type KeyMap struct {
 	Back    key.Binding
 }
 
-func defaultKeyMap() KeyMap {
+func DefaultKeyMap() KeyMap {
 	return KeyMap{
 		Confirm: key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "done")),
 		Back:    key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "leave open")),

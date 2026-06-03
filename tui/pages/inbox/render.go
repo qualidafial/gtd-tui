@@ -42,8 +42,8 @@ func (d *delegate) Render(w io.Writer, m list.Model, index int, item list.Item) 
 		cursor = "> "
 	}
 
-	title := it.item.Title
-	desc := it.item.Description
+	title := flatten(it.item.Title)
+	desc := flatten(it.item.Description)
 
 	ts := titleStyle
 	if index == m.Index() {
@@ -66,6 +66,12 @@ func (d *delegate) Render(w io.Writer, m list.Model, index int, item list.Item) 
 	b.WriteString(titleRendered)
 	b.WriteString(descPart)
 	fmt.Fprint(w, b.String())
+}
+
+// flatten collapses runs of whitespace (including newlines) into single
+// spaces so a multiline title or description renders on a single row.
+func flatten(s string) string {
+	return strings.Join(strings.Fields(s), " ")
 }
 
 func (d *delegate) ShortHelp() []key.Binding  { return nil }

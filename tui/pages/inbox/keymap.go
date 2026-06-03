@@ -10,7 +10,7 @@ type KeyMap struct {
 	Clarify key.Binding
 }
 
-func defaultKeyMap() KeyMap {
+func DefaultKeyMap() KeyMap {
 	return KeyMap{
 		New:     key.NewBinding(key.WithKeys("+", "insert"), key.WithHelp("+/insert", "new item")),
 		Clarify: key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "clarify")),

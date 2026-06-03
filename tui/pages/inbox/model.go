@@ -34,7 +34,7 @@ type Model struct {
 type itemsLoadedMsg struct{ items []gtd.Item }
 
 func New(svc gtd.InboxService, taskSvc gtd.TaskService) Model {
-	keys := defaultKeyMap()
+	keys := DefaultKeyMap()
 	l := list.New(nil, newDelegate(keys), 0, 0)
 	l.SetStatusBarItemName("item", "items")
 	l.SetShowTitle(false)

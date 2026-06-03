@@ -27,7 +27,7 @@ type KeyMap struct {
 	FocusQuery     key.Binding
 }
 
-func defaultKeyMap() KeyMap {
+func DefaultKeyMap() KeyMap {
 	return KeyMap{
 		New:            key.NewBinding(key.WithKeys("+", "insert"), key.WithHelp("+/insert", "new task")),
 		Edit:           key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "edit")),

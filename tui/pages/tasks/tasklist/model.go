@@ -59,7 +59,7 @@ type tasksReorderedMsg struct {
 // false for the in-project task list where every row would share the same
 // project. The chip is independent of projectNameFn's role in the task editor.
 func New(svc gtd.TaskService, query string, pickerFn PickerFactory, projectNameFn ProjectNameFunc, showProjectChip bool) Model {
-	keys := defaultKeyMap()
+	keys := DefaultKeyMap()
 
 	l := list.New(nil, newDelegate(keys, projectChipResolver(showProjectChip, projectNameFn)), 0, 0)
 	l.SetStatusBarItemName("task", "tasks")

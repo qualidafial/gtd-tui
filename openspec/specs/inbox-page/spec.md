@@ -20,6 +20,11 @@ The system SHALL provide an inbox screen at `tui/pages/inbox/` that displays unc
 - **WHEN** the user moves the cursor onto an item
 - **THEN** the item's title and description are visible in the active row
 
+#### Scenario: Multiline captures render on a single row
+- **WHEN** an item's title or description contains newlines or other whitespace runs
+- **THEN** the list row flattens that whitespace to single spaces and renders on exactly one line
+- **AND** the row never grows taller than one line, so content below the list (such as the help bar) stays on screen
+
 ### Requirement: Inbox tab registration
 The system SHALL register an "Inbox" tab in the root tabContainer so the inbox screen is reachable via tab navigation.
 

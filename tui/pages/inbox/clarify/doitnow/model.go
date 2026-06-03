@@ -46,7 +46,7 @@ type Model struct {
 }
 
 func New(task gtd.Task, svc gtd.TaskService) Model {
-	return Model{task: task, svc: svc, KeyMap: defaultKeyMap()}
+	return Model{task: task, svc: svc, KeyMap: DefaultKeyMap()}
 }
 
 func (m Model) Init() tea.Cmd { return nil }
