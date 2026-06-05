@@ -61,19 +61,21 @@ func (dismissed) View() string                     { return "" }
 func (dismissed) Keys() []keymap.Group             { return nil }
 
 // Dismiss returns the no-op dismissed sentinel plus the cmd that signals the
-// parent to pop this overlay. Optional extras are batched with the dispatch.
+// parent to pop this overlay. Optional extras are sequenced after the pop, so
+// each extra's message is delivered once the parent is the active screen —
+// an extra that carries information to the revealed parent (e.g. a result
+// message) cannot race the pop and be absorbed by the dismissed sentinel.
 //
 // Use directly: `return screen.Dismiss()` or `return screen.Dismiss(cmd)`.
 //
-// For tea.Sequence composition (where ordering matters), or for code that
-// must remain as the active Screen after emitting the dispatch — e.g. the
-// overlay wrapper itself, which has to stay so the parent can call Pop() —
-// use DismissCmd to get just the cmd.
+// For code that must remain as the active Screen after emitting the dispatch
+// — e.g. the overlay wrapper itself, which has to stay so the parent can call
+// Pop() — use DismissCmd to get just the cmd.
 func Dismiss(extras ...tea.Cmd) (Screen, tea.Cmd) {
 	if len(extras) == 0 {
 		return dismissed{}, DismissCmd()
 	}
-	return dismissed{}, tea.Batch(append([]tea.Cmd{DismissCmd()}, extras...)...)
+	return dismissed{}, tea.Sequence(append([]tea.Cmd{DismissCmd()}, extras...)...)
 }
 
 // DismissCmd is the freestanding dispatch cmd for callers that need finer

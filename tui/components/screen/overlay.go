@@ -32,8 +32,13 @@ func (o overlay) Init() tea.Cmd {
 }
 
 func (o overlay) Update(msg tea.Msg) (Screen, tea.Cmd) {
+	// esc is the overlay's fallback dismiss, but only when the inner subtree
+	// does not itself claim it. Routing on keymap.Handles (the same binding
+	// data Resolve dedups for help) lets an inner that owns esc — a modal
+	// prompt recording its outcome, a focused query bar cancelling a filter —
+	// handle the key, while inners that bind no esc still get the generic pop.
 	if msg, ok := msg.(tea.KeyPressMsg); ok && key.Matches(msg, o.KeyMap.Back) {
-		if !CapturingInput(o.inner) {
+		if !keymap.Handles(o.inner, msg) {
 			return o, DismissCmd()
 		}
 	}
