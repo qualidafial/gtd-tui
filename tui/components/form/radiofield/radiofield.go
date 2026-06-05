@@ -184,9 +184,9 @@ func (m Model[T]) Validate() (form.Field, error) {
 	return m, m.err
 }
 
-// Chords claims left/right so the form forwards them here for selection
+// Keys claims left/right so the form forwards them here for selection
 // (rather than treating them as navigation) and advertises them as
 // "←/→ choose".
-func (m Model[T]) Chords() []keymap.Group {
+func (m Model[T]) Keys() []keymap.Group {
 	return []keymap.Group{{{Binding: chooseKey, Vis: keymap.Short}}}
 }

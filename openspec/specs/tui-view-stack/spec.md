@@ -36,9 +36,9 @@ The system SHALL provide a `screen.Dismiss()` command that produces a `DismissMs
 - **THEN** the inner screen SHALL return its own model (not nil) from Update
 
 ### Requirement: Overlay wrapper with esc-to-dismiss
-The system SHALL provide a `screen.Overlay(parent, child)` function that wraps a child Screen with a parent reference. The overlay SHALL handle esc by sending `screen.Dismiss()` when the inner screen is not capturing input, and SHALL forward esc to the inner screen when it is capturing input (free-text), as gated by `CapturingInput`. The esc binding SHALL live on a `screen.KeyMap` value carried by the overlay and SHALL be exposed as a `keymap.Chord` from the overlay's `Chords()`.
+The system SHALL provide a `screen.Overlay(parent, child)` function that wraps a child Screen with a parent reference. The overlay SHALL handle esc by sending `screen.Dismiss()` when the inner screen is not capturing input, and SHALL forward esc to the inner screen when it is capturing input (free-text), as gated by `CapturingInput`. The esc binding SHALL live on a `screen.KeyMap` value carried by the overlay and SHALL be exposed as a `keymap.Binding` from the overlay's `Keys()`.
 
-The `Screen` interface SHALL embed `keymap.Map` (`Chords() []keymap.Group`). An overlay SHALL produce its `Chords()` by concatenating the inner screen's `Chords()` (the inner's full subtree) ahead of its own esc chord, so the overlay contributes a single aggregated group list highest-priority first. Conflict resolution — performed by the `keymap` package — SHALL subtract the overlay's esc from help when the inner subtree already claims esc, replacing the previous bespoke `hasEsc` dedup. The overlay SHALL NOT hand-compose or de-duplicate help itself.
+The `Screen` interface SHALL embed `keymap.Map` (`Keys() []keymap.Group`). An overlay SHALL produce its `Keys()` by concatenating the inner screen's `Keys()` (the inner's full subtree) ahead of its own esc binding, so the overlay contributes a single aggregated group list highest-priority first. Conflict resolution — performed by the `keymap` package — SHALL subtract the overlay's esc from help when the inner subtree already claims esc, replacing the previous bespoke `hasEsc` dedup. The overlay SHALL NOT hand-compose or de-duplicate help itself.
 
 #### Scenario: Esc pops overlay when not capturing
 - **WHEN** the user presses esc
@@ -53,12 +53,12 @@ The `Screen` interface SHALL embed `keymap.Map` (`Chords() []keymap.Group`). An 
 #### Scenario: Overlay esc subtracted from help when inner claims it
 - **WHEN** the overlay's resolved help is read
 - **AND** the inner subtree already claims an esc binding
-- **THEN** the overlay's own esc chord is absent from help (no duplicate esc)
+- **THEN** the overlay's own esc binding is absent from help (no duplicate esc)
 
 #### Scenario: Overlay esc shown when inner does not claim it
 - **WHEN** the overlay's resolved help is read
 - **AND** no inner-subtree binding claims esc
-- **THEN** the overlay's esc chord appears in help
+- **THEN** the overlay's esc binding appears in help
 
 ### Requirement: Popper interface for overlay pop
 The system SHALL define a `Popper` interface with a `Pop() Screen` method. The overlay wrapper SHALL satisfy Popper by returning its parent screen.

@@ -2,8 +2,8 @@ package keymap
 
 import "strings"
 
-// Render maps a chord's displayed keys to a help label. It only ever
-// receives keys that were in a chord's displayed set, so a hidden routing
+// Render maps a binding's displayed keys to a help label. It only ever
+// receives keys that were in a binding's displayed set, so a hidden routing
 // alias can never appear in a rendered label. Hosts may supply their own.
 type Render func(keys []string) string
 

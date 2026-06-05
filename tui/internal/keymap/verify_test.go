@@ -69,7 +69,7 @@ func TestVerify_SavefieldClaimsEnter(t *testing.T) {
 		"inputfield does not claim enter")
 }
 
-// 7.3: deep delegation — a form aggregates the focused field's chords, so
+// 7.3: deep delegation — a form aggregates the focused field's bindings, so
 // Handles over the form reports the field's claimed keys.
 func TestVerify_DeepDelegationThroughForm(t *testing.T) {
 	sf := selectfield.New("kind", "Kind", []selectfield.Option[string]{
@@ -77,5 +77,5 @@ func TestVerify_DeepDelegationThroughForm(t *testing.T) {
 	})
 	f := form.New(sf)
 	assert.True(t, keymap.Handles(f, tea.KeyPressMsg{Code: tea.KeyDown}),
-		"form's aggregated chords carry the field's down claim")
+		"form's aggregated bindings carry the field's down claim")
 }

@@ -120,6 +120,6 @@ func (m Model) View() string {
 	return lipgloss.JoinVertical(lipgloss.Left, sections...)
 }
 
-func (m Model) Chords() []keymap.Group { return m.KeyMap.Chords() }
+func (m Model) Keys() []keymap.Group { return m.KeyMap.Keys() }
 
 type completedMsg struct{ err error }

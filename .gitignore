@@ -1,6 +1,7 @@
 # Build output
 /gtd
 /dist/
+main
 
 # Test cache and coverage
 *.test

@@ -21,7 +21,7 @@ type stubField struct {
 	focused  bool
 	visible  func(form.Values) bool
 	validate func() error
-	chords   []keymap.Group
+	bindings   []keymap.Group
 
 	// Pointer-backed counters so they survive value copies of stubField.
 	validateCalls *int
@@ -92,7 +92,7 @@ func (s stubField) Validate() (form.Field, error) {
 	return s, s.validate()
 }
 
-func (s stubField) Chords() []keymap.Group { return s.chords }
+func (s stubField) Keys() []keymap.Group { return s.bindings }
 
 // setValueMsg lets a test change the value of a specific stub field through
 // the form's Update pipeline.
@@ -309,7 +309,7 @@ func TestShortHelpComposesFormAndFieldBindings(t *testing.T) {
 	altEnter := key.NewBinding(key.WithKeys("alt+enter"), key.WithHelp("alt+enter", "newline"))
 	plain := newStub("plain")
 	multi := newStub("multi")
-	multi.chords = []keymap.Group{{{Binding: altEnter, Vis: keymap.Short}}}
+	multi.bindings = []keymap.Group{{{Binding: altEnter, Vis: keymap.Short}}}
 
 	f := form.New(plain.asField(), multi.asField())
 

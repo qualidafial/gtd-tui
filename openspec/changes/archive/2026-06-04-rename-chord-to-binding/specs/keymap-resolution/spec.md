@@ -1,10 +1,4 @@
-# keymap-resolution Specification
-
-## Purpose
-
-The keymap-resolution capability provides the `keymap` package: a small toolkit for declaring, routing, and displaying keyboard bindings across nested TUI layers (app, overlays, forms, fields). It wraps live `key.Binding` values as `Binding`s, aggregates them into priority-ordered `Group`s up the active subtree, routes single gestures incrementally to the focused child, and resolves cross-layer key conflicts so that help bars show each key under exactly one owner. It deliberately leaves free-text capture to the existing `InputCapturer` mechanism.
-
-## Requirements
+## MODIFIED Requirements
 
 ### Requirement: Binding wraps a live key.Binding with display-level and displayed-key axes
 The `keymap` package SHALL define a `Binding` type that embeds `charm.land/bubbles/v2/key.Binding` and adds two orthogonal display controls: `Show []string` (which of the binding's keys are named in help) and `Vis` (in which help bars the binding appears). `Binding` SHALL NOT redeclare the binding's triggers, description, or enabled state — those SHALL be read live from the embedded `key.Binding` (`Keys()`, `Help().Desc`, `Enabled()`).
@@ -131,10 +125,3 @@ The package SHALL produce both help bars from a single `Resolve` result, without
 - **WHEN** both the short and full projections are requested for the same stack
 - **THEN** they derive from a single `Resolve` pass over the aggregated group list
 - **AND** a key claimed by a higher-priority group is absent from both bars
-
-### Requirement: Free-text capture is out of scope
-The package SHALL NOT attempt to represent free-text input (arbitrary printable runes consumed by a focused text field). The existing `InputCapturer`/`CapturingInput` mechanism SHALL remain the means by which layers suppress global keybindings during free-text entry. The package's claim and routing logic SHALL operate only on enumerable discrete bindings.
-
-#### Scenario: Free-text capture still gates global keys
-- **WHEN** a focused text field is capturing input
-- **THEN** global keybinding suppression continues to be driven by `CapturingInput`, not by this package

@@ -32,7 +32,7 @@ type stubScreen struct{}
 func (stubScreen) Init() tea.Cmd                           { return nil }
 func (stubScreen) Update(tea.Msg) (screen.Screen, tea.Cmd) { return stubScreen{}, nil }
 func (stubScreen) View() string                            { return "" }
-func (stubScreen) Chords() []keymap.Group                  { return nil }
+func (stubScreen) Keys() []keymap.Group                    { return nil }
 
 func TestView_HeaderShown_ExistingProject(t *testing.T) {
 	p := gtd.Project{

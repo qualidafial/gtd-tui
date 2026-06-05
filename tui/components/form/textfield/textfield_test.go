@@ -76,9 +76,9 @@ func TestTabIsNotConsumed(t *testing.T) {
 	assert.Equal(t, "other", f.Focused().Key(), "tab inside textfield should bubble up to form navigation")
 }
 
-func TestChordsAdvertiseNewlineBinding(t *testing.T) {
+func TestKeysAdvertiseNewlineBinding(t *testing.T) {
 	m := textfield.New("body", "Body")
-	groups := m.Chords()
+	groups := m.Keys()
 	require.NotEmpty(t, groups)
 
 	var found bool
@@ -91,7 +91,7 @@ func TestChordsAdvertiseNewlineBinding(t *testing.T) {
 			}
 		}
 	}
-	assert.True(t, found, "textfield Chords must advertise the newline binding")
+	assert.True(t, found, "textfield Keys must advertise the newline binding")
 }
 
 func TestValidatorPasses(t *testing.T) {

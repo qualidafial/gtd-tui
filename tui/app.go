@@ -163,23 +163,23 @@ func (m Model) renderFooter() string {
 	return "\n" + m.help.View(m)
 }
 
-// Chords aggregates the active screen's subtree (highest priority) ahead
+// Keys aggregates the active screen's subtree (highest priority) ahead
 // of the app's global bindings, so a key claimed by the active screen wins
 // and is subtracted from the app's help.
-func (m Model) Chords() []keymap.Group {
+func (m Model) Keys() []keymap.Group {
 	return slices.Concat(
-		m.active.Chords(),
-		m.KeyMap.Chords(),
+		m.active.Keys(),
+		m.KeyMap.Keys(),
 	)
 }
 
 // ShortHelp / FullHelp render the footer via the help component. Both are
-// projections of a single Resolve pass over the aggregated chords, so a
+// projections of a single Resolve pass over the aggregated bindings, so a
 // key claimed by a higher-priority layer never double-lists.
 func (m Model) ShortHelp() []key.Binding {
-	return keymap.ShortHelp(keymap.Resolve(nil, m.Chords()...))
+	return keymap.ShortHelp(m.Keys())
 }
 
 func (m Model) FullHelp() [][]key.Binding {
-	return keymap.FullHelp(keymap.Resolve(nil, m.Chords()...))
+	return keymap.FullHelp(m.Keys())
 }

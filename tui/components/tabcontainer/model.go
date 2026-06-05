@@ -104,12 +104,12 @@ func (m Model) renderHeader() string {
 	return logo + "\n\n" + tabBar + "\n"
 }
 
-// Chords contributes the view-switch group followed by the active tab's
-// aggregated chords, the single source for the app's resolved footer.
-func (m Model) Chords() []keymap.Group {
+// Keys contributes the view-switch group followed by the active tab's
+// aggregated bindings, the single source for the app's resolved footer.
+func (m Model) Keys() []keymap.Group {
 	return slices.Concat(
-		m.KeyMap.Chords(),
-		m.tabs[m.activeTab].Screen.Chords(),
+		m.tabs[m.activeTab].Screen.Keys(),
+		m.KeyMap.Keys(),
 	)
 }
 

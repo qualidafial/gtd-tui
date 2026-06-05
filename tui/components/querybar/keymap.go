@@ -29,7 +29,7 @@ func DefaultKeyMap() KeyMap {
 	}
 }
 
-func (k KeyMap) Chords() []keymap.Group {
+func (k KeyMap) Keys() []keymap.Group {
 	return []keymap.Group{{
 		{Binding: k.Apply, Vis: keymap.Short},
 		{Binding: k.Cancel, Vis: keymap.Short},

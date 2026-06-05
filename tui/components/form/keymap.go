@@ -25,11 +25,11 @@ func DefaultKeyMap() KeyMap {
 	}
 }
 
-// Chords exposes the form's navigation/submit bindings as a single group
+// Keys exposes the form's navigation/submit bindings as a single group
 // (one full-help column). Next routes tab/down/enter but shows only
 // tab/↓ — enter is a hidden alias (advance/confirm on the last field) and
 // down is routed here only when the focused field does not claim it.
-func (m KeyMap) Chords() []keymap.Group {
+func (m KeyMap) Keys() []keymap.Group {
 	return []keymap.Group{{
 		{Binding: m.Next, Show: []string{"tab", "down"}, Vis: keymap.Short},
 		{Binding: m.Prev, Vis: keymap.Short},

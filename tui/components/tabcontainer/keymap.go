@@ -24,9 +24,9 @@ func DefaultKeyMap() KeyMap {
 	}
 }
 
-// Chords exposes the view-switch bindings as one group. Next shows in both
+// Keys exposes the view-switch bindings as one group. Next shows in both
 // bars; Prev appears in full help only (matching the prior split).
-func (m KeyMap) Chords() []keymap.Group {
+func (m KeyMap) Keys() []keymap.Group {
 	return []keymap.Group{{
 		{Binding: m.Next, Vis: keymap.Short},
 		{Binding: m.Prev, Vis: keymap.Full},

@@ -89,9 +89,9 @@ func TestTabLeavesSavefieldWithoutSubmitting(t *testing.T) {
 	assert.False(t, hasSubmittedMsg(cmd))
 }
 
-func TestChordsAdvertiseEnter(t *testing.T) {
+func TestKeysAdvertiseEnter(t *testing.T) {
 	m := savefield.New("save")
-	groups := m.Chords()
+	groups := m.Keys()
 	require.NotEmpty(t, groups)
 	require.NotEmpty(t, groups[0])
 	c := groups[0][0]

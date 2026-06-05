@@ -78,8 +78,8 @@ func (m *Model) SetWidth(w int) {
 	m.input.SetWidth(w)
 }
 
-func (m Model) Chords() []keymap.Group {
-	return m.KeyMap.Chords()
+func (m Model) Keys() []keymap.Group {
+	return m.KeyMap.Keys()
 }
 
 // CapturingInput reports whether the query bar is focused.

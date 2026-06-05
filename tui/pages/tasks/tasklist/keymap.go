@@ -42,11 +42,11 @@ func DefaultKeyMap() KeyMap {
 	}
 }
 
-// Chords returns every binding unconditionally as full-help columns; the
+// Keys returns every binding unconditionally as full-help columns; the
 // help component and Resolve skip any that are disabled, so per-selection
 // visibility is governed entirely by SetEnabled. Every binding shows in
 // both bars (Vis Short).
-func (k KeyMap) Chords() []keymap.Group {
+func (k KeyMap) Keys() []keymap.Group {
 	return []keymap.Group{
 		{{Binding: k.FocusQuery, Vis: keymap.Short}},
 		{

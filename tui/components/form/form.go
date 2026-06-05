@@ -121,7 +121,7 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 
 	case tea.KeyPressMsg:
 		// Protect keys the focused field consumes: if its aggregated
-		// Chords claim this gesture, fall through to field.Update rather
+		// Keys claim this gesture, fall through to field.Update rather
 		// than treating it as form navigation.
 		if field != nil && keymap.Handles(field, msg) {
 			break
@@ -237,29 +237,29 @@ func (m Model) Submit() (Model, bool, tea.Cmd) {
 	return m, true, nil
 }
 
-// Chords aggregates the form's keymap by concatenating the focused field's
-// Chords (its full subtree, highest priority) ahead of the form's own
+// Keys aggregates the form's keymap by concatenating the focused field's
+// Keys (its full subtree, highest priority) ahead of the form's own
 // navigation/submit group. With no field focused only the form's own group
 // is returned.
-func (m Model) Chords() []keymap.Group {
+func (m Model) Keys() []keymap.Group {
 	if field := m.Focused(); field != nil {
-		return slices.Concat(field.Chords(), m.KeyMap.Chords())
+		return slices.Concat(field.Keys(), m.KeyMap.Keys())
 	}
-	return m.KeyMap.Chords()
+	return m.KeyMap.Keys()
 }
 
 // ShortHelp returns the short-bar projection of the resolved aggregated
-// chords: a focused field's claimed keys are subtracted from the form's
+// bindings: a focused field's claimed keys are subtracted from the form's
 // navigation bindings and survivors relabeled. Screens delegate help with
 // `return f.ShortHelp()`.
 func (m Model) ShortHelp() []key.Binding {
-	return keymap.ShortHelp(keymap.Resolve(nil, m.Chords()...))
+	return keymap.ShortHelp(m.Keys())
 }
 
 // FullHelp returns the full-help projection of the resolved aggregated
-// chords, one row per surviving group.
+// bindings, one row per surviving group.
 func (m Model) FullHelp() [][]key.Binding {
-	return keymap.FullHelp(keymap.Resolve(nil, m.Chords()...))
+	return keymap.FullHelp(m.Keys())
 }
 
 // handleSubmit calls Submit and batches the form-emitted SubmittedMsg when

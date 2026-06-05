@@ -1,45 +1,4 @@
-# tui-application Specification
-
-## Purpose
-Defines the root TUI model: application state, the app-wide KeyMap and resolution-based help composition, the per-component keymap convention, and the quit command.
-
-## Requirements
-
-### Requirement: Root model manages application state
-The system SHALL have a root model in tui/app.go that manages the active screen, window dimensions, and help rendering. The root model SHALL hold a single `active Screen` field instead of a tabs array and overlay slot. It SHALL handle PushMsg, DismissMsg, and InitMsg centrally.
-
-#### Scenario: Root model tracks active screen
-- **WHEN** application is running
-- **THEN** root model holds the current active Screen (tabContainer or an overlay)
-
-#### Scenario: Root model tracks window size
-- **WHEN** terminal is resized
-- **THEN** root model stores current width and height
-- **AND** propagates dimensions to active screen
-
-#### Scenario: Root model handles push
-- **WHEN** root model receives PushMsg
-- **THEN** it SHALL wrap the current active in an overlay with the pushed screen as inner
-- **AND** it SHALL call Init() on the new active
-
-#### Scenario: Root model handles dismiss
-- **WHEN** root model receives DismissMsg
-- **AND** the active screen satisfies Popper
-- **THEN** it SHALL pop the overlay and call Init() on the restored parent
-
-#### Scenario: Root model handles init
-- **WHEN** root model receives InitMsg
-- **THEN** it SHALL call Init() on the active screen
-
-#### Scenario: Root model accepts ProjectService
-- **WHEN** the application is constructed via tui.New
-- **THEN** it SHALL accept a gtd.ProjectService parameter
-- **AND** pass it to the project list screen in the tab container
-
-#### Scenario: Tab container includes Projects tab
-- **WHEN** the application starts
-- **THEN** the tab container SHALL have a "Tasks" tab and a "Projects" tab
-- **AND** "Tasks" SHALL be the initially active tab
+## MODIFIED Requirements
 
 ### Requirement: App KeyMap and help composition
 The root model SHALL expose an exported `KeyMap` field of type `tui.KeyMap` defined in `tui/keymap.go`. The KeyMap SHALL carry the app-wide bindings (`Quit`, `Help`) and SHALL expose them as `keymap.Group`s via `Keys()`. The root model SHALL produce its own `Keys()` by concatenating the active screen's `Keys()` (the active subtree) ahead of the app KeyMap's groups, so the active screen's bindings take priority over the app's. The root model's `ShortHelp`/`FullHelp` SHALL be derived from `keymap.Resolve(render, m.Keys()...)`: the short bar keeps `Vis == Short` bindings flattened in priority order; full help keeps `Vis ∈ {Short, Full}` bindings as group rows. The `Help` binding SHALL be disabled (and thus claim/display nothing) while the active screen is capturing input, so the `?` keystroke reaches the screen.
@@ -75,21 +34,3 @@ Form-based pages (`projectedit`, `projectpicker`, `projectstatus`, `taskedit`, `
 #### Scenario: Form-based page advertises form bindings
 - **WHEN** a form-based page's `Keys()` is invoked
 - **THEN** the returned groups SHALL be `form.Keys()` followed by the page's own esc/back binding
-
-### Requirement: Quit command exits application
-The system SHALL respond to the quit key binding (Ctrl+C) by terminating the application cleanly. The `?` key SHALL toggle help display, suppressed when the active screen is capturing input. Both bindings SHALL be declared on the root model's `KeyMap` field in `tui/keymap.go`.
-
-#### Scenario: Quit with Ctrl+C
-- **WHEN** user presses Ctrl+C
-- **THEN** application sends tea.Quit command
-- **AND** program exits cleanly
-
-#### Scenario: Toggle help with ?
-- **WHEN** user presses ?
-- **AND** the active screen is not capturing input
-- **THEN** help display is toggled
-
-#### Scenario: ? suppressed during input capture
-- **WHEN** user presses ?
-- **AND** CapturingInput(active) returns true
-- **THEN** ? is forwarded to the active screen

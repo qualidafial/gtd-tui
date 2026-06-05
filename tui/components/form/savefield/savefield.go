@@ -95,9 +95,9 @@ func (m Model) View() string {
 func (m Model) Value() any                    { return nil }
 func (m Model) Validate() (form.Field, error) { return m, nil }
 
-// Chords claims Enter so the form forwards it here (where Update emits
+// Keys claims Enter so the form forwards it here (where Update emits
 // SubmitRequestMsg) instead of treating it as next-field navigation, and
 // advertises it as "enter save".
-func (m Model) Chords() []keymap.Group {
+func (m Model) Keys() []keymap.Group {
 	return []keymap.Group{{{Binding: enterKey, Vis: keymap.Short}}}
 }

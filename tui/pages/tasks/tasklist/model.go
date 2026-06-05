@@ -240,15 +240,15 @@ func (m Model) Update(msg tea.Msg) (screen.Screen, tea.Cmd) {
 	return m, cmd
 }
 
-// Chords delegates to the query bar while it is capturing input;
+// Keys delegates to the query bar while it is capturing input;
 // otherwise it contributes the action columns plus list-navigation and
 // paging groups. Disabled action bindings are skipped by Resolve.
-func (m Model) Chords() []keymap.Group {
+func (m Model) Keys() []keymap.Group {
 	if m.query.CapturingInput() {
-		return m.query.Chords()
+		return m.query.Keys()
 	}
 	return slices.Concat(
-		m.KeyMap.Chords(),
+		m.KeyMap.Keys(),
 		[]keymap.Group{
 			{
 				{Binding: m.list.KeyMap.CursorUp, Vis: keymap.Short},

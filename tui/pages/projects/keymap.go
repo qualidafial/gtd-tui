@@ -32,10 +32,10 @@ func DefaultKeyMap() KeyMap {
 	}
 }
 
-// Chords exposes the project-list bindings as full-help columns; every
+// Keys exposes the project-list bindings as full-help columns; every
 // binding shows in both bars (Vis Short). Per-selection availability is
 // governed by SetEnabled, which Resolve and the help component honor.
-func (k KeyMap) Chords() []keymap.Group {
+func (k KeyMap) Keys() []keymap.Group {
 	return []keymap.Group{
 		{{Binding: k.FocusQuery, Vis: keymap.Short}},
 		{

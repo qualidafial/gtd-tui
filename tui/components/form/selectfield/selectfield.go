@@ -278,12 +278,12 @@ func (m Model[T]) Validate() (form.Field, error) {
 	return m, m.err
 }
 
-// Chords claims up/down (so the list moves the selection rather than the
+// Keys claims up/down (so the list moves the selection rather than the
 // form advancing fields) and the filter trigger, and advertises both. The
 // list's broader internal keymap (q, ?, page nav) is intentionally not
 // surfaced — it would shadow app/overlay bindings — but those keys still
 // reach the list via Update when pressed while focused.
-func (m Model[T]) Chords() []keymap.Group {
+func (m Model[T]) Keys() []keymap.Group {
 	g := keymap.Group{
 		{Binding: moveKey, Show: []string{"up", "down"}, Vis: keymap.Short},
 		{Binding: filterKey, Vis: keymap.Short},
@@ -292,7 +292,7 @@ func (m Model[T]) Chords() []keymap.Group {
 		// Claim Enter so the form forwards it to Update, which commits the
 		// selection (when not filtering) or applies the filter (when
 		// filtering) — instead of the form treating Enter as next-field.
-		g = append(g, keymap.Chord{Binding: submitKey, Vis: keymap.Short})
+		g = append(g, keymap.Binding{Binding: submitKey, Vis: keymap.Short})
 	}
 	return []keymap.Group{g}
 }

@@ -115,10 +115,10 @@ func (m *Model) updateKeybindings() {
 	m.KeyMap.Clarify.SetEnabled(selected)
 }
 
-// Chords contributes the inbox action group plus a list-navigation group.
+// Keys contributes the inbox action group plus a list-navigation group.
 // CursorUp/Down show in both bars; GoToStart/End in full help only.
-func (m Model) Chords() []keymap.Group {
-	return append(m.KeyMap.Chords(), keymap.Group{
+func (m Model) Keys() []keymap.Group {
+	return append(m.KeyMap.Keys(), keymap.Group{
 		{Binding: m.list.KeyMap.CursorUp, Vis: keymap.Short},
 		{Binding: m.list.KeyMap.CursorDown, Vis: keymap.Short},
 		{Binding: m.list.KeyMap.GoToStart, Vis: keymap.Full},

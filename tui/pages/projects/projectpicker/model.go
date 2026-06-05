@@ -139,14 +139,14 @@ func (m Model) View() string {
 
 func (m Model) CapturingInput() bool { return m.ready && !m.saving }
 
-// Chords returns nothing until the project list has loaded; afterward it
-// aggregates the form's resolved chords plus this screen's own esc
+// Keys returns nothing until the project list has loaded; afterward it
+// aggregates the form's resolved bindings plus this screen's own esc
 // binding (Resolve subtracts the overlay's duplicate esc).
-func (m Model) Chords() []keymap.Group {
+func (m Model) Keys() []keymap.Group {
 	if !m.ready {
 		return nil
 	}
-	return append(m.form.Chords(), keymap.Group{{Binding: keyBack, Vis: keymap.Short}})
+	return append(m.form.Keys(), keymap.Group{{Binding: keyBack, Vis: keymap.Short}})
 }
 
 type projectsLoadedMsg struct {

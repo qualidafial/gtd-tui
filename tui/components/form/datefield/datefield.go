@@ -188,10 +188,10 @@ func (m Model) Validate() (form.Field, error) {
 	return m, nil
 }
 
-// Chords returns no bindings: a datefield is a free-text input whose runes
+// Keys returns no bindings: a datefield is a free-text input whose runes
 // are consumed by the textinput while focused; it claims and advertises
 // nothing that collides with form navigation.
-func (m Model) Chords() []keymap.Group { return nil }
+func (m Model) Keys() []keymap.Group { return nil }
 
 // Parsing / formatting --------------------------------------------------------
 

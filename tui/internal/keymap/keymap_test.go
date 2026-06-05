@@ -9,10 +9,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// chord builds a Chord with the given visibility and an optional Show
+// binding builds a Binding with the given visibility and an optional Show
 // subset (nil ⇒ all keys).
-func chord(vis Vis, desc string, show []string, keys ...string) Chord {
-	return Chord{
+func binding(vis Vis, desc string, show []string, keys ...string) Binding {
+	return Binding{
 		Binding: key.NewBinding(key.WithKeys(keys...), key.WithHelp("", desc)),
 		Show:    show,
 		Vis:     vis,
@@ -37,8 +37,8 @@ func labels(groups []Group) []label {
 }
 
 func TestResolve_PartialShadowRelabels(t *testing.T) {
-	field := Group{chord(Short, "select", nil, "down")}
-	form := Group{chord(Short, "next", nil, "tab", "down")}
+	field := Group{binding(Short, "select", nil, "down")}
+	form := Group{binding(Short, "next", nil, "tab", "down")}
 
 	got := Resolve(nil, field, form)
 
@@ -48,9 +48,9 @@ func TestResolve_PartialShadowRelabels(t *testing.T) {
 	}, labels(got))
 }
 
-func TestResolve_FullShadowDropsChord(t *testing.T) {
-	inner := Group{chord(Short, "cancel", nil, "esc")}
-	overlay := Group{chord(Short, "back", nil, "esc")}
+func TestResolve_FullShadowDropsBinding(t *testing.T) {
+	inner := Group{binding(Short, "cancel", nil, "esc")}
+	overlay := Group{binding(Short, "back", nil, "esc")}
 
 	got := Resolve(nil, inner, overlay)
 
@@ -59,7 +59,7 @@ func TestResolve_FullShadowDropsChord(t *testing.T) {
 
 func TestResolve_HiddenAliasNeverSurfaced(t *testing.T) {
 	// Keys{j,down}, Show{down}: j routes but never displays.
-	field := Group{chord(Short, "move", []string{"down"}, "j", "down")}
+	field := Group{binding(Short, "move", []string{"down"}, "j", "down")}
 
 	got := Resolve(nil, field)
 
@@ -70,9 +70,9 @@ func TestResolve_HiddenAliasNeverSurfaced(t *testing.T) {
 }
 
 func TestResolve_ClaimAccumulatesAcrossGroups(t *testing.T) {
-	field := Group{chord(Short, "select", nil, "down")}
-	form := Group{chord(Short, "next", nil, "tab", "down")}
-	overlay := Group{chord(Short, "scroll", nil, "down")}
+	field := Group{binding(Short, "select", nil, "down")}
+	form := Group{binding(Short, "next", nil, "tab", "down")}
+	overlay := Group{binding(Short, "scroll", nil, "down")}
 
 	got := Resolve(nil, field, form, overlay)
 
@@ -84,25 +84,25 @@ func TestResolve_ClaimAccumulatesAcrossGroups(t *testing.T) {
 	}, labels(got))
 }
 
-func TestResolve_DisabledChordClaimsAndShowsNothing(t *testing.T) {
+func TestResolve_DisabledBindingClaimsAndShowsNothing(t *testing.T) {
 	disabled := key.NewBinding(key.WithKeys("down"), key.WithHelp("", "select"))
 	disabled.SetEnabled(false)
 	field := Group{{Binding: disabled, Vis: Short}}
-	form := Group{chord(Short, "next", nil, "tab", "down")}
+	form := Group{binding(Short, "next", nil, "tab", "down")}
 
 	got := Resolve(nil, field, form)
 
-	// Disabled field chord neither displays nor claims; form keeps down.
+	// Disabled field binding neither displays nor claims; form keeps down.
 	assert.Equal(t, []label{{"tab/↓", "next"}}, labels(got))
 }
 
 func TestResolve_RouteOnlyClaimsButNeverDisplays(t *testing.T) {
-	field := Group{chord(RouteOnly, "select", nil, "down")}
-	form := Group{chord(Short, "next", nil, "tab", "down")}
+	field := Group{binding(RouteOnly, "select", nil, "down")}
+	form := Group{binding(Short, "next", nil, "tab", "down")}
 
 	got := Resolve(nil, field, form)
 
-	// RouteOnly field chord claims down (removed from form) but is itself
+	// RouteOnly field binding claims down (removed from form) but is itself
 	// never displayed in either help bar.
 	short := ShortHelp(got)
 	require.Len(t, short, 1)
@@ -111,8 +111,8 @@ func TestResolve_RouteOnlyClaimsButNeverDisplays(t *testing.T) {
 }
 
 func TestResolve_NonMutation(t *testing.T) {
-	field := Group{chord(Short, "select", nil, "down")}
-	form := Group{chord(Short, "next", nil, "tab", "down")}
+	field := Group{binding(Short, "select", nil, "down")}
+	form := Group{binding(Short, "next", nil, "tab", "down")}
 
 	before := labels([]Group{field, form})
 	_ = Resolve(nil, field, form)
@@ -123,9 +123,9 @@ func TestResolve_NonMutation(t *testing.T) {
 }
 
 func TestResolve_GroupOrderPreserved(t *testing.T) {
-	g1 := Group{chord(Short, "a", nil, "a")}
-	g2 := Group{chord(Short, "b", nil, "b")}
-	g3 := Group{chord(Short, "c", nil, "c")}
+	g1 := Group{binding(Short, "a", nil, "a")}
+	g2 := Group{binding(Short, "b", nil, "b")}
+	g3 := Group{binding(Short, "c", nil, "c")}
 
 	got := Resolve(nil, g1, g2, g3)
 
@@ -137,9 +137,9 @@ func TestResolve_GroupOrderPreserved(t *testing.T) {
 
 func TestProjections_ShortFiltersAndFlattens(t *testing.T) {
 	g := Group{
-		chord(Short, "short", nil, "a"),
-		chord(Full, "full", nil, "b"),
-		chord(RouteOnly, "route", nil, "c"),
+		binding(Short, "short", nil, "a"),
+		binding(Full, "full", nil, "b"),
+		binding(RouteOnly, "route", nil, "c"),
 	}
 	resolved := Resolve(nil, g)
 
@@ -149,12 +149,12 @@ func TestProjections_ShortFiltersAndFlattens(t *testing.T) {
 }
 
 func TestProjections_FullKeepsGroupsAndShortPlusFull(t *testing.T) {
-	g1 := Group{chord(Short, "short", nil, "a"), chord(Full, "full", nil, "b")}
-	g2 := Group{chord(RouteOnly, "route", nil, "c")}
+	g1 := Group{binding(Short, "short", nil, "a"), binding(Full, "full", nil, "b")}
+	g2 := Group{binding(RouteOnly, "route", nil, "c")}
 	resolved := Resolve(nil, g1, g2)
 
 	full := FullHelp(resolved)
-	// g2 has only a RouteOnly chord → no row.
+	// g2 has only a RouteOnly binding → no row.
 	require.Len(t, full, 1)
 	require.Len(t, full[0], 2)
 	assert.Equal(t, "short", full[0][0].Help().Desc)
@@ -162,7 +162,7 @@ func TestProjections_FullKeepsGroupsAndShortPlusFull(t *testing.T) {
 }
 
 func TestProjections_RouteOnlyExcludedFromBoth(t *testing.T) {
-	g := Group{chord(RouteOnly, "route", nil, "a")}
+	g := Group{binding(RouteOnly, "route", nil, "a")}
 	resolved := Resolve(nil, g)
 
 	assert.Empty(t, ShortHelp(resolved))
@@ -172,10 +172,10 @@ func TestProjections_RouteOnlyExcludedFromBoth(t *testing.T) {
 // stubMap adapts groups to the Map interface for Handles tests.
 type stubMap struct{ groups []Group }
 
-func (s stubMap) Chords() []Group { return s.groups }
+func (s stubMap) Keys() []Group { return s.groups }
 
 func TestHandles_MatchByCompleteKeysInclHiddenAlias(t *testing.T) {
-	child := stubMap{groups: []Group{{chord(Short, "move", []string{"down"}, "j", "down")}}}
+	child := stubMap{groups: []Group{{binding(Short, "move", []string{"down"}, "j", "down")}}}
 
 	// Hidden alias j still routes.
 	assert.True(t, Handles(child, tea.KeyPressMsg{Code: 'j', Text: "j"}))
@@ -191,11 +191,11 @@ func TestHandles_DisabledReturnsFalse(t *testing.T) {
 	assert.False(t, Handles(child, tea.KeyPressMsg{Code: tea.KeyDown}))
 }
 
-func TestHandles_DepthViaAggregatedChords(t *testing.T) {
+func TestHandles_DepthViaAggregatedKeys(t *testing.T) {
 	// Simulate an aggregated subtree: field group first, then parent group.
 	child := stubMap{groups: []Group{
-		{chord(Short, "help", nil, "?")},
-		{chord(Short, "next", nil, "tab")},
+		{binding(Short, "help", nil, "?")},
+		{binding(Short, "next", nil, "tab")},
 	}}
 
 	assert.True(t, Handles(child, tea.KeyPressMsg{Code: '?', Text: "?"}))

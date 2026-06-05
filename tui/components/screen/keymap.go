@@ -10,10 +10,10 @@ type KeyMap struct {
 	Back key.Binding
 }
 
-// Chords exposes the overlay's esc/back binding. When the inner subtree
-// already claims esc, Resolve subtracts this chord so esc is not
+// Keys exposes the overlay's esc/back binding. When the inner subtree
+// already claims esc, Resolve subtracts this binding so esc is not
 // double-listed.
-func (k KeyMap) Chords() []keymap.Group {
+func (k KeyMap) Keys() []keymap.Group {
 	return []keymap.Group{{{Binding: k.Back, Vis: keymap.Short}}}
 }
 

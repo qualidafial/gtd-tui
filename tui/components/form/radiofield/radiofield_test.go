@@ -120,9 +120,9 @@ func TestSelectedAndUnselectedOptionsStyledDifferently(t *testing.T) {
 	assert.Contains(t, v, "  Project  ")
 }
 
-func TestChordsAdvertiseArrowBinding(t *testing.T) {
+func TestKeysAdvertiseArrowBinding(t *testing.T) {
 	m := radiofield.New("kind", "Kind", sample())
-	groups := m.Chords()
+	groups := m.Keys()
 	require.NotEmpty(t, groups)
 	require.NotEmpty(t, groups[0])
 	c := groups[0][0]

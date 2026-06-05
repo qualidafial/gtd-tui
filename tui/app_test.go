@@ -17,7 +17,7 @@ type stubScreen struct{}
 func (s stubScreen) Init() tea.Cmd                           { return nil }
 func (s stubScreen) Update(tea.Msg) (screen.Screen, tea.Cmd) { return s, nil }
 func (s stubScreen) View() string                            { return "" }
-func (s stubScreen) Chords() []keymap.Group                  { return nil }
+func (s stubScreen) Keys() []keymap.Group                    { return nil }
 func (s stubScreen) CapturingInput() bool                    { return false }
 
 func newTestModel() Model {

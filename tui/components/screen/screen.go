@@ -12,8 +12,8 @@ type Screen interface {
 	Update(msg tea.Msg) (Screen, tea.Cmd)
 	View() string
 
-	// keymap.Map: Chords() returns the screen's keybindings already
-	// aggregated (a composite concatenates its focused child's Chords ahead
+	// keymap.Map: Keys() returns the screen's keybindings already
+	// aggregated (a composite concatenates its focused child's Keys ahead
 	// of its own), the single source for both routing and resolved help.
 	keymap.Map
 }
@@ -58,7 +58,7 @@ type dismissed struct{}
 func (dismissed) Init() tea.Cmd                    { return nil }
 func (dismissed) Update(tea.Msg) (Screen, tea.Cmd) { return dismissed{}, nil }
 func (dismissed) View() string                     { return "" }
-func (dismissed) Chords() []keymap.Group           { return nil }
+func (dismissed) Keys() []keymap.Group             { return nil }
 
 // Dismiss returns the no-op dismissed sentinel plus the cmd that signals the
 // parent to pop this overlay. Optional extras are batched with the dispatch.

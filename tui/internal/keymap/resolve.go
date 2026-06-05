@@ -5,13 +5,13 @@ import (
 	tea "charm.land/bubbletea/v2"
 )
 
-// Handles reports whether any enabled chord across all groups of
-// child.Chords() (the child's aggregated subtree) matches msg, using each
-// chord's complete Keys() regardless of Vis or Show. Because child.Chords()
+// Handles reports whether any enabled binding across all groups of
+// child.Keys() (the child's aggregated subtree) matches msg, using each
+// binding's complete Keys() regardless of Vis or Show. Because child.Keys()
 // is aggregated, this delegates correctly at any nesting depth. Routing
 // does not go through the help-resolution pipeline.
 func Handles(child Map, msg tea.KeyPressMsg) bool {
-	for _, g := range child.Chords() {
+	for _, g := range child.Keys() {
 		for _, c := range g {
 			if !c.Enabled() {
 				continue
@@ -26,13 +26,13 @@ func Handles(child Map, msg tea.KeyPressMsg) bool {
 
 // Resolve produces priority-merged, relabeled help from the flat
 // priority-ordered group list. Processing groups left-to-right (highest
-// priority first), it removes from each chord's displayed keys any key in
+// priority first), it removes from each binding's displayed keys any key in
 // the cumulative claim — the union of every earlier group's enabled
-// chords' complete Keys() (regardless of Vis; RouteOnly chords still
-// claim). A chord whose displayed keys become empty is dropped; survivors
+// bindings' complete Keys() (regardless of Vis; RouteOnly bindings still
+// claim). A binding whose displayed keys become empty is dropped; survivors
 // have their label rebuilt from the residual keys via render (description
 // preserved) and retain their Vis. Empty groups are dropped and group
-// order is preserved. Disabled chords are skipped for both claiming and
+// order is preserved. Disabled bindings are skipped for both claiming and
 // display. Resolve never mutates caller inputs.
 func Resolve(render Render, groups ...Group) []Group {
 	if render == nil {
@@ -43,7 +43,7 @@ func Resolve(render Render, groups ...Group) []Group {
 
 	for _, g := range groups {
 		// Keys claimed by this group, applied to claimed only after the
-		// whole group is processed so chords within one group do not
+		// whole group is processed so bindings within one group do not
 		// shadow each other (a model's own groups are disjoint by
 		// convention; cumulative-by-earlier-group is the spec rule).
 		var groupClaim []string
@@ -64,7 +64,7 @@ func Resolve(render Render, groups ...Group) []Group {
 			if len(residual) == 0 {
 				continue
 			}
-			resolved = append(resolved, Chord{
+			resolved = append(resolved, Binding{
 				Binding: key.NewBinding(
 					key.WithKeys(c.Keys()...),
 					key.WithHelp(render(residual), c.Help().Desc),
@@ -85,12 +85,13 @@ func Resolve(render Render, groups ...Group) []Group {
 }
 
 // ShortHelp projects a resolved set into the short help bar: the resolved
-// groups flattened in priority order, keeping only Vis == Short chords,
-// emitted as relabeled key.Binding values. RouteOnly and dropped chords
+// groups flattened in priority order, keeping only Vis == Short bindings,
+// emitted as relabeled key.Binding values. RouteOnly and dropped bindings
 // are excluded.
-func ShortHelp(resolved []Group) []key.Binding {
+func ShortHelp(groups []Group) []key.Binding {
+	groups = Resolve(nil, groups...)
 	var out []key.Binding
-	for _, g := range resolved {
+	for _, g := range groups {
 		for _, c := range g {
 			if c.Vis == Short {
 				out = append(out, c.Binding)
@@ -101,12 +102,13 @@ func ShortHelp(resolved []Group) []key.Binding {
 }
 
 // FullHelp projects a resolved set into full help: one row per non-empty
-// group (group boundaries preserved), keeping Vis ∈ {Short, Full} chords,
-// emitted as relabeled key.Binding values. RouteOnly and dropped chords
+// group (group boundaries preserved), keeping Vis ∈ {Short, Full} bindings,
+// emitted as relabeled key.Binding values. RouteOnly and dropped bindings
 // are excluded.
-func FullHelp(resolved []Group) [][]key.Binding {
+func FullHelp(groups []Group) [][]key.Binding {
+	groups = Resolve(nil, groups...)
 	var out [][]key.Binding
-	for _, g := range resolved {
+	for _, g := range groups {
 		var row []key.Binding
 		for _, c := range g {
 			if c.Vis == Short || c.Vis == Full {

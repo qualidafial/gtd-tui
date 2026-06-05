@@ -35,7 +35,7 @@ type Field interface {
 	// return themselves unchanged.
 	SetWidth(int) Field
 
-	// Chords returns the field's complete consumed keybindings as the
+	// Keys returns the field's complete consumed keybindings as the
 	// single source for both routing (which keys the form must forward to
 	// this field instead of treating as navigation) and help. A field does
 	// not expose a separate curated routing list.

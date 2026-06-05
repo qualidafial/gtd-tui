@@ -149,12 +149,12 @@ func truncateToDay(t time.Time) time.Time {
 }
 
 type delegate struct {
-	keys      KeyMap
+	KeyMap    KeyMap
 	hasDarkBg bool
 }
 
 func newDelegate(keys KeyMap) *delegate {
-	return &delegate{keys: keys, hasDarkBg: true}
+	return &delegate{KeyMap: keys, hasDarkBg: true}
 }
 
 func (d *delegate) Height() int  { return 1 }
@@ -221,9 +221,9 @@ func (d *delegate) Render(w io.Writer, m list.Model, index int, item list.Item) 
 }
 
 func (d *delegate) ShortHelp() []key.Binding {
-	return []key.Binding{d.keys.New}
+	return []key.Binding{d.KeyMap.New}
 }
 
 func (d *delegate) FullHelp() [][]key.Binding {
-	return [][]key.Binding{{d.keys.New}}
+	return [][]key.Binding{{d.KeyMap.New}}
 }

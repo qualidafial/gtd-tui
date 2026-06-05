@@ -66,7 +66,7 @@ func TestNavigationDoesNothingWhenUnfocused(t *testing.T) {
 	assert.Equal(t, kindTask, got.SelectedValue(), "an unfocused selectfield must not consume keys")
 }
 
-func TestChordsAdvertiseFilterAndClaimArrows(t *testing.T) {
+func TestKeysAdvertiseFilterAndClaimArrows(t *testing.T) {
 	// Filtering is inherited from list.Model; we don't re-test bubbles'
 	// fuzzy-filter behavior here. The contract for selectfield is that the
 	// `/`-to-filter binding shows up in the form's help footer and that
@@ -78,7 +78,7 @@ func TestChordsAdvertiseFilterAndClaimArrows(t *testing.T) {
 	m := selectfield.New("fruit", "Fruit", opts)
 
 	var foundFilter, claimsUp, claimsDown bool
-	for _, g := range m.Chords() {
+	for _, g := range m.Keys() {
 		for _, c := range g {
 			for _, k := range c.Keys() {
 				switch k {
@@ -92,8 +92,8 @@ func TestChordsAdvertiseFilterAndClaimArrows(t *testing.T) {
 			}
 		}
 	}
-	assert.True(t, foundFilter, "selectfield Chords should expose the filter binding")
-	assert.True(t, claimsUp && claimsDown, "selectfield Chords should claim up/down")
+	assert.True(t, foundFilter, "selectfield Keys should expose the filter binding")
+	assert.True(t, claimsUp && claimsDown, "selectfield Keys should claim up/down")
 }
 
 func TestWithNonePrependsZeroValueOption(t *testing.T) {

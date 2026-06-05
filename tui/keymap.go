@@ -24,11 +24,11 @@ func DefaultKeyMap() KeyMap {
 	}
 }
 
-// Chords exposes the global bindings as the app's lowest-priority group.
+// Keys exposes the global bindings as the app's lowest-priority group.
 // Quit shows in both bars; Help appears in full help only (matching the
 // prior ShortHelp/FullHelp split). Help is disabled while the active
 // screen captures input, so it then claims and displays nothing.
-func (m KeyMap) Chords() []keymap.Group {
+func (m KeyMap) Keys() []keymap.Group {
 	return []keymap.Group{{
 		{Binding: m.Help, Vis: keymap.Full},
 		{Binding: m.Quit, Vis: keymap.Short},

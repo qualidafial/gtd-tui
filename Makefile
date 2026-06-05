@@ -5,7 +5,7 @@ install: test
 	go install ./cmd/gtd
 
 test:
-	go test ./... -count=1
+	go test ./...
 
 run: test
 	go run ./cmd/gtd

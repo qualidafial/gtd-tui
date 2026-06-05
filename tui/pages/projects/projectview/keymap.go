@@ -19,6 +19,6 @@ func DefaultKeyMap() KeyMap {
 	}
 }
 
-func (k KeyMap) Chords() []keymap.Group {
+func (k KeyMap) Keys() []keymap.Group {
 	return []keymap.Group{{{Binding: k.Edit, Vis: keymap.Short}}}
 }

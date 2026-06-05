@@ -136,9 +136,9 @@ func (m Model) Validate() (form.Field, error) {
 	return m, m.err
 }
 
-// Chords returns no bindings: a single-line text field consumes only
+// Keys returns no bindings: a single-line text field consumes only
 // free-text runes (handled by the textinput while focused) and the cursor
 // keys, none of which it advertises or needs to claim from form
 // navigation. Left/right cursor movement does not collide with the form's
 // tab/up/down navigation.
-func (m Model) Chords() []keymap.Group { return nil }
+func (m Model) Keys() []keymap.Group { return nil }

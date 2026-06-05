@@ -200,11 +200,11 @@ func titleStatus(s gtd.ProjectStatus) string {
 
 func (m Model) CapturingInput() bool { return m.err == nil && !m.saving }
 
-// Chords aggregates the form's resolved chords and appends this screen's
+// Keys aggregates the form's resolved bindings and appends this screen's
 // own esc binding as a trailing group; Resolve subtracts the overlay's
 // duplicate esc.
-func (m Model) Chords() []keymap.Group {
-	return append(m.form.Chords(), keymap.Group{{Binding: keyBack, Vis: keymap.Short}})
+func (m Model) Keys() []keymap.Group {
+	return append(m.form.Keys(), keymap.Group{{Binding: keyBack, Vis: keymap.Short}})
 }
 
 type projectSavedMsg struct {

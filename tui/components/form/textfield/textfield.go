@@ -164,4 +164,4 @@ func (m Model) Validate() (form.Field, error) {
 	return m, m.err
 }
 
-func (m Model) Chords() []keymap.Group { return m.KeyMap.Chords() }
+func (m Model) Keys() []keymap.Group { return m.KeyMap.Keys() }

@@ -46,12 +46,12 @@ func (o overlay) View() string {
 	return o.inner.View()
 }
 
-// Chords aggregates the inner screen's full subtree (highest priority)
+// Keys aggregates the inner screen's full subtree (highest priority)
 // ahead of the overlay's own esc binding. Resolve subtracts the overlay's
 // esc when the inner subtree already claims it, so the previous bespoke
 // hasEsc dedup is no longer needed.
-func (o overlay) Chords() []keymap.Group {
-	return slices.Concat(o.inner.Chords(), o.KeyMap.Chords())
+func (o overlay) Keys() []keymap.Group {
+	return slices.Concat(o.inner.Keys(), o.KeyMap.Keys())
 }
 
 func (o overlay) CapturingInput() bool {

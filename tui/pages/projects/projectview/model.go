@@ -152,6 +152,6 @@ func (m Model) CapturingInput() bool {
 	return screen.CapturingInput(m.tasks)
 }
 
-func (m Model) Chords() []keymap.Group {
-	return slices.Concat(m.KeyMap.Chords(), m.tasks.Chords())
+func (m Model) Keys() []keymap.Group {
+	return slices.Concat(m.KeyMap.Keys(), m.tasks.Keys())
 }
