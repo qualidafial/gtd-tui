@@ -13,6 +13,7 @@ import (
 	"github.com/qualidafial/gtd-tui/tui/components/screen"
 	"github.com/qualidafial/gtd-tui/tui/components/screen/screentest"
 	"github.com/qualidafial/gtd-tui/tui/pages/inbox/clarify"
+	"github.com/qualidafial/gtd-tui/tui/pages/inbox/clarify/doitnow"
 )
 
 type env struct {
@@ -80,9 +81,11 @@ func TestSingleTask_NotDoItNow_CommitsAndDismisses(t *testing.T) {
 	assert.Nil(t, tasks[0].ProjectID)
 }
 
-// TestSingleTask_DoItNow_PushesDoitnow: flip <2min radio to Yes, then
-// ctrl+s. The clarify path commits the task and pushes the doitnow overlay.
-func TestSingleTask_DoItNow_PushesDoitnow(t *testing.T) {
+// TestSingleTask_DoItNow_ReplacesWithDoitnow: flip <2min radio to Yes, then
+// ctrl+s. Single-task do-it-now is terminal, so the wizard commits the task
+// and replaces itself with the doitnow overlay (dismissing it exits straight
+// to the inbox rather than returning to the spent form).
+func TestSingleTask_DoItNow_ReplacesWithDoitnow(t *testing.T) {
 	e := setup(t)
 	ctx := t.Context()
 
@@ -102,15 +105,8 @@ func TestSingleTask_DoItNow_PushesDoitnow(t *testing.T) {
 	s = tab(t, s) // → under2Min
 	s = sendCode(t, s, tea.KeyRight)
 
-	var sawPush bool
-	for st, msg := range screentest.PumpSend(t, s, ctrlS()) {
-		s = st
-		if _, ok := msg.(screen.PushMsg); ok {
-			sawPush = true
-			break
-		}
-	}
-	require.True(t, sawPush, "do-it-now path should push the doitnow overlay")
+	s = screentest.Send(t, s, ctrlS())
+	assert.IsType(t, doitnow.Model{}, s, "single-task do-it-now should replace the wizard with the doitnow overlay")
 
 	tasks, err := e.taskSvc.ListTasks(ctx, gtd.TaskFilter{})
 	require.NoError(t, err)
@@ -218,6 +214,91 @@ func TestProject_FirstTask_EntersProjectLoop(t *testing.T) {
 	assert.Equal(t, "Sketch design", tasks[0].Title)
 	require.NotNil(t, tasks[0].ProjectID)
 	assert.Equal(t, projects[0].ID, *tasks[0].ProjectID)
+}
+
+// TestProject_DoItNow_LoopsAfterResult: the project do-it-now branch commits
+// the first task, pushes the doitnow overlay, and — once doitnow returns its
+// ResultMsg — rebuilds the per-task loop form. This guards the regression
+// where the wizard stayed in its saving state and dropped the ResultMsg,
+// leaving the form frozen until Esc.
+// driveProjectToDoItNow clarifies item as a project whose first task is flagged
+// do-it-now and commits, leaving the wizard on the pushed doitnow overlay. It
+// returns the settled wizard and the committed tasks.
+func driveProjectToDoItNow(t *testing.T, e env, item gtd.Item) (screen.Screen, []gtd.Task) {
+	t.Helper()
+
+	var s screen.Screen = clarify.New(item, e.inboxSvc, e.taskSvc)
+	s = screentest.Init(t, s)
+
+	// actionable=Yes (default). Walk to Project, set an outcome, flip the
+	// first task's <2min radio to Yes (do it now).
+	s = tab(t, s)                    // → multiStep
+	s = sendCode(t, s, tea.KeyRight) // → Project
+	s = tab(t, s)                    // → projectTitle (prefilled)
+	s = tab(t, s)                    // → projectOutcome
+	s = screentest.TypeText(t, s, "auth is modular")
+	s = tab(t, s)                    // → projectDesc
+	s = tab(t, s)                    // → taskTitle (prefilled)
+	s = tab(t, s)                    // → taskDesc
+	s = tab(t, s)                    // → under2Min
+	s = sendCode(t, s, tea.KeyRight) // → Yes (do it now)
+
+	// Commit. The wizard pushes doitnow (no app stack here, so the push is
+	// just a PushMsg in the stream); afterwards it must be out of its saving
+	// state and ready for the ResultMsg.
+	var sawPush bool
+	for st, msg := range screentest.PumpSend(t, s, ctrlS()) {
+		s = st
+		if _, ok := msg.(screen.PushMsg); ok {
+			sawPush = true
+		}
+	}
+	require.True(t, sawPush, "project do-it-now should push the doitnow overlay")
+
+	tasks, err := e.taskSvc.ListTasks(t.Context(), gtd.TaskFilter{})
+	require.NoError(t, err)
+	return s, tasks
+}
+
+// TestProject_DoItNow_CompletedLoops: completing the task at the do-it-now
+// prompt (enter) loops back to a fresh per-task form.
+func TestProject_DoItNow_CompletedLoops(t *testing.T) {
+	e := setup(t)
+	item, err := e.inboxSvc.Create(t.Context(), gtd.Item{Title: "Refactor auth"})
+	require.NoError(t, err)
+
+	s, tasks := driveProjectToDoItNow(t, e, item)
+	require.Len(t, tasks, 1)
+
+	// doitnow resolves with the task completed.
+	s = screentest.Send(t, s, doitnow.ResultMsg{TaskID: tasks[0].ID, Completed: true})
+	// The rebuilt loop form needs a size before it renders its fields.
+	s = screentest.Send(t, s, tea.WindowSizeMsg{Width: 80, Height: 24})
+
+	view := s.View()
+	assert.Contains(t, view, "Next task title", "wizard should rebuild the loop form after doitnow")
+	assert.Contains(t, view, "(done)", "completed first task should render as done")
+}
+
+// TestProject_DoItNow_LeftOpenDismisses: leaving the task open at the do-it-now
+// prompt (esc) exits the whole wizard back to the inbox instead of looping.
+func TestProject_DoItNow_LeftOpenDismisses(t *testing.T) {
+	e := setup(t)
+	item, err := e.inboxSvc.Create(t.Context(), gtd.Item{Title: "Refactor auth"})
+	require.NoError(t, err)
+
+	s, tasks := driveProjectToDoItNow(t, e, item)
+	require.Len(t, tasks, 1)
+
+	// doitnow resolves with the task left open: the wizard dismisses.
+	var dismissed bool
+	for st, msg := range screentest.PumpSend(t, s, doitnow.ResultMsg{TaskID: tasks[0].ID, Completed: false}) {
+		s = st
+		if _, ok := msg.(screen.DismissMsg); ok {
+			dismissed = true
+		}
+	}
+	assert.True(t, dismissed, "leaving the task open should dismiss the wizard")
 }
 
 // TestEsc_AtAnyTime_Dismisses: Esc is the wizard-level cancel; it dismisses

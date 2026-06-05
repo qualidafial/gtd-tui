@@ -411,10 +411,12 @@ func (m Model) handleClarifiedAsTask(msg clarifiedAsTaskMsg) (screen.Screen, tea
 		err := msg.err
 		return m, cmds.Emit(fmt.Errorf("clarify task: %w", err))
 	}
+	m.saving = false
 	if msg.under2Min {
-		// Push doitnow; on its result the wizard dismisses (single-task
-		// branch never loops).
-		return m, screen.Push(doitnow.New(msg.task, m.taskSvc))
+		// Single-task do-it-now is terminal. Replace the wizard with the
+		// doitnow overlay so dismissing it exits straight to the inbox
+		// rather than dropping back onto the spent clarify form.
+		return screen.Replace(doitnow.New(msg.task, m.taskSvc))
 	}
 	return screen.Dismiss()
 }
@@ -429,8 +431,10 @@ func (m Model) handleClarifiedAsProject(msg clarifiedAsProjectMsg) (screen.Scree
 	p := msg.project
 	m.committedProject = &p
 	m.committedTasks = append(m.committedTasks, msg.task)
+	m.saving = false
 	if msg.under2Min {
-		// doitnow runs first; after it resolves we rebuild the loop form.
+		// Project do-it-now loops: keep the wizard underneath so its
+		// ResultMsg can rebuild the loop form once doitnow resolves.
 		return m, screen.Push(doitnow.New(msg.task, m.taskSvc))
 	}
 	return m.enterProjectLoop()
@@ -444,6 +448,7 @@ func (m Model) handleProjectTaskCreated(msg projectTaskCreatedMsg) (screen.Scree
 		return m, cmds.Emit(fmt.Errorf("create project task: %w", err))
 	}
 	m.committedTasks = append(m.committedTasks, msg.task)
+	m.saving = false
 	if msg.under2Min {
 		return m, screen.Push(doitnow.New(msg.task, m.taskSvc))
 	}
@@ -451,12 +456,17 @@ func (m Model) handleProjectTaskCreated(msg projectTaskCreatedMsg) (screen.Scree
 }
 
 func (m Model) handleDoItNowResult(msg doitnow.ResultMsg) (screen.Screen, tea.Cmd) {
-	if n := len(m.committedTasks); n > 0 && msg.Completed {
+	if !msg.Completed {
+		// The user left the task open from the do-it-now prompt (esc): exit
+		// the whole wizard back to the inbox rather than continuing the loop.
+		return screen.Dismiss()
+	}
+	if n := len(m.committedTasks); n > 0 {
 		m.committedTasks[n-1].Status = gtd.TaskStatusDone
 	}
 	if m.committedProject != nil {
-		// In project context — keep looping regardless of completion. The
-		// user exits with Esc when they're done capturing tasks.
+		// Project context: the completed task loops back to a fresh per-task
+		// form so the user can capture the next next-action.
 		return m.enterProjectLoop()
 	}
 	return screen.Dismiss()
