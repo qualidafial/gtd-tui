@@ -110,8 +110,10 @@ func (m Model) Update(msg tea.Msg) (screen.Screen, tea.Cmd) {
 }
 
 func (m Model) View() string {
-	header := m.renderHeader()
-	return header + m.tasks.View()
+	return lipgloss.JoinVertical(lipgloss.Left,
+		m.renderHeader(),
+		m.tasks.View(),
+	)
 }
 
 func (m Model) renderHeader() string {
@@ -130,7 +132,7 @@ func (m Model) renderHeader() string {
 	}
 
 	lines = append(lines, "")
-	return strings.Join(lines, "\n") + "\n"
+	return strings.Join(lines, "\n")
 }
 
 func statusLabel(s gtd.ProjectStatus) string {
