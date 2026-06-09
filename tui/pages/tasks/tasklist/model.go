@@ -37,6 +37,7 @@ type Model struct {
 	svc           gtd.TaskService
 	pickerFn      PickerFactory
 	projectNameFn ProjectNameFunc
+	defaultQuery  string
 	filter        gtd.TaskFilter
 	query         querybar.Model
 	list          list.Model
@@ -91,6 +92,7 @@ func New(svc gtd.TaskService, query string, pickerFn PickerFactory, projectNameF
 		svc:           svc,
 		pickerFn:      pickerFn,
 		projectNameFn: projectNameFn,
+		defaultQuery:  query,
 		filter:        filter,
 		query:         qb,
 		list:          l,
@@ -188,6 +190,11 @@ func (m Model) Update(msg tea.Msg) (screen.Screen, tea.Cmd) {
 			var cmd tea.Cmd
 			m.query, cmd = m.query.Focus()
 			return m, cmd
+		case key.Matches(msg, m.KeyMap.ResetQuery):
+			m.query.SetValue(m.defaultQuery)
+			filter, _ := taskquery.Parse(m.defaultQuery)
+			m.filter = filter
+			return m, m.loadCmd()
 		case key.Matches(msg, m.KeyMap.New):
 			t := gtd.Task{
 				Status: gtd.TaskStatusOpen,
@@ -285,6 +292,10 @@ func (m *Model) updateKeybindings() {
 	}
 	m.KeyMap.ToggleComplete.SetHelp("space", label)
 	m.KeyMap.Project.SetEnabled(selected && m.pickerFn != nil)
+
+	// Revert-to-default is offered only when the live query differs from the
+	// seed; at the default it is a no-op and hidden.
+	m.KeyMap.ResetQuery.SetEnabled(m.query.Value() != m.defaultQuery)
 
 	// Drop is valid only for pending tasks: the service rejects dropping a
 	// done/dropped task (it must be reopened first).

@@ -27,6 +27,7 @@ type KeyMap struct {
 	MoveUp         key.Binding
 	MoveDown       key.Binding
 	FocusQuery     key.Binding
+	ResetQuery     key.Binding
 }
 
 func DefaultKeyMap() KeyMap {
@@ -39,6 +40,7 @@ func DefaultKeyMap() KeyMap {
 		MoveUp:         key.NewBinding(key.WithKeys("shift+up"), key.WithHelp("shift+↑", "move up")),
 		MoveDown:       key.NewBinding(key.WithKeys("shift+down"), key.WithHelp("shift+↓", "move down")),
 		FocusQuery:     key.NewBinding(key.WithKeys("/"), key.WithHelp("/", "filter")),
+		ResetQuery:     key.NewBinding(key.WithKeys("\\"), key.WithHelp("\\", "reset filter")),
 	}
 }
 
@@ -48,7 +50,10 @@ func DefaultKeyMap() KeyMap {
 // both bars (Vis Short).
 func (k KeyMap) Keys() []keymap.Group {
 	return []keymap.Group{
-		{{Binding: k.FocusQuery, Vis: keymap.Short}},
+		{
+			{Binding: k.FocusQuery, Vis: keymap.Short},
+			{Binding: k.ResetQuery, Vis: keymap.Short},
+		},
 		{
 			{Binding: k.New, Vis: keymap.Short},
 			{Binding: k.Edit, Vis: keymap.Short},

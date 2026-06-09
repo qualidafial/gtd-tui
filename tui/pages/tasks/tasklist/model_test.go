@@ -6,9 +6,99 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/qualidafial/gtd-tui"
+	"github.com/qualidafial/gtd-tui/service"
+	"github.com/qualidafial/gtd-tui/sqlite"
 	"github.com/qualidafial/gtd-tui/tui/components/screen"
 	"github.com/qualidafial/gtd-tui/tui/pages/tasks/taskstatus"
 )
+
+func openTestTaskSvc(t *testing.T) gtd.TaskService {
+	t.Helper()
+	db, err := sqlite.Open(":memory:")
+	if err != nil {
+		t.Fatalf("open db: %v", err)
+	}
+	t.Cleanup(func() { db.Close() })
+	return service.NewTaskService(db)
+}
+
+// applied returns a tasklist whose query bar holds a non-default applied query,
+// with the reset binding reconciled as it would be after a reload.
+func applied(svc gtd.TaskService, defaultQuery, applied string) Model {
+	m := New(svc, defaultQuery, nil, nil, false)
+	m.query.SetValue(applied)
+	m.updateKeybindings()
+	return m
+}
+
+func TestModel_ResetQuery_RevertsToDefaultAndReloads(t *testing.T) {
+	m := applied(openTestTaskSvc(t), "status:open ready:now", "status:done")
+
+	updated, cmd := m.Update(tea.KeyPressMsg{Code: '\\', Text: "\\"})
+	got := updated.(Model)
+	if v := got.query.Value(); v != "status:open ready:now" {
+		t.Fatalf("query after revert = %q, want default", v)
+	}
+	if cmd == nil {
+		t.Fatal("expected a reload cmd from revert")
+	}
+	if _, ok := cmd().(TasksLoadedMsg); !ok {
+		t.Fatal("revert cmd should reload tasks")
+	}
+}
+
+func TestModel_ResetQuery_EscAfterRevertRevertsToDefault(t *testing.T) {
+	m := applied(openTestTaskSvc(t), "status:open ready:now", "status:done")
+
+	reverted, _ := m.Update(tea.KeyPressMsg{Code: '\\', Text: "\\"})
+	// Focus then esc: esc reverts to the applied query, proving the revert
+	// recorded the default as the applied query.
+	focused, _ := reverted.(Model).Update(tea.KeyPressMsg{Code: '/', Text: "/"})
+	canceled, _ := focused.(Model).Update(tea.KeyPressMsg{Code: tea.KeyEscape})
+	if v := canceled.(Model).query.Value(); v != "status:open ready:now" {
+		t.Fatalf("query after esc = %q, want default", v)
+	}
+}
+
+func TestModel_ResetQuery_DisabledAtDefault(t *testing.T) {
+	m := New(openTestTaskSvc(t), "status:open ready:now", nil, nil, false)
+	if m.KeyMap.ResetQuery.Enabled() {
+		t.Fatal("ResetQuery should be disabled when query equals default")
+	}
+	// Pressing it is a no-op: no reload cmd, value unchanged.
+	updated, cmd := m.Update(tea.KeyPressMsg{Code: '\\', Text: "\\"})
+	if cmd != nil {
+		t.Fatal("revert at default should not issue a cmd")
+	}
+	if v := updated.(Model).query.Value(); v != "status:open ready:now" {
+		t.Fatalf("value changed at default: %q", v)
+	}
+}
+
+func TestModel_ResetQuery_InertWhileEditing(t *testing.T) {
+	m := New(openTestTaskSvc(t), "status:open ready:now", nil, nil, false)
+	focused, _ := m.Update(tea.KeyPressMsg{Code: '/', Text: "/"})
+	typed, _ := focused.(Model).Update(tea.KeyPressMsg{Code: '\\', Text: "\\"})
+	got := typed.(Model)
+	if !got.CapturingInput() {
+		t.Fatal("query bar should still be focused after typing backslash")
+	}
+	if v := got.query.Value(); v != "status:open ready:now \\" {
+		t.Fatalf("backslash not entered into query: %q", v)
+	}
+}
+
+func TestModel_ResetQuery_EmptyDefaultClears(t *testing.T) {
+	m := applied(openTestTaskSvc(t), "", "status:done")
+
+	updated, cmd := m.Update(tea.KeyPressMsg{Code: '\\', Text: "\\"})
+	if v := updated.(Model).query.Value(); v != "" {
+		t.Fatalf("query after revert = %q, want empty", v)
+	}
+	if cmd == nil {
+		t.Fatal("expected a reload cmd")
+	}
+}
 
 func TestModel_TasksLoaded_AppliesItems(t *testing.T) {
 	var svc gtd.TaskService = nil

@@ -181,6 +181,12 @@ func (m Model) Update(msg tea.Msg) (screen.Screen, tea.Cmd) {
 			m.query, cmd = m.query.Focus()
 			return m, cmd
 
+		case key.Matches(msg, m.KeyMap.ResetQuery):
+			m.query.SetValue(defaultProjectQuery)
+			filter, _ := projectquery.Parse(defaultProjectQuery)
+			m.filter = filter
+			return m, m.loadCmd()
+
 		case key.Matches(msg, m.KeyMap.New):
 			return m, screen.Push(projectedit.New(gtd.Project{}, m.svc, m.viewFactory()))
 
@@ -353,6 +359,10 @@ func (m *Model) updateKeybindings() {
 	m.KeyMap.ToggleComplete.SetEnabled(selected)
 	m.KeyMap.Drop.SetEnabled(open || someday)
 	m.KeyMap.Park.SetEnabled(open)
+
+	// Revert-to-default is offered only when the live query differs from the
+	// default; at the default it is a no-op and hidden.
+	m.KeyMap.ResetQuery.SetEnabled(m.query.Value() != defaultProjectQuery)
 
 	idx := m.list.Index()
 	m.KeyMap.MoveUp.SetEnabled(orderable && idx > 0 && isOrderable(m.list, idx-1))

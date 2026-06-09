@@ -76,6 +76,7 @@ Task list:
 | `p`        | Jump to project   |
 | `shift+↑/↓`| Reorder (within current filter) |
 | `/`        | Filter            |
+| `\`        | Reset filter      |
 
 Project list:
 
@@ -89,6 +90,7 @@ Project list:
 | `s`        | Park (set someday)|
 | `shift+↑/↓`| Reorder (within current filter) |
 | `/`        | Filter            |
+| `\`        | Reset filter      |
 
 ## Filter syntax
 

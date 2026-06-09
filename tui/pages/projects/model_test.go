@@ -224,6 +224,37 @@ func TestModel_QueryBar_FocusOnSlash(t *testing.T) {
 	}
 }
 
+func TestModel_QueryBar_ResetRevertsToDefaultAndReloads(t *testing.T) {
+	m := New(openTestSvc(t), nil, nil)
+	m.query.SetValue("status:someday")
+	m.updateKeybindings()
+
+	m2, cmd := sendKey(m, tea.KeyPressMsg{Code: '\\', Text: "\\"})
+	if got := m2.query.Value(); got != defaultProjectQuery {
+		t.Fatalf("query after revert = %q, want %q", got, defaultProjectQuery)
+	}
+	if cmd == nil {
+		t.Fatal("expected a reload cmd from revert")
+	}
+	if _, ok := cmd().(projectsLoadedMsg); !ok {
+		t.Fatal("revert cmd should reload projects")
+	}
+}
+
+func TestModel_QueryBar_ResetDisabledAtDefault(t *testing.T) {
+	m := New(openTestSvc(t), nil, nil)
+	if m.KeyMap.ResetQuery.Enabled() {
+		t.Fatal("ResetQuery should be disabled when query equals default")
+	}
+	m2, cmd := sendKey(m, tea.KeyPressMsg{Code: '\\', Text: "\\"})
+	if cmd != nil {
+		t.Fatal("revert at default should not issue a cmd")
+	}
+	if got := m2.query.Value(); got != defaultProjectQuery {
+		t.Fatalf("value changed at default: %q", got)
+	}
+}
+
 func TestModel_QueryBar_CancelReverts(t *testing.T) {
 	m := New(openTestSvc(t), nil, nil)
 	// focus
