@@ -5,9 +5,10 @@ A personal, single-user productivity app for terminal users, built around the
 projects, and notes live in one cross-linked, navigable interface — no app
 switching, no maintenance overhead, no friction between thinking and capturing.
 
-> Status: **early development.** The Tasks and Projects vertical slice is
-> usable; Inbox, References, Meetings, Comments, and Timelines are specified
-> but not yet implemented. See [Roadmap](#roadmap).
+> Status: **early development.** The Inbox, Tasks, and Projects vertical slice
+> is usable — capture, clarify, and the do-it-now flow all work. References,
+> Meetings, Comments, and Timelines are specified but not yet implemented. See
+> [Roadmap](#roadmap).
 
 ## Why
 
@@ -27,6 +28,24 @@ The product principles live in
 - **Timeline as context** — every entity has a chronological history.
 
 Out of scope: team collaboration, time tracking, calendar replacement.
+
+## Demo
+
+Capture an item, then clarify it into a next action:
+
+![Inbox capture and clarify](demo/inbox.gif)
+
+Browse, complete, and filter tasks:
+
+![Task list and query filter](demo/tasks.gif)
+
+Open a project to see its outcome and linked tasks:
+
+![Projects and project view](demo/projects.gif)
+
+The GIFs are recorded with [vhs](https://github.com/charmbracelet/vhs) from the
+tapes in [`demo/`](demo/), driven against a seeded throwaway database. See
+[Development](#development) to regenerate them.
 
 ## Install
 
@@ -51,7 +70,9 @@ gtd
 ```
 
 The database is created on first run at `$XDG_CONFIG_HOME/gtd/gtd.db` (typically
-`~/.config/gtd/gtd.db`). Migrations are applied automatically.
+`~/.config/gtd/gtd.db`). Migrations are applied automatically. Set `GTD_DB` to
+point at a different database file (used by the demo recordings to stay isolated
+from your real data).
 
 ## Keybindings
 
@@ -64,6 +85,17 @@ Global:
 | `shift+tab` | Previous tab  |
 | `esc`     | Back / cancel   |
 | `ctrl+c`  | Quit            |
+
+Inbox:
+
+| Key            | Action                       |
+| -------------- | ---------------------------- |
+| `+` / `insert` | Capture new item             |
+| `enter`        | Clarify selected item        |
+
+Items are write-once on capture; refinement happens inside the clarify wizard,
+which walks Discard / Incubate / ClarifyAsTask / ClarifyAsProject (including the
+do-it-now shortcut).
 
 Task list:
 
@@ -94,17 +126,32 @@ Project list:
 
 ## Filter syntax
 
-The `/` query bar accepts a small DSL for narrowing the visible list. Multiple
-clauses combine with AND; the last value for a repeated key wins.
+The `/` query bar accepts a small DSL for narrowing the visible list. Tokens
+are whitespace-separated. A `key:value` token with a recognized key sets a
+structured filter; any other token is a free-text term. Multiple structured
+clauses combine with AND, and the last value for a repeated key wins. Free-text
+terms are also ANDed — each must match the title, description, or assignee.
 
-Examples:
+Task list keys: `status`, `assignee`, `due`, `defer`, `ready`.
 
-- `status:open` — only open items (default)
-- `status:done` — completed items
-- `status:dropped` — dropped items
-- `status:someday` — parked projects
-- `due:2026-06-01` — items due on a specific date
-- `tomato` — free-text title match
+- `status:open` — open items (default); also `done`, `dropped`
+- `assignee:bob` — delegated to a given person
+- `due:today` — date-predicate; see forms below
+- `defer:1w` — hidden until a defer date
+- `ready:now` — available as of the current instant
+
+Project list keys: `status` (`open`, `someday`, `done`, `dropped`) plus
+free-text. There is no `kind` key; `kind:delegated` is treated as free text.
+
+Date-predicate values (`due`, `defer`, `ready`) accept:
+
+- `now` — the current instant (not rounded to a day)
+- relative: `-Nd` / `Nd` / `Nw` (`d`=days, `w`=weeks; leading `-` = past)
+- keyword: `overdue` (≡ `-1d`), `today` (≡ `0d`), `week` (≡ `7d`)
+- ISO date: `2026-06-01`
+- `none` / `any` — the unset / set variants (`due` and `defer` only)
+
+Examples: `status:open assignee:bob`, `due:overdue`, `ready:today tomato`.
 
 Invalid clauses are highlighted in the bar and don't apply until corrected.
 
@@ -141,6 +188,8 @@ structure](https://medium.com/@benbjohnson/structuring-applications-in-go-3b04be
 ```
 .                       Root package — domain types and service interfaces only
 ├── cmd/gtd/            CLI entry point
+├── cmd/gtd-seed/       Demo-database seeder (used by demo/generate.sh)
+├── demo/               VHS tapes and generated GIFs
 ├── service/            Cross-store orchestration (transactional)
 ├── sqlite/             SQLite implementation
 │   └── migrations/     Embedded SQL migrations, applied in order
@@ -162,7 +211,13 @@ are in [`openspec/specs/architecture/spec.md`](openspec/specs/architecture/spec.
 go test ./...        # full suite, uses in-memory SQLite
 go build ./...
 openspec validate --specs  # validate all specs
+./demo/generate.sh   # re-record the README GIFs (needs vhs, ttyd, ffmpeg)
 ```
+
+The demo GIFs are produced by [vhs](https://github.com/charmbracelet/vhs) from
+the tapes in `demo/`. `generate.sh` builds `gtd`, seeds a throwaway database via
+`cmd/gtd-seed`, and records each tape against it; install `vhs`, `ttyd`, and
+`ffmpeg` first.
 
 Specs are the source of truth. Behavioral changes start with a proposal under
 `openspec/changes/`; see existing changes for the format. The `opsx:propose` /
@@ -172,6 +227,8 @@ Specs are the source of truth. Behavioral changes start with a proposal under
 
 Implemented:
 
+- Inbox (Item capture, clarify wizard — Discard / Incubate / ClarifyAsTask /
+  ClarifyAsProject, including the do-it-now flow)
 - Tasks (CRUD, status transitions, ordering, filtering)
 - Projects (CRUD, status transitions including someday/park, ordering, filtering,
   project view with linked tasks, project picker overlay)
@@ -180,7 +237,6 @@ Implemented:
 
 Specified, not yet implemented (see [`openspec/changes/`](openspec/changes/)):
 
-- **Inbox** — Item entity + four clarify operations
 - **References** — Reference entity + FileAsReference
 - **Meetings** — Meeting + MeetingLink + AddActionItem
 - **Comments** — edit-with-comment + standalone comments

@@ -20,16 +20,16 @@ func main() {
 }
 
 func run() error {
-	dataDir, err := dataDir()
+	dbPath, err := dbPath()
 	if err != nil {
-		return fmt.Errorf("data dir: %w", err)
+		return fmt.Errorf("db path: %w", err)
 	}
 
-	if err := os.MkdirAll(dataDir, 0o700); err != nil {
+	if err := os.MkdirAll(filepath.Dir(dbPath), 0o700); err != nil {
 		return fmt.Errorf("create data dir: %w", err)
 	}
 
-	db, err := sqlite.Open(filepath.Join(dataDir, "gtd.db"))
+	db, err := sqlite.Open(dbPath)
 	if err != nil {
 		return fmt.Errorf("open db: %w", err)
 	}
@@ -51,10 +51,16 @@ func run() error {
 	return nil
 }
 
-func dataDir() (string, error) {
+// dbPath returns the SQLite database path. GTD_DB overrides the default
+// location, letting demos and tests run against an isolated database without
+// clobbering the user's real one.
+func dbPath() (string, error) {
+	if p := os.Getenv("GTD_DB"); p != "" {
+		return p, nil
+	}
 	dir, err := os.UserConfigDir()
 	if err != nil {
 		return "", err
 	}
-	return filepath.Join(dir, "gtd"), nil
+	return filepath.Join(dir, "gtd", "gtd.db"), nil
 }
