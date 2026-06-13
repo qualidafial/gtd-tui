@@ -52,7 +52,7 @@ func New(
 	}
 	pending := tasklist.New(taskSvc, "status:open ready:now", pickerFn, projectNameFn, true)
 	projectList := projects.New(projectSvc, taskSvc, pickerFn)
-	inboxPage := inbox.New(inboxSvc, taskSvc)
+	inboxPage := inbox.New(inboxSvc, taskSvc, projectSvc)
 
 	tabs := tabcontainer.New(
 		tabcontainer.Tab{Label: "Inbox", Screen: inboxPage},

@@ -148,7 +148,7 @@ The per-task wizard block SHALL ask questions in the following fixed order. The 
 2. `<2 minutes? do it now?` (Yes/No)
 3. (only if the previous answer was No) Doer: Me / Someone else
 4. (only if doer is Someone else) Assignee
-5. (single-task branch only) Belongs to an existing project? (Yes/No → project picker)
+5. (single-task branch only, and only when at least one open project exists) Project: an optional select of open projects with a `(none)` option, defaulting to `(none)` (standalone task). When shown it appears for every single task, including the sub-two-minute do-it-now path, and is independent of the `<2 min`/doer answers. When there are no open projects the field is omitted entirely.
 
 #### Scenario: Do-it-now skips delegate question
 - **WHEN** the user answers Yes to `<2 minutes?`
@@ -160,10 +160,42 @@ The per-task wizard block SHALL ask questions in the following fixed order. The 
 - **THEN** the wizard reveals an Assignee text field
 - **AND** the task is committed with the supplied Assignee
 
-#### Scenario: Existing-project attach uses the project picker
-- **WHEN** the user answers Yes to "Belongs to an existing project?" in the single-task branch
-- **THEN** the wizard reveals the existing project picker (no inline project creation)
-- **AND** the resulting task has `ProjectID` set to the chosen project
+#### Scenario: Existing-project attach uses an optional select
+- **GIVEN** at least one open project exists
+- **WHEN** the single-task branch runs
+- **THEN** the wizard shows a Project select listing the open projects plus a `(none)` option
+- **AND** the select defaults to `(none)`
+
+#### Scenario: Selecting a project sets ProjectID
+- **WHEN** the user picks an open project in the single-task branch
+- **THEN** the resulting task has `ProjectID` set to the chosen project
+- **AND** the wizard routes to `InboxService.ClarifyAsTask` unchanged
+
+#### Scenario: Leaving the select on none yields a standalone task
+- **WHEN** the user leaves the Project select on `(none)`
+- **THEN** the resulting task has a nil `ProjectID`
+
+#### Scenario: Do-it-now task can still belong to a project
+- **WHEN** the user marks a single task `<2 min` = Yes and also picks a project
+- **THEN** the task is committed open with the chosen `ProjectID`, the do-it-now prompt runs, and on confirm the task is completed via `TaskService.CompleteTask`
+
+#### Scenario: Attaching to an existing project does not start the project loop
+- **WHEN** the user attaches a single task to an existing project
+- **THEN** the wizard commits the one task and dismisses (or runs the do-it-now prompt) without entering the per-task project loop
+
+### Requirement: Clarify wizard loads open projects
+The clarify wizard SHALL load the list of open projects from ProjectService before presenting the single-task block, so the single-task branch's Project select can be populated. Until the projects have loaded the wizard SHALL show a loading indicator and SHALL NOT capture input.
+
+#### Scenario: Wizard loads open projects before the single-task block
+- **WHEN** the wizard opens
+- **THEN** it loads the open projects from ProjectService
+- **AND** shows a loading indicator until they are available
+- **AND** populates the single-task branch's Project select from the loaded list
+
+#### Scenario: No open projects hides the Project select
+- **WHEN** the wizard opens and there are no open projects
+- **THEN** the single-task branch does not show the Project select
+- **AND** a single task created from this branch is standalone
 
 ### Requirement: Wizard back-navigation collapses downstream state
 The wizard SHALL allow the user to move the cursor up to a previously-answered question and change its answer. When an answer is changed, all wizard state beneath that question SHALL be discarded.

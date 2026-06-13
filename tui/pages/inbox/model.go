@@ -23,9 +23,10 @@ var emptyStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("245")).Italic(tr
 // `+`/`insert` opens the capture overlay; `enter` on a selected item opens
 // the clarify wizard.
 type Model struct {
-	svc     gtd.InboxService
-	taskSvc gtd.TaskService
-	items   []gtd.Item
+	svc        gtd.InboxService
+	taskSvc    gtd.TaskService
+	projectSvc gtd.ProjectService
+	items      []gtd.Item
 	list    list.Model
 	KeyMap  KeyMap
 	width   int
@@ -34,7 +35,7 @@ type Model struct {
 
 type itemsLoadedMsg struct{ items []gtd.Item }
 
-func New(svc gtd.InboxService, taskSvc gtd.TaskService) Model {
+func New(svc gtd.InboxService, taskSvc gtd.TaskService, projectSvc gtd.ProjectService) Model {
 	keys := DefaultKeyMap()
 	l := list.New(nil, newDelegate(keys), 0, 0)
 	l.SetStatusBarItemName("item", "items")
@@ -43,7 +44,7 @@ func New(svc gtd.InboxService, taskSvc gtd.TaskService) Model {
 	l.DisableQuitKeybindings()
 	l.KeyMap.Filter.SetEnabled(false)
 
-	m := Model{svc: svc, taskSvc: taskSvc, list: l, KeyMap: keys}
+	m := Model{svc: svc, taskSvc: taskSvc, projectSvc: projectSvc, list: l, KeyMap: keys}
 	m.updateKeybindings()
 	return m
 }
@@ -91,7 +92,7 @@ func (m Model) Update(msg tea.Msg) (screen.Screen, tea.Cmd) {
 			if !ok {
 				return m, nil
 			}
-			return m, screen.Push(clarify.New(it.item, m.svc, m.taskSvc))
+			return m, screen.Push(clarify.New(it.item, m.svc, m.taskSvc, m.projectSvc))
 		}
 	}
 

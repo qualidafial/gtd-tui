@@ -31,6 +31,7 @@ import (
 	"github.com/qualidafial/gtd-tui/tui/components/form/inputfield"
 	"github.com/qualidafial/gtd-tui/tui/components/form/radiofield"
 	"github.com/qualidafial/gtd-tui/tui/components/form/savefield"
+	"github.com/qualidafial/gtd-tui/tui/components/form/selectfield"
 	"github.com/qualidafial/gtd-tui/tui/components/form/textfield"
 	"github.com/qualidafial/gtd-tui/tui/components/screen"
 	"github.com/qualidafial/gtd-tui/tui/internal/keymap"
@@ -56,12 +57,14 @@ const (
 )
 
 type Model struct {
-	item    gtd.Item
-	svc     gtd.InboxService
-	taskSvc gtd.TaskService
+	item       gtd.Item
+	svc        gtd.InboxService
+	taskSvc    gtd.TaskService
+	projectSvc gtd.ProjectService
 
 	phase phase
 	form  form.Model
+	ready bool
 
 	committedProject *gtd.Project
 	committedTasks   []gtd.Task
@@ -70,18 +73,20 @@ type Model struct {
 	err    error
 }
 
-func New(item gtd.Item, svc gtd.InboxService, taskSvc gtd.TaskService) Model {
-	m := Model{
-		item:    item,
-		svc:     svc,
-		taskSvc: taskSvc,
-		phase:   phaseInitial,
+func New(item gtd.Item, svc gtd.InboxService, taskSvc gtd.TaskService, projectSvc gtd.ProjectService) Model {
+	// The initial form is built once the open-project list loads (Init →
+	// loadProjectsCmd → projectsLoadedMsg), so the single-task branch's
+	// Project select can be populated.
+	return Model{
+		item:       item,
+		svc:        svc,
+		taskSvc:    taskSvc,
+		projectSvc: projectSvc,
+		phase:      phaseInitial,
 	}
-	m.form = buildInitialForm(item)
-	return m
 }
 
-func (m Model) Init() tea.Cmd { return m.form.Init() }
+func (m Model) Init() tea.Cmd { return m.loadProjectsCmd() }
 
 // -- form construction ------------------------------------------------------
 
@@ -98,6 +103,7 @@ const (
 	kProjectDesc  = "projectDesc"
 	kTaskTitle    = "taskTitle"
 	kTaskDesc     = "taskDesc"
+	kProject      = "project"
 	kUnder2Min    = "under2Min"
 	kDoer         = "doer"
 	kAssignee     = "assignee"
@@ -110,8 +116,9 @@ const (
 
 // buildInitialForm assembles the full clarify form with progressive
 // visibility predicates so each branch's questions reveal as the user
-// answers the parent radio.
-func buildInitialForm(item gtd.Item) form.Model {
+// answers the parent radio. openProjects populates the single-task
+// branch's optional Project select.
+func buildInitialForm(item gtd.Item, openProjects []gtd.Project) form.Model {
 	requireNonEmpty := func(label string) func(string) error {
 		return func(s string) error {
 			if strings.TrimSpace(s) == "" {
@@ -219,6 +226,25 @@ func buildInitialForm(item gtd.Item) form.Model {
 		}),
 	)
 
+	// Single-task branch only: an optional select to attach the task to an
+	// existing open project. Defaults to "(none)" (standalone). Shown for
+	// every single task regardless of the <2 min / doer answers, and never
+	// in the project branch (the first task auto-attaches to the new project)
+	// nor when there are no open projects to attach to.
+	hasProjects := len(openProjects) > 0
+	projectOpts := make([]selectfield.Option[int64], 0, len(openProjects))
+	for _, p := range openProjects {
+		projectOpts = append(projectOpts, selectfield.Option[int64]{Display: p.Title, Value: p.ID})
+	}
+	project := selectfield.New(kProject, "Project", projectOpts,
+		selectfield.WithNone[int64]("(none)"),
+		selectfield.WithVisible[int64](func(v form.Values) bool {
+			actYes, _ := v.Get(kActionable).(bool)
+			multi, _ := v.Get(kMultiStep).(bool)
+			return hasProjects && actYes && !multi
+		}),
+	)
+
 	saveTask := savefield.New(kSaveTask, savefield.WithLabel("Create task"),
 		savefield.WithVisible(func(v form.Values) bool {
 			got, _ := v.Get(kMultiStep).(bool)
@@ -239,7 +265,7 @@ func buildInitialForm(item gtd.Item) form.Model {
 		nonAct, somedayTitle, somedayDesc, saveDiscard, saveSomeday,
 		multiStep,
 		projectTitle, projectOutcome, projectDesc,
-		taskTitle, taskDesc, under2Min, doer, assignee,
+		taskTitle, taskDesc, under2Min, doer, assignee, project,
 		saveTask, saveProject,
 	)
 }
@@ -302,6 +328,13 @@ func (m Model) Update(msg tea.Msg) (screen.Screen, tea.Cmd) {
 
 	if m.saving {
 		return m.handleSavingMsg(msg)
+	}
+
+	if !m.ready {
+		if msg, ok := msg.(projectsLoadedMsg); ok {
+			return m.handleProjectsLoaded(msg)
+		}
+		return m, nil
 	}
 
 	switch msg := msg.(type) {
@@ -383,6 +416,19 @@ func (m Model) handleSubmitted() (screen.Screen, tea.Cmd) {
 }
 
 // -- result handlers --------------------------------------------------------
+
+// handleProjectsLoaded builds the initial form once the open-project list
+// is available and unblocks input. A load failure surfaces via the error
+// path; the wizard stays on the loading view until dismissed.
+func (m Model) handleProjectsLoaded(msg projectsLoadedMsg) (screen.Screen, tea.Cmd) {
+	if msg.err != nil {
+		m.err = msg.err
+		return m, cmds.Emit(fmt.Errorf("load projects: %w", msg.err))
+	}
+	m.form = buildInitialForm(m.item, msg.projects)
+	m.ready = true
+	return m, m.form.Init()
+}
 
 func (m Model) handleDiscarded(msg discardedMsg) (screen.Screen, tea.Cmd) {
 	if msg.err != nil {
@@ -482,6 +528,22 @@ func (m Model) enterProjectLoop() (screen.Screen, tea.Cmd) {
 }
 
 // -- save cmds --------------------------------------------------------------
+
+type projectsLoadedMsg struct {
+	projects []gtd.Project
+	err      error
+}
+
+func (m Model) loadProjectsCmd() tea.Cmd {
+	svc := m.projectSvc
+	return func() tea.Msg {
+		projects, err := svc.ListProjects(context.Background(), gtd.ProjectFilter{}.WithStatus(gtd.ProjectStatusOpen))
+		if err != nil {
+			slog.Error("load projects: " + err.Error())
+		}
+		return projectsLoadedMsg{projects: projects, err: err}
+	}
+}
 
 type discardedMsg struct {
 	item gtd.Item
@@ -600,12 +662,36 @@ func taskFromVals(vals map[string]any) gtd.Task {
 			task.Assignee = &a
 		}
 	}
+	// The project select is present only in the single-task branch of the
+	// initial form. When absent (loop form) or left on "(none)" the value is
+	// the zero int64, leaving the task standalone.
+	if pid, _ := vals[kProject].(int64); pid != 0 {
+		task.ProjectID = new(pid)
+	}
 	return task
 }
 
 // -- rendering --------------------------------------------------------------
 
 func (m Model) View() string {
+	if !m.ready {
+		var loading []string
+		loading = append(loading, headerStyle.Render(m.item.Title))
+		if m.item.Description != "" {
+			loading = append(loading, itemDescStyle.Render(m.item.Description))
+		}
+		loading = append(loading, "")
+		if m.err != nil {
+			loading = append(loading,
+				errStyle.Render(m.err.Error()),
+				hintStyle.Render("press esc to dismiss"),
+			)
+		} else {
+			loading = append(loading, hintStyle.Render("Loading projects…"))
+		}
+		return lipgloss.JoinVertical(lipgloss.Left, loading...)
+	}
+
 	var sections []string
 
 	sections = append(sections, headerStyle.Render(m.item.Title))
@@ -641,11 +727,14 @@ func (m Model) View() string {
 	return lipgloss.JoinVertical(lipgloss.Left, sections...)
 }
 
-func (m Model) CapturingInput() bool { return m.err == nil && !m.saving }
+func (m Model) CapturingInput() bool { return m.ready && m.err == nil && !m.saving }
 
 // Keys aggregates the form's resolved bindings and appends this screen's
 // own esc binding as a trailing group; Resolve subtracts the overlay's
 // duplicate esc.
 func (m Model) Keys() []keymap.Group {
+	if !m.ready {
+		return nil
+	}
 	return append(m.form.Keys(), keymap.Group{{Binding: keyBack, Vis: keymap.Short}})
 }
