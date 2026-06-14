@@ -7,7 +7,9 @@ import (
 )
 
 type KeyMap struct {
-	Edit key.Binding
+	Edit          key.Binding
+	LinkTask      key.Binding
+	ConvertToTask key.Binding
 }
 
 func DefaultKeyMap() KeyMap {
@@ -16,9 +18,21 @@ func DefaultKeyMap() KeyMap {
 			key.WithKeys("e"),
 			key.WithHelp("e", "edit"),
 		),
+		LinkTask: key.NewBinding(
+			key.WithKeys("l"),
+			key.WithHelp("l", "link task"),
+		),
+		ConvertToTask: key.NewBinding(
+			key.WithKeys("c"),
+			key.WithHelp("c", "convert to task"),
+		),
 	}
 }
 
 func (k KeyMap) Keys() []keymap.Group {
-	return []keymap.Group{{{Binding: k.Edit, Vis: keymap.Short}}}
+	return []keymap.Group{{
+		{Binding: k.Edit, Vis: keymap.Short},
+		{Binding: k.LinkTask, Vis: keymap.Short},
+		{Binding: k.ConvertToTask, Vis: keymap.Short},
+	}}
 }

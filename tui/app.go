@@ -17,6 +17,7 @@ import (
 	"github.com/qualidafial/gtd-tui/tui/pages/inbox"
 	"github.com/qualidafial/gtd-tui/tui/pages/projects"
 	"github.com/qualidafial/gtd-tui/tui/pages/projects/projectpicker"
+	"github.com/qualidafial/gtd-tui/tui/pages/tasks/taskconvert"
 	"github.com/qualidafial/gtd-tui/tui/pages/tasks/tasklist"
 )
 
@@ -42,6 +43,9 @@ func New(
 	pickerFn := func(task gtd.Task) screen.Screen {
 		return projectpicker.New(task, taskSvc, projectSvc)
 	}
+	convertFn := func(task gtd.Task) screen.Screen {
+		return taskconvert.New(task, projectSvc)
+	}
 	projectNameFn := func(id int64) string {
 		p, err := projectSvc.GetProject(context.Background(), id)
 		if err != nil {
@@ -50,7 +54,7 @@ func New(
 		}
 		return p.Title
 	}
-	pending := tasklist.New(taskSvc, "status:open ready:now", pickerFn, projectNameFn, true)
+	pending := tasklist.New(taskSvc, "status:open ready:now", pickerFn, convertFn, projectNameFn, true)
 	projectList := projects.New(projectSvc, taskSvc, pickerFn)
 	inboxPage := inbox.New(inboxSvc, taskSvc, projectSvc)
 

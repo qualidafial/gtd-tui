@@ -19,28 +19,30 @@ import (
 // list's own (dynamically enabled) navigation bindings, and editing, when
 // non-nil, delegates the advertised bindings to the query bar.
 type KeyMap struct {
-	New            key.Binding
-	Edit           key.Binding
-	Project        key.Binding
-	ToggleComplete key.Binding
-	Drop           key.Binding
-	MoveUp         key.Binding
-	MoveDown       key.Binding
-	FocusQuery     key.Binding
-	ResetQuery     key.Binding
+	New              key.Binding
+	Edit             key.Binding
+	AssignToProject  key.Binding
+	ConvertToProject key.Binding
+	ToggleComplete   key.Binding
+	Drop             key.Binding
+	MoveUp           key.Binding
+	MoveDown         key.Binding
+	FocusQuery       key.Binding
+	ResetQuery       key.Binding
 }
 
 func DefaultKeyMap() KeyMap {
 	return KeyMap{
-		New:            key.NewBinding(key.WithKeys("+", "insert"), key.WithHelp("+/insert", "new task")),
-		Edit:           key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "edit")),
-		Project:        key.NewBinding(key.WithKeys("p"), key.WithHelp("p", "project")),
-		ToggleComplete: key.NewBinding(key.WithKeys("space"), key.WithHelp("space", "complete")),
-		Drop:           key.NewBinding(key.WithKeys("delete"), key.WithHelp("delete", "drop task")),
-		MoveUp:         key.NewBinding(key.WithKeys("shift+up"), key.WithHelp("shift+↑", "move up")),
-		MoveDown:       key.NewBinding(key.WithKeys("shift+down"), key.WithHelp("shift+↓", "move down")),
-		FocusQuery:     key.NewBinding(key.WithKeys("/"), key.WithHelp("/", "filter")),
-		ResetQuery:     key.NewBinding(key.WithKeys("\\"), key.WithHelp("\\", "reset filter")),
+		New:              key.NewBinding(key.WithKeys("+", "insert"), key.WithHelp("+/insert", "new task")),
+		Edit:             key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "edit")),
+		AssignToProject:  key.NewBinding(key.WithKeys("p"), key.WithHelp("p", "assign to project")),
+		ConvertToProject: key.NewBinding(key.WithKeys("c"), key.WithHelp("c", "convert to project")),
+		ToggleComplete:   key.NewBinding(key.WithKeys("space"), key.WithHelp("space", "complete")),
+		Drop:             key.NewBinding(key.WithKeys("delete"), key.WithHelp("delete", "drop task")),
+		MoveUp:           key.NewBinding(key.WithKeys("shift+up"), key.WithHelp("shift+↑", "move up")),
+		MoveDown:         key.NewBinding(key.WithKeys("shift+down"), key.WithHelp("shift+↓", "move down")),
+		FocusQuery:       key.NewBinding(key.WithKeys("/"), key.WithHelp("/", "filter")),
+		ResetQuery:       key.NewBinding(key.WithKeys("\\"), key.WithHelp("\\", "reset filter")),
 	}
 }
 
@@ -57,7 +59,8 @@ func (k KeyMap) Keys() []keymap.Group {
 		{
 			{Binding: k.New, Vis: keymap.Short},
 			{Binding: k.Edit, Vis: keymap.Short},
-			{Binding: k.Project, Vis: keymap.Short},
+			{Binding: k.AssignToProject, Vis: keymap.Short},
+			{Binding: k.ConvertToProject, Vis: keymap.Short},
 			{Binding: k.ToggleComplete, Vis: keymap.Short},
 			{Binding: k.Drop, Vis: keymap.Short},
 		},

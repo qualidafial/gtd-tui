@@ -60,4 +60,16 @@ func (s *ProjectService) CountTasksByProjects(ctx context.Context, projectIDs []
 	return s.db.CountTasksByProjects(ctx, projectIDs)
 }
 
+func (s *ProjectService) ConvertTaskToProject(ctx context.Context, taskID int64, project gtd.Project, reframed gtd.Task) (gtd.Project, gtd.Task, error) {
+	return s.db.ConvertTaskToProject(ctx, taskID, project, reframed)
+}
+
+func (s *ProjectService) ConvertProjectToTask(ctx context.Context, projectID int64) (gtd.Task, error) {
+	return s.db.ConvertProjectToTask(ctx, projectID)
+}
+
+func (s *ProjectService) LinkTaskToProject(ctx context.Context, taskID, projectID int64) (gtd.Task, error) {
+	return s.db.LinkTaskToProject(ctx, taskID, projectID)
+}
+
 var _ gtd.ProjectService = (*ProjectService)(nil)

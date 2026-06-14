@@ -106,6 +106,7 @@ Task list:
 | `space`    | Toggle complete   |
 | `delete`   | Drop task         |
 | `p`        | Jump to project   |
+| `c`        | Convert to project (standalone tasks only) |
 | `shift+↑/↓`| Reorder (within current filter) |
 | `/`        | Filter            |
 | `\`        | Reset filter      |
@@ -117,12 +118,24 @@ Project list:
 | `+` / `insert` | New project   |
 | `e`        | Edit project      |
 | `enter`    | Open project view |
+| `c`        | Convert to task (empty open projects only) |
 | `space`    | Toggle complete   |
 | `delete`   | Drop project      |
 | `s`        | Park (set someday)|
 | `shift+↑/↓`| Reorder (within current filter) |
 | `/`        | Filter            |
 | `\`        | Reset filter      |
+
+Project view:
+
+| Key     | Action                                      |
+| ------- | ------------------------------------------- |
+| `e`     | Edit project                                |
+| `l`     | Link an existing standalone task into the project |
+| `c`     | Convert to task (empty open projects only)  |
+
+Linking a task into a `someday` project removes it from the default task views
+until the project is reopened — the task's status is unchanged.
 
 ## Filter syntax
 
@@ -232,6 +245,8 @@ Implemented:
 - Tasks (CRUD, status transitions, ordering, filtering)
 - Projects (CRUD, status transitions including someday/park, ordering, filtering,
   project view with linked tasks, project picker overlay)
+- Task/project restructuring (convert a standalone task into a project, collapse
+  an empty open project back into a task, link an existing task into a project)
 - Shared query bar with live-preview validation
 - TUI view stack with overlay support
 

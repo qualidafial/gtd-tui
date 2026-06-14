@@ -151,6 +151,20 @@ func (d *DB) UpdateProject(ctx context.Context, project gtd.Project) (gtd.Projec
 	return project, nil
 }
 
+// DeleteProject removes a project row. Callers are responsible for ensuring no
+// tasks reference it; ConvertProjectToTask guards this by requiring the project
+// to be empty.
+func (d *DB) DeleteProject(ctx context.Context, id int64) error {
+	query, args, err := sq.Delete("projects").Where(sq.Eq{"id": id}).ToSql()
+	if err != nil {
+		return err
+	}
+	if _, err := d.db.ExecContext(ctx, query, args...); err != nil {
+		return fmt.Errorf("delete project %d: %w", id, err)
+	}
+	return nil
+}
+
 func (d *DB) CompleteProject(ctx context.Context, id int64, cascade bool, at time.Time) (gtd.Project, error) {
 	return d.transitionProject(ctx, id, gtd.ProjectStatusDone, at, cascade, gtd.TaskStatusDone)
 }

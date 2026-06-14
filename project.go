@@ -69,4 +69,19 @@ type ProjectService interface {
 	MoveProjectUp(ctx context.Context, id int64, filter ProjectFilter) error
 	MoveProjectDown(ctx context.Context, id int64, filter ProjectFilter) error
 	CountTasksByProjects(ctx context.Context, projectIDs []int64) (map[int64]ProjectTaskCounts, error)
+	// ConvertTaskToProject promotes a standalone task into a new open project,
+	// keeping the task as the project's first action. Project Title/Description
+	// default from the task when empty; the task is re-parented and its
+	// Title/Description replaced with the reframed values. Returns the created
+	// project and the updated task.
+	ConvertTaskToProject(ctx context.Context, taskID int64, project Project, reframed Task) (Project, Task, error)
+	// ConvertProjectToTask collapses an empty open project into a standalone
+	// task, inheriting Title/Description/Due and folding any Outcome into the
+	// Description, then deletes the project. Rejects non-open or non-empty
+	// projects. Returns the created task.
+	ConvertProjectToTask(ctx context.Context, projectID int64) (Task, error)
+	// LinkTaskToProject re-parents a standalone task into a project, placing it
+	// at the bottom of the project's task ordering. Rejects non-standalone tasks
+	// and invalid projects. Returns the updated task.
+	LinkTaskToProject(ctx context.Context, taskID, projectID int64) (Task, error)
 }

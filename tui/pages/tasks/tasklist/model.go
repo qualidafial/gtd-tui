@@ -29,6 +29,11 @@ const queryDebounceDelay = 500 * time.Millisecond
 // When nil, the "p" keybinding is disabled.
 type PickerFactory func(gtd.Task) screen.Screen
 
+// ConvertFactory creates a convert-to-project wizard overlay for the given
+// task. When nil, the "convert to project" keybinding is disabled (e.g. the
+// in-project task list, where every task already belongs to a project).
+type ConvertFactory func(gtd.Task) screen.Screen
+
 // ProjectNameFunc resolves a project ID to its display name.
 // When nil, the task editor omits the project line.
 type ProjectNameFunc func(id int64) string
@@ -36,6 +41,7 @@ type ProjectNameFunc func(id int64) string
 type Model struct {
 	svc           gtd.TaskService
 	pickerFn      PickerFactory
+	convertFn     ConvertFactory
 	projectNameFn ProjectNameFunc
 	defaultQuery  string
 	filter        gtd.TaskFilter
@@ -60,7 +66,7 @@ type tasksReorderedMsg struct {
 // renders a `+<project title>` chip for tasks that belong to a project; pass
 // false for the in-project task list where every row would share the same
 // project. The chip is independent of projectNameFn's role in the task editor.
-func New(svc gtd.TaskService, query string, pickerFn PickerFactory, projectNameFn ProjectNameFunc, showProjectChip bool) Model {
+func New(svc gtd.TaskService, query string, pickerFn PickerFactory, convertFn ConvertFactory, projectNameFn ProjectNameFunc, showProjectChip bool) Model {
 	keys := DefaultKeyMap()
 
 	l := list.New(nil, newDelegate(keys, projectChipResolver(showProjectChip, projectNameFn)), 0, 0)
@@ -91,6 +97,7 @@ func New(svc gtd.TaskService, query string, pickerFn PickerFactory, projectNameF
 	m := Model{
 		svc:           svc,
 		pickerFn:      pickerFn,
+		convertFn:     convertFn,
 		projectNameFn: projectNameFn,
 		defaultQuery:  query,
 		filter:        filter,
@@ -204,9 +211,13 @@ func (m Model) Update(msg tea.Msg) (screen.Screen, tea.Cmd) {
 			if ti, ok := m.list.SelectedItem().(Item); ok {
 				return m, screen.Push(taskedit.New(ti.task, m.svc, m.resolveProjectName(ti.task)))
 			}
-		case key.Matches(msg, m.KeyMap.Project):
+		case key.Matches(msg, m.KeyMap.AssignToProject):
 			if ti, ok := m.list.SelectedItem().(Item); ok && m.pickerFn != nil {
 				return m, screen.Push(m.pickerFn(ti.task))
+			}
+		case key.Matches(msg, m.KeyMap.ConvertToProject):
+			if ti, ok := m.list.SelectedItem().(Item); ok && m.convertFn != nil {
+				return m, screen.Push(m.convertFn(ti.task))
 			}
 		case key.Matches(msg, m.KeyMap.ToggleComplete):
 			if ti, ok := m.list.SelectedItem().(Item); ok {
@@ -291,7 +302,15 @@ func (m *Model) updateKeybindings() {
 		label = "reopen"
 	}
 	m.KeyMap.ToggleComplete.SetHelp("space", label)
-	m.KeyMap.Project.SetEnabled(selected && m.pickerFn != nil)
+	m.KeyMap.AssignToProject.SetEnabled(selected && m.pickerFn != nil)
+
+	// Convert-to-Project promotes a standalone task into a new project, so it is
+	// offered only for a standalone selection when a wizard factory is wired.
+	standalone := false
+	if ti, ok := m.list.SelectedItem().(Item); ok {
+		standalone = gtd.IsStandalone(ti.task)
+	}
+	m.KeyMap.ConvertToProject.SetEnabled(standalone && m.convertFn != nil)
 
 	// Revert-to-default is offered only when the live query differs from the
 	// seed; at the default it is a no-op and hidden.

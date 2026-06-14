@@ -17,6 +17,7 @@ import (
 	"github.com/qualidafial/gtd-tui/tui/components/querybar"
 	"github.com/qualidafial/gtd-tui/tui/components/screen"
 	"github.com/qualidafial/gtd-tui/tui/internal/keymap"
+	"github.com/qualidafial/gtd-tui/tui/pages/projects/projectconvert"
 	"github.com/qualidafial/gtd-tui/tui/pages/projects/projectedit"
 	"github.com/qualidafial/gtd-tui/tui/pages/projects/projectstatus"
 	"github.com/qualidafial/gtd-tui/tui/pages/projects/projectview"
@@ -161,6 +162,9 @@ func (m Model) Update(msg tea.Msg) (screen.Screen, tea.Cmd) {
 		m.updateKeybindings()
 		return m, cmd
 
+	case projectconvert.ConfirmedMsg:
+		return m, m.convertToTaskCmd(msg.ProjectID)
+
 	case querybar.ApplyMsg:
 		filter, err := projectquery.Parse(msg.Query)
 		if err != nil {
@@ -198,6 +202,11 @@ func (m Model) Update(msg tea.Msg) (screen.Screen, tea.Cmd) {
 		case key.Matches(msg, m.KeyMap.View):
 			if it, ok := m.list.SelectedItem().(Item); ok {
 				return m, screen.Push(projectview.New(it.project, m.taskSvc, m.svc, m.pickerFn))
+			}
+
+		case key.Matches(msg, m.KeyMap.ConvertToTask):
+			if it, ok := m.list.SelectedItem().(Item); ok {
+				return m, screen.Push(projectconvert.New(it.project))
 			}
 
 		case key.Matches(msg, m.KeyMap.ToggleComplete):
@@ -253,6 +262,21 @@ func (m Model) reopenCmd(id int64) tea.Cmd {
 	return func() tea.Msg {
 		if _, err := svc.ReopenProject(context.Background(), id, time.Now()); err != nil {
 			return fmt.Errorf("reopen project: %w", err)
+		}
+		projects, err := svc.ListProjects(context.Background(), filter)
+		if err != nil {
+			return fmt.Errorf("reload projects: %w", err)
+		}
+		return projectsLoadedMsg{projects: projects}
+	}
+}
+
+func (m Model) convertToTaskCmd(id int64) tea.Cmd {
+	svc := m.svc
+	filter := m.filter
+	return func() tea.Msg {
+		if _, err := svc.ConvertProjectToTask(context.Background(), id); err != nil {
+			return fmt.Errorf("convert project to task: %w", err)
 		}
 		projects, err := svc.ListProjects(context.Background(), filter)
 		if err != nil {
@@ -336,14 +360,20 @@ func (m Model) viewFactory() projectedit.ViewFactory {
 
 func (m *Model) updateKeybindings() {
 	var status gtd.ProjectStatus
+	var selectedItem Item
 	selected := false
 	if it, ok := m.list.SelectedItem().(Item); ok {
-		status, selected = it.project.Status, true
+		status, selectedItem, selected = it.project.Status, it, true
 	}
 
 	open := selected && status == gtd.ProjectStatusOpen
 	someday := selected && status == gtd.ProjectStatusSomeday
 	orderable := open || someday
+
+	// Convert-to-Task is offered only for an empty open project. counts.Total is
+	// the non-dropped task count; a project with only dropped tasks is rare, and
+	// the service guard rejects it with an error if it slips through.
+	m.KeyMap.ConvertToTask.SetEnabled(selected && gtd.CanConvertProjectToTask(selectedItem.project, selectedItem.counts.Total))
 
 	label := "toggle"
 	switch {

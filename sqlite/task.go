@@ -131,7 +131,7 @@ func (d *DB) CreateTask(ctx context.Context, task gtd.Task) (gtd.Task, error) {
 
 	var key any
 	if !isClosedStatus(task.Status) {
-		k, err := d.nextOrderKey(ctx)
+		k, err := d.nextTaskOrderKey(ctx)
 		if err != nil {
 			return gtd.Task{}, fmt.Errorf("create task: %w", err)
 		}
@@ -237,7 +237,7 @@ func (d *DB) transitionTask(ctx context.Context, id int64, at time.Time, newStat
 		if isClosedStatus(newStatus) {
 			update = update.Set("order_key", nil)
 		} else {
-			key, err := tx.nextOrderKey(ctx)
+			key, err := tx.nextTaskOrderKey(ctx)
 			if err != nil {
 				return err
 			}
@@ -452,7 +452,7 @@ func scanStatusEntries(ctx context.Context, d *DB, q sq.SelectBuilder) ([]status
 	return entries, rows.Err()
 }
 
-func (d *DB) nextOrderKey(ctx context.Context) (string, error) {
+func (d *DB) nextTaskOrderKey(ctx context.Context) (string, error) {
 	var maxKey sql.NullString
 	query, args, err := sq.Select("MAX(order_key)").From("tasks").
 		Where(sq.Eq{"status": string(gtd.TaskStatusOpen)}).ToSql()
