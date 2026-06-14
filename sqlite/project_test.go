@@ -703,6 +703,100 @@ func TestDB_MoveProject_SomedayOrdersIndependently(t *testing.T) {
 	assert.Equal(t, []string{"Open1", "S-B", "S-C", "S-A"}, titles)
 }
 
+func TestDB_MoveProjectFirstLast(t *testing.T) {
+	db := openTestDB(t)
+	c := ctx(t)
+
+	a, err := db.CreateProject(c, gtd.Project{Title: "A"})
+	require.NoError(t, err)
+	_, err = db.CreateProject(c, gtd.Project{Title: "B"})
+	require.NoError(t, err)
+	cProj, err := db.CreateProject(c, gtd.Project{Title: "C"})
+	require.NoError(t, err)
+
+	// Initial: [A, B, C]. MoveLast(A) → [B, C, A].
+	require.NoError(t, db.MoveProjectLast(c, a.ID, gtd.ProjectFilter{}))
+	assert.Equal(t, []string{"B", "C", "A"}, projectTitles(t, db, c))
+
+	// MoveFirst(C) → [C, B, A].
+	require.NoError(t, db.MoveProjectFirst(c, cProj.ID, gtd.ProjectFilter{}))
+	assert.Equal(t, []string{"C", "B", "A"}, projectTitles(t, db, c))
+
+	// MoveFirst at the top and MoveLast at the bottom are silent no-ops.
+	require.NoError(t, db.MoveProjectFirst(c, cProj.ID, gtd.ProjectFilter{}))
+	require.NoError(t, db.MoveProjectLast(c, a.ID, gtd.ProjectFilter{}))
+	assert.Equal(t, []string{"C", "B", "A"}, projectTitles(t, db, c))
+}
+
+func TestDB_MoveProjectFirst_RejectsDoneDropped(t *testing.T) {
+	db := openTestDB(t)
+	c := ctx(t)
+
+	p1, err := db.CreateProject(c, gtd.Project{Title: "Done"})
+	require.NoError(t, err)
+	_, err = db.CompleteProject(c, p1.ID, true, time.Now())
+	require.NoError(t, err)
+	assert.Error(t, db.MoveProjectFirst(c, p1.ID, gtd.ProjectFilter{}))
+	assert.Error(t, db.MoveProjectLast(c, p1.ID, gtd.ProjectFilter{}))
+
+	p2, err := db.CreateProject(c, gtd.Project{Title: "Dropped"})
+	require.NoError(t, err)
+	_, err = db.DropProject(c, p2.ID, true, time.Now())
+	require.NoError(t, err)
+	assert.Error(t, db.MoveProjectFirst(c, p2.ID, gtd.ProjectFilter{}))
+	assert.Error(t, db.MoveProjectLast(c, p2.ID, gtd.ProjectFilter{}))
+}
+
+func TestDB_MoveProjectLast_WithSearchFilter(t *testing.T) {
+	db := openTestDB(t)
+	c := ctx(t)
+
+	a, err := db.CreateProject(c, gtd.Project{Title: "red A"})
+	require.NoError(t, err)
+	_, err = db.CreateProject(c, gtd.Project{Title: "blue X"})
+	require.NoError(t, err)
+	_, err = db.CreateProject(c, gtd.Project{Title: "red B"})
+	require.NoError(t, err)
+	_, err = db.CreateProject(c, gtd.Project{Title: "blue Y"})
+	require.NoError(t, err)
+	_, err = db.CreateProject(c, gtd.Project{Title: "red C"})
+	require.NoError(t, err)
+
+	filter := gtd.ProjectFilter{Search: []string{"red"}}
+	require.NoError(t, db.MoveProjectLast(c, a.ID, filter))
+
+	got, err := db.ListProjects(c, filter)
+	require.NoError(t, err)
+	gotTitles := make([]string, len(got))
+	for i, p := range got {
+		gotTitles[i] = p.Title
+	}
+	assert.Equal(t, []string{"red B", "red C", "red A"}, gotTitles)
+
+	// Unfiltered: blue projects keep their keys; A lands after red C.
+	assert.Equal(t, []string{"blue X", "red B", "blue Y", "red C", "red A"}, projectTitles(t, db, c))
+}
+
+func TestDB_MoveProjectFirst_RenumbersWhenKeysExhausted(t *testing.T) {
+	db := openTestDB(t)
+	c := ctx(t)
+
+	a, err := db.CreateProject(c, gtd.Project{Title: "A"})
+	require.NoError(t, err)
+	b, err := db.CreateProject(c, gtd.Project{Title: "B"})
+	require.NoError(t, err)
+	cProj, err := db.CreateProject(c, gtd.Project{Title: "C"})
+	require.NoError(t, err)
+
+	// Adjacent keys at the front leave no room to slot C ahead of A.
+	require.NoError(t, db.SetProjectOrderKeyForTest(c, a.ID, "0"))
+	require.NoError(t, db.SetProjectOrderKeyForTest(c, b.ID, "00"))
+	require.NoError(t, db.SetProjectOrderKeyForTest(c, cProj.ID, "1"))
+
+	require.NoError(t, db.MoveProjectFirst(c, cProj.ID, gtd.ProjectFilter{}))
+	assert.Equal(t, []string{"C", "A", "B"}, projectTitles(t, db, c))
+}
+
 func TestDB_ListProjects_ThreeTierOrdering(t *testing.T) {
 	db := openTestDB(t)
 	c := ctx(t)

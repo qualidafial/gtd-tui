@@ -233,11 +233,19 @@ func (m Model) Update(msg tea.Msg) (screen.Screen, tea.Cmd) {
 				return m, screen.Push(taskstatus.New(ti.task, m.svc, taskstatus.Drop))
 			}
 		case key.Matches(msg, m.KeyMap.MoveUp):
-			if cmd := m.moveCmd(-1); cmd != nil {
+			if cmd := m.moveCmd(m.svc.MoveTaskUp); cmd != nil {
 				return m, cmd
 			}
 		case key.Matches(msg, m.KeyMap.MoveDown):
-			if cmd := m.moveCmd(+1); cmd != nil {
+			if cmd := m.moveCmd(m.svc.MoveTaskDown); cmd != nil {
+				return m, cmd
+			}
+		case key.Matches(msg, m.KeyMap.MoveFirst):
+			if cmd := m.moveCmd(m.svc.MoveTaskFirst); cmd != nil {
+				return m, cmd
+			}
+		case key.Matches(msg, m.KeyMap.MoveLast):
+			if cmd := m.moveCmd(m.svc.MoveTaskLast); cmd != nil {
 				return m, cmd
 			}
 		}
@@ -321,11 +329,16 @@ func (m *Model) updateKeybindings() {
 	m.KeyMap.Drop.SetEnabled(pending)
 
 	// Reorder is limited to pending tasks, which sort above closed ones. Move
-	// up is disabled on the first task; move down is disabled on the last
-	// pending task (the next item is closed or there is none).
+	// up / move-to-top are disabled on the first task; move down / move-to-bottom
+	// are disabled on the last pending task (the next item is closed or there is
+	// none). Move-to-top tracks move-up; move-to-bottom tracks move-down.
 	idx := m.list.Index()
-	m.KeyMap.MoveUp.SetEnabled(pending && idx > 0)
-	m.KeyMap.MoveDown.SetEnabled(pending && statusAt(m.list, idx+1) == gtd.TaskStatusOpen)
+	canMoveUp := pending && idx > 0
+	canMoveDown := pending && statusAt(m.list, idx+1) == gtd.TaskStatusOpen
+	m.KeyMap.MoveUp.SetEnabled(canMoveUp)
+	m.KeyMap.MoveDown.SetEnabled(canMoveDown)
+	m.KeyMap.MoveFirst.SetEnabled(canMoveUp)
+	m.KeyMap.MoveLast.SetEnabled(canMoveDown)
 }
 
 // CapturingInput reports that the query bar is focused, so the app should not
@@ -355,11 +368,12 @@ func statusAt(l list.Model, i int) gtd.TaskStatus {
 	return ""
 }
 
-// moveCmd reorders the selected task by one slot in the given direction
-// (-1 = up, +1 = down). The move bindings are enabled only for a pending
+// moveCmd reorders the selected task via the given service move (one of
+// MoveTaskUp/Down/First/Last), then reloads the filtered list and keeps the
+// cursor on the moved task. The move bindings are enabled only for a pending
 // selection (see updateKeybindings), so reaching here implies a movable task;
 // the guard below only covers an empty list.
-func (m Model) moveCmd(direction int) tea.Cmd {
+func (m Model) moveCmd(doMove func(context.Context, int64, gtd.TaskFilter) error) tea.Cmd {
 	cur, ok := m.list.SelectedItem().(Item)
 	if !ok {
 		return nil
@@ -368,11 +382,6 @@ func (m Model) moveCmd(direction int) tea.Cmd {
 	id := cur.task.ID
 	filter := m.filter
 	svc := m.svc
-
-	doMove := svc.MoveTaskUp
-	if direction > 0 {
-		doMove = svc.MoveTaskDown
-	}
 
 	return func() tea.Msg {
 		ctx := context.Background()

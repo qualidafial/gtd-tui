@@ -296,26 +296,68 @@ func (d *DB) MoveProjectDown(ctx context.Context, id int64, filter gtd.ProjectFi
 	})
 }
 
+// MoveProjectFirst moves the project ahead of every same-status project
+// matching filter. No-op when already first in the filtered set; rejected for
+// done or dropped projects.
+func (d *DB) MoveProjectFirst(ctx context.Context, id int64, filter gtd.ProjectFilter) error {
+	return d.RunTx(ctx, func(ctx context.Context, tx *DB) error {
+		status, others, pos, err := tx.projectReorderState(ctx, id, filter)
+		if err != nil {
+			return err
+		}
+		if pos == 0 {
+			return nil
+		}
+		return tx.moveProjectTo(ctx, id, 0, status, others)
+	})
+}
+
+// MoveProjectLast moves the project after every same-status project
+// matching filter. No-op when already last in the filtered set; rejected for
+// done or dropped projects.
+func (d *DB) MoveProjectLast(ctx context.Context, id int64, filter gtd.ProjectFilter) error {
+	return d.RunTx(ctx, func(ctx context.Context, tx *DB) error {
+		status, others, pos, err := tx.projectReorderState(ctx, id, filter)
+		if err != nil {
+			return err
+		}
+		if pos == len(others) {
+			return nil
+		}
+		return tx.moveProjectTo(ctx, id, len(others), status, others)
+	})
+}
+
 // shiftProject moves id by delta slots within the same-status projects
-// matching filter. The fast path slots a new key via orderkey.Between against
-// the filtered neighbors; on exhaustion the entire same-status group is
-// renumbered, preserving the relative order of every non-moving project.
+// matching filter.
 func (d *DB) shiftProject(ctx context.Context, id int64, delta int, filter gtd.ProjectFilter) error {
-	project, err := d.GetProject(ctx, id)
+	status, others, pos, err := d.projectReorderState(ctx, id, filter)
 	if err != nil {
 		return err
 	}
+	return d.moveProjectTo(ctx, id, pos+delta, status, others)
+}
+
+// projectReorderState loads the reorder context for an orderable project: its
+// status, the same-status projects matching filter (excluding id, ordered by
+// key), and id's current insertion index among them. Returns an error for
+// done or dropped projects.
+func (d *DB) projectReorderState(ctx context.Context, id int64, filter gtd.ProjectFilter) (gtd.ProjectStatus, []statusEntry, int, error) {
+	project, err := d.GetProject(ctx, id)
+	if err != nil {
+		return "", nil, 0, err
+	}
 	if !isOrderedProjectStatus(project.Status) {
-		return fmt.Errorf("project %d: cannot reorder %s projects", id, project.Status)
+		return "", nil, 0, fmt.Errorf("project %d: cannot reorder %s projects", id, project.Status)
 	}
 
 	key, err := d.projectOrderKey(ctx, id)
 	if err != nil {
-		return err
+		return "", nil, 0, err
 	}
 	others, err := d.projectOrderByStatus(ctx, project.Status, filter, id)
 	if err != nil {
-		return err
+		return "", nil, 0, err
 	}
 
 	pos := 0
@@ -324,7 +366,15 @@ func (d *DB) shiftProject(ctx context.Context, id int64, delta int, filter gtd.P
 			pos++
 		}
 	}
-	newPos := pos + delta
+	return project.Status, others, pos, nil
+}
+
+// moveProjectTo slots id at insertion index newPos among others (the filtered
+// same-status neighbors, excluding id). The fast path slots a new key via
+// orderkey.Between against the filtered neighbors; on exhaustion the entire
+// same-status group is renumbered, preserving the relative order of every
+// non-moving project. A newPos out of range is a no-op.
+func (d *DB) moveProjectTo(ctx context.Context, id int64, newPos int, status gtd.ProjectStatus, others []statusEntry) error {
 	if newPos < 0 || newPos > len(others) {
 		return nil
 	}
@@ -345,7 +395,7 @@ func (d *DB) shiftProject(ctx context.Context, id int64, delta int, filter gtd.P
 	// moving id into the full ordering between its filtered prev/next neighbors
 	// so the visible move is preserved and every other project keeps its
 	// relative position.
-	full, err := d.projectOrderByStatus(ctx, project.Status, gtd.ProjectFilter{}, id)
+	full, err := d.projectOrderByStatus(ctx, status, gtd.ProjectFilter{}, id)
 	if err != nil {
 		return err
 	}

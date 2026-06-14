@@ -698,6 +698,96 @@ func TestDB_MoveTaskDown_InProjectFilterStaysInProject(t *testing.T) {
 	assert.Equal(t, []int64{x.ID, y.ID}, taskIDs(p2Tasks))
 }
 
+func TestDB_MoveTaskFirstLast(t *testing.T) {
+	db := openTestDB(t)
+	c := ctx(t)
+
+	a := mustCreateTask(t, db, gtd.Task{Title: "A", Status: gtd.TaskStatusOpen})
+	b := mustCreateTask(t, db, gtd.Task{Title: "B", Status: gtd.TaskStatusOpen})
+	cTask := mustCreateTask(t, db, gtd.Task{Title: "C", Status: gtd.TaskStatusOpen})
+
+	// Initial: [A, B, C]. MoveLast(A) → [B, C, A].
+	require.NoError(t, db.MoveTaskLast(c, a.ID, gtd.TaskFilter{}))
+	assert.Equal(t, []int64{b.ID, cTask.ID, a.ID}, pendingIDs(t, db, c))
+
+	// MoveFirst(C) → [C, B, A].
+	require.NoError(t, db.MoveTaskFirst(c, cTask.ID, gtd.TaskFilter{}))
+	assert.Equal(t, []int64{cTask.ID, b.ID, a.ID}, pendingIDs(t, db, c))
+
+	// MoveFirst at the top and MoveLast at the bottom are silent no-ops.
+	require.NoError(t, db.MoveTaskFirst(c, cTask.ID, gtd.TaskFilter{}))
+	require.NoError(t, db.MoveTaskLast(c, a.ID, gtd.TaskFilter{}))
+	assert.Equal(t, []int64{cTask.ID, b.ID, a.ID}, pendingIDs(t, db, c))
+}
+
+func TestDB_MoveTaskFirstLast_RejectsClosedTask(t *testing.T) {
+	db := openTestDB(t)
+	c := ctx(t)
+
+	a := mustCreateTask(t, db, gtd.Task{Title: "A", Status: gtd.TaskStatusDone})
+
+	assert.Error(t, db.MoveTaskFirst(c, a.ID, gtd.TaskFilter{}))
+	assert.Error(t, db.MoveTaskLast(c, a.ID, gtd.TaskFilter{}))
+}
+
+func TestDB_MoveTaskLast_WithSearchFilter(t *testing.T) {
+	db := openTestDB(t)
+	c := ctx(t)
+
+	// Tasks: red A, blue X, red B, blue Y, red C. Filter "red" sees [A, B, C].
+	// MoveLast(A, filter=red) lands A after C among the filtered tasks,
+	// leaving the blue tasks' keys untouched.
+	a := mustCreateTask(t, db, gtd.Task{Title: "red A", Status: gtd.TaskStatusOpen})
+	x := mustCreateTask(t, db, gtd.Task{Title: "blue X", Status: gtd.TaskStatusOpen})
+	b := mustCreateTask(t, db, gtd.Task{Title: "red B", Status: gtd.TaskStatusOpen})
+	y := mustCreateTask(t, db, gtd.Task{Title: "blue Y", Status: gtd.TaskStatusOpen})
+	cTask := mustCreateTask(t, db, gtd.Task{Title: "red C", Status: gtd.TaskStatusOpen})
+
+	filter := gtd.TaskFilter{Search: []string{"red"}}
+	require.NoError(t, db.MoveTaskLast(c, a.ID, filter))
+
+	assert.Equal(t, []string{"red B", "red C", "red A"}, listTitles(t, db, c, filter))
+
+	// Unfiltered: blue X / blue Y keep their original keys; A lands after C.
+	assert.Equal(t, []int64{x.ID, b.ID, y.ID, cTask.ID, a.ID}, pendingIDs(t, db, c))
+}
+
+func TestDB_MoveTaskFirst_WithSearchFilter(t *testing.T) {
+	db := openTestDB(t)
+	c := ctx(t)
+
+	a := mustCreateTask(t, db, gtd.Task{Title: "red A", Status: gtd.TaskStatusOpen})
+	x := mustCreateTask(t, db, gtd.Task{Title: "blue X", Status: gtd.TaskStatusOpen})
+	b := mustCreateTask(t, db, gtd.Task{Title: "red B", Status: gtd.TaskStatusOpen})
+	y := mustCreateTask(t, db, gtd.Task{Title: "blue Y", Status: gtd.TaskStatusOpen})
+	cTask := mustCreateTask(t, db, gtd.Task{Title: "red C", Status: gtd.TaskStatusOpen})
+
+	filter := gtd.TaskFilter{Search: []string{"red"}}
+	require.NoError(t, db.MoveTaskFirst(c, cTask.ID, filter))
+
+	assert.Equal(t, []string{"red C", "red A", "red B"}, listTitles(t, db, c, filter))
+
+	// Unfiltered: blue X / blue Y keep their original keys; C lands before A.
+	assert.Equal(t, []int64{cTask.ID, a.ID, x.ID, b.ID, y.ID}, pendingIDs(t, db, c))
+}
+
+func TestDB_MoveTaskFirst_RenumbersWhenKeysExhausted(t *testing.T) {
+	db := openTestDB(t)
+	c := ctx(t)
+
+	a := mustCreateTask(t, db, gtd.Task{Title: "A", Status: gtd.TaskStatusOpen})
+	b := mustCreateTask(t, db, gtd.Task{Title: "B", Status: gtd.TaskStatusOpen})
+	cTask := mustCreateTask(t, db, gtd.Task{Title: "C", Status: gtd.TaskStatusOpen})
+
+	// Adjacent keys at the front leave no room to slot C ahead of A.
+	require.NoError(t, db.SetOrderKeyForTest(c, a.ID, "0"))
+	require.NoError(t, db.SetOrderKeyForTest(c, b.ID, "00"))
+	require.NoError(t, db.SetOrderKeyForTest(c, cTask.ID, "1"))
+
+	require.NoError(t, db.MoveTaskFirst(c, cTask.ID, gtd.TaskFilter{}))
+	assert.Equal(t, []int64{cTask.ID, a.ID, b.ID}, pendingIDs(t, db, c))
+}
+
 func listTitles(t *testing.T, db *sqlite.DB, ctx context.Context, filter gtd.TaskFilter) []string {
 	t.Helper()
 	tasks, err := db.ListTasks(ctx, filter)
@@ -764,4 +854,3 @@ func taskIDsByStatus(t *testing.T, db *sqlite.DB, c context.Context, status gtd.
 	}
 	return ids
 }
-

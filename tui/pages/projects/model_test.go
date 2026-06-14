@@ -1,6 +1,7 @@
 package projects
 
 import (
+	"slices"
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
@@ -190,7 +191,54 @@ func TestModel_MoveBindings_Boundaries(t *testing.T) {
 			if got := tt.model.KeyMap.MoveDown.Enabled(); got != tt.wantDn {
 				t.Errorf("MoveDown enabled = %v, want %v", got, tt.wantDn)
 			}
+			// Move-to-top tracks move-up; move-to-bottom tracks move-down.
+			if got := tt.model.KeyMap.MoveFirst.Enabled(); got != tt.wantUp {
+				t.Errorf("MoveFirst enabled = %v, want %v", got, tt.wantUp)
+			}
+			if got := tt.model.KeyMap.MoveLast.Enabled(); got != tt.wantDn {
+				t.Errorf("MoveLast enabled = %v, want %v", got, tt.wantDn)
+			}
 		})
+	}
+}
+
+func TestModel_MoveLast_ReordersAndKeepsCursor(t *testing.T) {
+	svc := openTestSvc(t)
+	first := seedProject(t, svc, gtd.Project{Title: "A", Status: gtd.ProjectStatusOpen})
+	seedProject(t, svc, gtd.Project{Title: "B", Status: gtd.ProjectStatusOpen})
+	seedProject(t, svc, gtd.Project{Title: "C", Status: gtd.ProjectStatusOpen})
+
+	projects, err := svc.ListProjects(t.Context(), gtd.ProjectFilter{})
+	if err != nil {
+		t.Fatalf("list projects: %v", err)
+	}
+
+	m := loadProjects(New(svc, nil, nil), projects)
+
+	// Cursor starts on the first project (A). shift+end moves it to the bottom.
+	_, cmd := sendKey(m, tea.KeyPressMsg{Code: tea.KeyEnd, Mod: tea.ModShift})
+	if cmd == nil {
+		t.Fatal("expected a reorder cmd from shift+end")
+	}
+	msg, ok := cmd().(projectsReorderedMsg)
+	if !ok {
+		t.Fatalf("expected projectsReorderedMsg, got %T", cmd())
+	}
+	if msg.selectID != first.ID {
+		t.Fatalf("selectID = %d, want %d (the moved project)", msg.selectID, first.ID)
+	}
+	gotOrder := make([]string, len(msg.projects))
+	for i, p := range msg.projects {
+		gotOrder[i] = p.Title
+	}
+	if want := []string{"B", "C", "A"}; !slices.Equal(gotOrder, want) {
+		t.Fatalf("order after move = %v, want %v", gotOrder, want)
+	}
+
+	// Applying the msg keeps the cursor on the moved project.
+	applied, _ := m.Update(msg)
+	if sel, ok := applied.(Model).list.SelectedItem().(Item); !ok || sel.project.ID != first.ID {
+		t.Fatal("cursor not on moved project after reorder")
 	}
 }
 

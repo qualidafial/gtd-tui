@@ -68,6 +68,11 @@ type ProjectService interface {
 	// group is always the universe; filter narrows further.
 	MoveProjectUp(ctx context.Context, id int64, filter ProjectFilter) error
 	MoveProjectDown(ctx context.Context, id int64, filter ProjectFilter) error
+	// MoveProjectFirst / MoveProjectLast move a project ahead of / after
+	// every same-status project matching filter, with the same scoping as
+	// MoveProjectUp / MoveProjectDown. No-op when already at that end.
+	MoveProjectFirst(ctx context.Context, id int64, filter ProjectFilter) error
+	MoveProjectLast(ctx context.Context, id int64, filter ProjectFilter) error
 	CountTasksByProjects(ctx context.Context, projectIDs []int64) (map[int64]ProjectTaskCounts, error)
 	// ConvertTaskToProject promotes a standalone task into a new open project,
 	// keeping the task as the project's first action. Project Title/Description

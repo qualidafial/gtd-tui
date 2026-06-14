@@ -56,6 +56,14 @@ func (s *ProjectService) MoveProjectDown(ctx context.Context, id int64, filter g
 	return s.db.MoveProjectDown(ctx, id, filter)
 }
 
+func (s *ProjectService) MoveProjectFirst(ctx context.Context, id int64, filter gtd.ProjectFilter) error {
+	return s.db.MoveProjectFirst(ctx, id, filter)
+}
+
+func (s *ProjectService) MoveProjectLast(ctx context.Context, id int64, filter gtd.ProjectFilter) error {
+	return s.db.MoveProjectLast(ctx, id, filter)
+}
+
 func (s *ProjectService) CountTasksByProjects(ctx context.Context, projectIDs []int64) (map[int64]gtd.ProjectTaskCounts, error) {
 	return s.db.CountTasksByProjects(ctx, projectIDs)
 }

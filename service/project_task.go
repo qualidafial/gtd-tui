@@ -61,3 +61,13 @@ func (s *ProjectTaskService) MoveTaskDown(ctx context.Context, id int64, filter 
 	filter.ProjectID = &s.projectID
 	return s.inner.MoveTaskDown(ctx, id, filter)
 }
+
+func (s *ProjectTaskService) MoveTaskFirst(ctx context.Context, id int64, filter gtd.TaskFilter) error {
+	filter.ProjectID = &s.projectID
+	return s.inner.MoveTaskFirst(ctx, id, filter)
+}
+
+func (s *ProjectTaskService) MoveTaskLast(ctx context.Context, id int64, filter gtd.TaskFilter) error {
+	filter.ProjectID = &s.projectID
+	return s.inner.MoveTaskLast(ctx, id, filter)
+}

@@ -1,6 +1,8 @@
 package tasklist
 
 import (
+	"context"
+	"slices"
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
@@ -257,6 +259,64 @@ func TestModel_MoveBindings_Boundaries(t *testing.T) {
 			if got := tt.model.KeyMap.MoveDown.Enabled(); got != tt.wantDn {
 				t.Errorf("MoveDown enabled = %v, want %v", got, tt.wantDn)
 			}
+			// Move-to-top tracks move-up; move-to-bottom tracks move-down.
+			if got := tt.model.KeyMap.MoveFirst.Enabled(); got != tt.wantUp {
+				t.Errorf("MoveFirst enabled = %v, want %v", got, tt.wantUp)
+			}
+			if got := tt.model.KeyMap.MoveLast.Enabled(); got != tt.wantDn {
+				t.Errorf("MoveLast enabled = %v, want %v", got, tt.wantDn)
+			}
 		})
+	}
+}
+
+func TestModel_MoveLast_ReordersAndKeepsCursor(t *testing.T) {
+	svc := openTestTaskSvc(t)
+	ctx := context.Background()
+
+	var first gtd.Task
+	for _, title := range []string{"a", "b", "c"} {
+		task, err := svc.CreateTask(ctx, gtd.Task{Title: title, Status: gtd.TaskStatusOpen})
+		if err != nil {
+			t.Fatalf("create task: %v", err)
+		}
+		if title == "a" {
+			first = task
+		}
+	}
+
+	tasks, err := svc.ListTasks(ctx, gtd.TaskFilter{})
+	if err != nil {
+		t.Fatalf("list tasks: %v", err)
+	}
+
+	m := New(svc, "", nil, nil, nil, false)
+	loaded, _ := m.Update(TasksLoadedMsg{tasks: tasks})
+	m = loaded.(Model)
+
+	// Cursor starts on the first task (a). shift+end moves it to the bottom.
+	_, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyEnd, Mod: tea.ModShift})
+	if cmd == nil {
+		t.Fatal("expected a reorder cmd from shift+end")
+	}
+	msg, ok := cmd().(tasksReorderedMsg)
+	if !ok {
+		t.Fatalf("expected tasksReorderedMsg, got %T", cmd())
+	}
+	if msg.selectID != first.ID {
+		t.Fatalf("selectID = %d, want %d (the moved task)", msg.selectID, first.ID)
+	}
+	gotOrder := make([]string, len(msg.tasks))
+	for i, task := range msg.tasks {
+		gotOrder[i] = task.Title
+	}
+	if want := []string{"b", "c", "a"}; !slices.Equal(gotOrder, want) {
+		t.Fatalf("order after move = %v, want %v", gotOrder, want)
+	}
+
+	// Applying the msg keeps the cursor on the moved task.
+	applied, _ := m.Update(msg)
+	if sel, ok := applied.(Model).list.SelectedItem().(Item); !ok || sel.task.ID != first.ID {
+		t.Fatal("cursor not on moved task after reorder")
 	}
 }

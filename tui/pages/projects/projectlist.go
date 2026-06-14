@@ -232,12 +232,22 @@ func (m Model) Update(msg tea.Msg) (screen.Screen, tea.Cmd) {
 			}
 
 		case key.Matches(msg, m.KeyMap.MoveUp):
-			if cmd := m.moveCmd(-1); cmd != nil {
+			if cmd := m.moveCmd(m.svc.MoveProjectUp); cmd != nil {
 				return m, cmd
 			}
 
 		case key.Matches(msg, m.KeyMap.MoveDown):
-			if cmd := m.moveCmd(+1); cmd != nil {
+			if cmd := m.moveCmd(m.svc.MoveProjectDown); cmd != nil {
+				return m, cmd
+			}
+
+		case key.Matches(msg, m.KeyMap.MoveFirst):
+			if cmd := m.moveCmd(m.svc.MoveProjectFirst); cmd != nil {
+				return m, cmd
+			}
+
+		case key.Matches(msg, m.KeyMap.MoveLast):
+			if cmd := m.moveCmd(m.svc.MoveProjectLast); cmd != nil {
 				return m, cmd
 			}
 		}
@@ -301,7 +311,7 @@ func (m Model) parkCmd(id int64) tea.Cmd {
 	}
 }
 
-func (m Model) moveCmd(direction int) tea.Cmd {
+func (m Model) moveCmd(doMove func(context.Context, int64, gtd.ProjectFilter) error) tea.Cmd {
 	cur, ok := m.list.SelectedItem().(Item)
 	if !ok {
 		return nil
@@ -309,10 +319,6 @@ func (m Model) moveCmd(direction int) tea.Cmd {
 	id := cur.project.ID
 	svc := m.svc
 	filter := m.filter
-	doMove := svc.MoveProjectUp
-	if direction > 0 {
-		doMove = svc.MoveProjectDown
-	}
 	return func() tea.Msg {
 		ctx := context.Background()
 		if err := doMove(ctx, id, filter); err != nil {
@@ -394,9 +400,16 @@ func (m *Model) updateKeybindings() {
 	// default; at the default it is a no-op and hidden.
 	m.KeyMap.ResetQuery.SetEnabled(m.query.Value() != defaultProjectQuery)
 
+	// Move-to-top tracks move-up; move-to-bottom tracks move-down. A reorder is
+	// only valid within the selected project's status group, so the neighbor in
+	// the move direction must itself be orderable.
 	idx := m.list.Index()
-	m.KeyMap.MoveUp.SetEnabled(orderable && idx > 0 && isOrderable(m.list, idx-1))
-	m.KeyMap.MoveDown.SetEnabled(orderable && isOrderable(m.list, idx+1))
+	canMoveUp := orderable && idx > 0 && isOrderable(m.list, idx-1)
+	canMoveDown := orderable && isOrderable(m.list, idx+1)
+	m.KeyMap.MoveUp.SetEnabled(canMoveUp)
+	m.KeyMap.MoveDown.SetEnabled(canMoveDown)
+	m.KeyMap.MoveFirst.SetEnabled(canMoveUp)
+	m.KeyMap.MoveLast.SetEnabled(canMoveDown)
 }
 
 // isOrderable reports whether the project at index i belongs to the reorderable

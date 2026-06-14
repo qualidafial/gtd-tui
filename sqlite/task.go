@@ -329,26 +329,64 @@ func (d *DB) MoveTaskDown(ctx context.Context, id int64, filter gtd.TaskFilter) 
 	})
 }
 
-// shiftTask moves id by delta slots within the open tasks matching filter. The
-// fast path slots a new key via orderkey.Between against the filtered
-// neighbors; on exhaustion the entire open-task set is renumbered, preserving
-// the relative order of every non-moving task.
+// MoveTaskFirst moves the task ahead of every open task matching filter. No-op
+// when already first in the filtered set; rejected for done or dropped tasks.
+func (d *DB) MoveTaskFirst(ctx context.Context, id int64, filter gtd.TaskFilter) error {
+	return d.RunTx(ctx, func(ctx context.Context, tx *DB) error {
+		others, pos, err := tx.taskReorderState(ctx, id, filter)
+		if err != nil {
+			return err
+		}
+		if pos == 0 {
+			return nil
+		}
+		return tx.moveTaskTo(ctx, id, 0, others)
+	})
+}
+
+// MoveTaskLast moves the task after every open task matching filter. No-op
+// when already last in the filtered set; rejected for done or dropped tasks.
+func (d *DB) MoveTaskLast(ctx context.Context, id int64, filter gtd.TaskFilter) error {
+	return d.RunTx(ctx, func(ctx context.Context, tx *DB) error {
+		others, pos, err := tx.taskReorderState(ctx, id, filter)
+		if err != nil {
+			return err
+		}
+		if pos == len(others) {
+			return nil
+		}
+		return tx.moveTaskTo(ctx, id, len(others), others)
+	})
+}
+
+// shiftTask moves id by delta slots within the open tasks matching filter.
 func (d *DB) shiftTask(ctx context.Context, id int64, delta int, filter gtd.TaskFilter) error {
-	task, err := d.GetTask(ctx, id)
+	others, pos, err := d.taskReorderState(ctx, id, filter)
 	if err != nil {
 		return err
 	}
+	return d.moveTaskTo(ctx, id, pos+delta, others)
+}
+
+// taskReorderState loads the reorder context for an open task: the open tasks
+// matching filter (excluding id, ordered by key) and id's current insertion
+// index among them. Returns an error for done or dropped tasks.
+func (d *DB) taskReorderState(ctx context.Context, id int64, filter gtd.TaskFilter) ([]statusEntry, int, error) {
+	task, err := d.GetTask(ctx, id)
+	if err != nil {
+		return nil, 0, err
+	}
 	if isClosedStatus(task.Status) {
-		return fmt.Errorf("task %d: cannot reorder %s tasks", id, task.Status)
+		return nil, 0, fmt.Errorf("task %d: cannot reorder %s tasks", id, task.Status)
 	}
 
 	key, err := d.taskOrderKey(ctx, id)
 	if err != nil {
-		return err
+		return nil, 0, err
 	}
 	others, err := d.pendingOrder(ctx, filter, id)
 	if err != nil {
-		return err
+		return nil, 0, err
 	}
 
 	pos := 0
@@ -357,7 +395,15 @@ func (d *DB) shiftTask(ctx context.Context, id int64, delta int, filter gtd.Task
 			pos++
 		}
 	}
-	newPos := pos + delta
+	return others, pos, nil
+}
+
+// moveTaskTo slots id at insertion index newPos among others (the filtered
+// neighbors, excluding id). The fast path slots a new key via orderkey.Between
+// against the filtered neighbors; on exhaustion the entire open-task set is
+// renumbered, preserving the relative order of every non-moving task. A newPos
+// out of range is a no-op.
+func (d *DB) moveTaskTo(ctx context.Context, id int64, newPos int, others []statusEntry) error {
 	if newPos < 0 || newPos > len(others) {
 		return nil
 	}

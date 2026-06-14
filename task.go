@@ -45,6 +45,11 @@ type TaskService interface {
 	// open inside the move regardless of filter.Status.
 	MoveTaskUp(ctx context.Context, id int64, filter TaskFilter) error
 	MoveTaskDown(ctx context.Context, id int64, filter TaskFilter) error
+	// MoveTaskFirst / MoveTaskLast move an open task ahead of / after every
+	// open task matching filter, scoped to the user's current view exactly like
+	// MoveTaskUp / MoveTaskDown. No-op when the task is already at that end.
+	MoveTaskFirst(ctx context.Context, id int64, filter TaskFilter) error
+	MoveTaskLast(ctx context.Context, id int64, filter TaskFilter) error
 }
 
 // DatePredicateKind discriminates how a DatePredicate constrains a date column.

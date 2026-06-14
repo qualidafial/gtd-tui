@@ -27,6 +27,8 @@ type KeyMap struct {
 	Drop             key.Binding
 	MoveUp           key.Binding
 	MoveDown         key.Binding
+	MoveFirst        key.Binding
+	MoveLast         key.Binding
 	FocusQuery       key.Binding
 	ResetQuery       key.Binding
 }
@@ -41,6 +43,8 @@ func DefaultKeyMap() KeyMap {
 		Drop:             key.NewBinding(key.WithKeys("delete"), key.WithHelp("delete", "drop task")),
 		MoveUp:           key.NewBinding(key.WithKeys("shift+up"), key.WithHelp("shift+↑", "move up")),
 		MoveDown:         key.NewBinding(key.WithKeys("shift+down"), key.WithHelp("shift+↓", "move down")),
+		MoveFirst:        key.NewBinding(key.WithKeys("shift+home"), key.WithHelp("shift+home", "move first")),
+		MoveLast:         key.NewBinding(key.WithKeys("shift+end"), key.WithHelp("shift+end", "move last")),
 		FocusQuery:       key.NewBinding(key.WithKeys("/"), key.WithHelp("/", "filter")),
 		ResetQuery:       key.NewBinding(key.WithKeys("\\"), key.WithHelp("\\", "reset filter")),
 	}
@@ -67,6 +71,8 @@ func (k KeyMap) Keys() []keymap.Group {
 		{
 			{Binding: k.MoveUp, Vis: keymap.Short},
 			{Binding: k.MoveDown, Vis: keymap.Short},
+			{Binding: k.MoveFirst, Vis: keymap.Short},
+			{Binding: k.MoveLast, Vis: keymap.Short},
 		},
 	}
 }

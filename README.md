@@ -108,6 +108,7 @@ Task list:
 | `p`        | Jump to project   |
 | `c`        | Convert to project (standalone tasks only) |
 | `shift+↑/↓`| Reorder (within current filter) |
+| `shift+home/end` | Move first / last (within current filter) |
 | `/`        | Filter            |
 | `\`        | Reset filter      |
 
@@ -123,6 +124,7 @@ Project list:
 | `delete`   | Drop project      |
 | `s`        | Park (set someday)|
 | `shift+↑/↓`| Reorder (within current filter) |
+| `shift+home/end` | Move first / last (within current filter) |
 | `/`        | Filter            |
 | `\`        | Reset filter      |
 

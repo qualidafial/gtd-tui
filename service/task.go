@@ -56,4 +56,12 @@ func (s *TaskService) MoveTaskDown(ctx context.Context, id int64, filter gtd.Tas
 	return s.db.MoveTaskDown(ctx, id, filter)
 }
 
+func (s *TaskService) MoveTaskFirst(ctx context.Context, id int64, filter gtd.TaskFilter) error {
+	return s.db.MoveTaskFirst(ctx, id, filter)
+}
+
+func (s *TaskService) MoveTaskLast(ctx context.Context, id int64, filter gtd.TaskFilter) error {
+	return s.db.MoveTaskLast(ctx, id, filter)
+}
+
 var _ gtd.TaskService = (*TaskService)(nil)
