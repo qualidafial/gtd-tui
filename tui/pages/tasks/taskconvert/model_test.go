@@ -14,6 +14,7 @@ import (
 	"github.com/qualidafial/gtd-tui/tui/components/form"
 	"github.com/qualidafial/gtd-tui/tui/components/screen"
 	"github.com/qualidafial/gtd-tui/tui/components/screen/screentest"
+	"github.com/qualidafial/gtd-tui/tui/internal/keymap"
 )
 
 func setup(t *testing.T) (gtd.TaskService, gtd.ProjectService) {
@@ -24,9 +25,19 @@ func setup(t *testing.T) (gtd.TaskService, gtd.ProjectService) {
 	return service.NewTaskService(db), service.NewProjectService(db)
 }
 
+// stubScreen stands in for the project view the wizard lands on after a
+// successful convert, carrying the project it was constructed with so tests
+// can assert the factory received the freshly created project.
+type stubScreen struct{ project gtd.Project }
+
+func (s stubScreen) Init() tea.Cmd                           { return nil }
+func (s stubScreen) Update(tea.Msg) (screen.Screen, tea.Cmd) { return s, nil }
+func (s stubScreen) View() string                            { return "" }
+func (s stubScreen) Keys() []keymap.Group                    { return nil }
+
 func TestWizard_PrePopulatesFromTask(t *testing.T) {
 	task := gtd.Task{ID: 1, Title: "Plan offsite", Description: "Q3 team", Status: gtd.TaskStatusOpen}
-	m := New(task, nil)
+	m := New(task, nil, nil)
 
 	vals := m.form.FieldValues()
 	assert.Equal(t, "Plan offsite", vals["project_title"], "project title seeds from the task")
@@ -43,14 +54,19 @@ func TestWizard_CommitConvertsTaskToProject(t *testing.T) {
 	task, err := taskSvc.CreateTask(ctx, gtd.Task{Title: "Plan offsite", Description: "Q3 team", Status: gtd.TaskStatusOpen})
 	require.NoError(t, err)
 
-	m := New(task, projSvc)
+	var landed gtd.Project
+	viewFn := func(p gtd.Project) screen.Screen {
+		landed = p
+		return stubScreen{project: p}
+	}
+	m := New(task, projSvc, viewFn)
 	var s screen.Screen = screentest.Init(t, m)
 
 	// Submit commits via ConvertTaskToProject with the collected (pre-populated)
 	// values. Sending SubmittedMsg directly exercises the commit path.
-	_, cmd := s.Update(form.SubmittedMsg{})
+	s, cmd := s.Update(form.SubmittedMsg{})
 	require.NotNil(t, cmd)
-	cmd() // runs convertCmd, persisting the conversion
+	converted := cmd() // runs convertCmd, persisting the conversion
 
 	// The task now belongs to a new open project seeded from the task.
 	got, err := taskSvc.GetTask(ctx, task.ID)
@@ -61,6 +77,14 @@ func TestWizard_CommitConvertsTaskToProject(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "Plan offsite", project.Title)
 	assert.Equal(t, gtd.ProjectStatusOpen, project.Status)
+
+	// On success the wizard lands on the new project's view (via the factory),
+	// not a dismiss.
+	next, _ := s.Update(converted)
+	stub, ok := next.(stubScreen)
+	require.True(t, ok, "expected to land on the project view stub, got %T", next)
+	assert.Equal(t, *got.ProjectID, stub.project.ID, "factory built the view for the created project")
+	assert.Equal(t, *got.ProjectID, landed.ID)
 }
 
 func TestWizard_AbandonLeavesTaskStandalone(t *testing.T) {
@@ -70,7 +94,7 @@ func TestWizard_AbandonLeavesTaskStandalone(t *testing.T) {
 	task, err := taskSvc.CreateTask(ctx, gtd.Task{Title: "Plan offsite", Status: gtd.TaskStatusOpen})
 	require.NoError(t, err)
 
-	var m screen.Screen = New(task, projSvc)
+	var m screen.Screen = New(task, projSvc, nil)
 	m = screentest.Init(t, m)
 
 	_, dismissed := screentest.RunUntilDismiss(t, m, tea.KeyPressMsg{Code: tea.KeyEscape})
@@ -88,7 +112,7 @@ func TestWizard_AbandonLeavesTaskStandalone(t *testing.T) {
 
 func TestWizard_CommitErrorDisplayed(t *testing.T) {
 	task := gtd.Task{ID: 1, Title: "t", Status: gtd.TaskStatusOpen}
-	m := New(task, nil)
+	m := New(task, nil, nil)
 	m.saving = true
 
 	next, cmd := m.Update(convertedMsg{err: errors.New("disk full")})

@@ -30,14 +30,15 @@ import (
 var keyBack = key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "cancel"))
 
 type Model struct {
-	task   gtd.Task
-	svc    gtd.ProjectService
-	form   form.Model
-	err    error
-	saving bool
+	task          gtd.Task
+	svc           gtd.ProjectService
+	projectViewFn func(gtd.Project) screen.Screen
+	form          form.Model
+	err           error
+	saving        bool
 }
 
-func New(task gtd.Task, svc gtd.ProjectService) Model {
+func New(task gtd.Task, svc gtd.ProjectService, projectViewFn func(gtd.Project) screen.Screen) Model {
 	requireNonEmpty := func(label string) func(string) error {
 		return func(s string) error {
 			if len(s) == 0 {
@@ -67,9 +68,10 @@ func New(task gtd.Task, svc gtd.ProjectService) Model {
 	save := savefield.New("save", savefield.WithLabel("Convert"))
 
 	return Model{
-		task: task,
-		svc:  svc,
-		form: form.New(projectTitle, outcome, projectDesc, taskTitle, taskDesc, save),
+		task:          task,
+		svc:           svc,
+		projectViewFn: projectViewFn,
+		form:          form.New(projectTitle, outcome, projectDesc, taskTitle, taskDesc, save),
 	}
 }
 
@@ -116,7 +118,7 @@ func (m Model) handleConverted(msg convertedMsg) (screen.Screen, tea.Cmd) {
 		err := msg.err
 		return m, cmds.Emit(fmt.Errorf("convert failed: %w", err))
 	}
-	return screen.Dismiss()
+	return screen.Replace(m.projectViewFn(msg.project))
 }
 
 func (m Model) convertCmd() tea.Cmd {
@@ -133,11 +135,11 @@ func (m Model) convertCmd() tea.Cmd {
 	svc := m.svc
 	taskID := m.task.ID
 	return func() tea.Msg {
-		_, _, err := svc.ConvertTaskToProject(context.Background(), taskID, project, reframed)
+		created, _, err := svc.ConvertTaskToProject(context.Background(), taskID, project, reframed)
 		if err != nil {
 			slog.Error("converting task to project: " + err.Error())
 		}
-		return convertedMsg{err: err}
+		return convertedMsg{project: created, err: err}
 	}
 }
 
@@ -153,5 +155,6 @@ func (m Model) Keys() []keymap.Group {
 }
 
 type convertedMsg struct {
-	err error
+	project gtd.Project
+	err     error
 }
