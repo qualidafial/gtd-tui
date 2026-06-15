@@ -16,6 +16,7 @@ import (
 	"github.com/qualidafial/gtd-tui/sqlite"
 	"github.com/qualidafial/gtd-tui/tui/components/screen"
 	"github.com/qualidafial/gtd-tui/tui/components/screen/screentest"
+	"github.com/qualidafial/gtd-tui/tui/internal/keymap"
 )
 
 func openTestDB(t *testing.T) *sqlite.DB {
@@ -49,7 +50,7 @@ func TestModel_StatusLine(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			m := New(gtd.Task{ID: 1, Title: "Existing", Status: tt.status, StatusChangedAt: tt.at}, nil, "")
+			m := New(gtd.Task{ID: 1, Title: "Existing", Status: tt.status, StatusChangedAt: tt.at}, nil, "", nil)
 			view := ansi.Strip(m.View())
 			if !strings.Contains(view, tt.want) {
 				t.Fatalf("expected status line %q in view, got:\n%s", tt.want, view)
@@ -59,7 +60,7 @@ func TestModel_StatusLine(t *testing.T) {
 }
 
 func TestModel_SaveError_ReturnsErrorCmd(t *testing.T) {
-	m := New(gtd.Task{ID: 1, Title: "Existing"}, nil, "")
+	m := New(gtd.Task{ID: 1, Title: "Existing"}, nil, "", nil)
 
 	_, cmd := m.Update(taskSavedMsg{err: errors.New("disk full")})
 	require.NotNil(t, cmd, "expected error cmd on save failure")
@@ -70,7 +71,7 @@ func TestModel_SaveError_ReturnsErrorCmd(t *testing.T) {
 }
 
 func TestModel_SaveError_EscClearsError(t *testing.T) {
-	m := New(gtd.Task{ID: 1, Title: "Existing"}, nil, "")
+	m := New(gtd.Task{ID: 1, Title: "Existing"}, nil, "", nil)
 
 	withErr, _ := m.Update(taskSavedMsg{err: errors.New("disk full")})
 	require.NotNil(t, withErr.(Model).err, "precondition: error must be set")
@@ -81,7 +82,7 @@ func TestModel_SaveError_EscClearsError(t *testing.T) {
 }
 
 func TestModel_SaveError_OtherKeysSwallowed(t *testing.T) {
-	m := New(gtd.Task{ID: 1, Title: "Existing"}, nil, "")
+	m := New(gtd.Task{ID: 1, Title: "Existing"}, nil, "", nil)
 
 	withErr, _ := m.Update(taskSavedMsg{err: errors.New("disk full")})
 
@@ -89,8 +90,52 @@ func TestModel_SaveError_OtherKeysSwallowed(t *testing.T) {
 	assert.Nil(t, cmd)
 }
 
+// stubScreen is a no-op Screen used as the result of a test view factory.
+type stubScreen struct{}
+
+func (stubScreen) Init() tea.Cmd                           { return nil }
+func (stubScreen) Update(tea.Msg) (screen.Screen, tea.Cmd) { return stubScreen{}, nil }
+func (stubScreen) View() string                            { return "" }
+func (stubScreen) Keys() []keymap.Group                    { return nil }
+
+func TestModel_Save_CreateWithFactory_ReplacesWithView(t *testing.T) {
+	var gotTask gtd.Task
+	factory := func(task gtd.Task) screen.Screen {
+		gotTask = task
+		return stubScreen{}
+	}
+	m := New(gtd.Task{}, nil, "", factory)
+
+	created := gtd.Task{ID: 7, Title: "Fresh"}
+	next, cmd := m.Update(taskSavedMsg{task: created, created: true})
+
+	assert.NotNil(t, cmd, "expected a cmd batching window-size + init")
+	_, ok := next.(stubScreen)
+	assert.True(t, ok, "create with factory should replace the editor with the task view; got %T", next)
+	assert.Equal(t, created, gotTask, "factory should receive the created task")
+}
+
+func TestModel_Save_CreateWithoutFactory_Dismisses(t *testing.T) {
+	m := New(gtd.Task{}, nil, "", nil)
+
+	_, cmd := m.Update(taskSavedMsg{task: gtd.Task{ID: 7}, created: true})
+	require.NotNil(t, cmd)
+	_, ok := cmd().(screen.DismissMsg)
+	assert.True(t, ok, "create without factory should dismiss")
+}
+
+func TestModel_Save_Update_Dismisses(t *testing.T) {
+	factory := func(gtd.Task) screen.Screen { return stubScreen{} }
+	m := New(gtd.Task{ID: 7, Title: "Existing"}, nil, "", factory)
+
+	_, cmd := m.Update(taskSavedMsg{task: gtd.Task{ID: 7}, created: false})
+	require.NotNil(t, cmd)
+	_, ok := cmd().(screen.DismissMsg)
+	assert.True(t, ok, "update should dismiss even with a factory")
+}
+
 func TestModel_ProjectLine_Shown(t *testing.T) {
-	m := New(gtd.Task{ID: 1, Title: "Existing"}, nil, "Inbox Rewrite")
+	m := New(gtd.Task{ID: 1, Title: "Existing"}, nil, "Inbox Rewrite", nil)
 	view := ansi.Strip(m.View())
 	if !strings.Contains(view, "Project: Inbox Rewrite") {
 		t.Fatalf("expected project line in view, got:\n%s", view)
@@ -98,7 +143,7 @@ func TestModel_ProjectLine_Shown(t *testing.T) {
 }
 
 func TestModel_ProjectLine_Hidden(t *testing.T) {
-	m := New(gtd.Task{ID: 1, Title: "Existing"}, nil, "")
+	m := New(gtd.Task{ID: 1, Title: "Existing"}, nil, "", nil)
 	view := ansi.Strip(m.View())
 	if strings.Contains(view, "Project:") {
 		t.Fatalf("expected no project line in view, got:\n%s", view)
@@ -111,7 +156,7 @@ func TestCtrlEnter_SavesFromTitleField(t *testing.T) {
 	created, err := svc.CreateTask(t.Context(), gtd.Task{Title: "Original", Status: gtd.TaskStatusOpen})
 	require.NoError(t, err)
 
-	var s screen.Screen = New(created, svc, "")
+	var s screen.Screen = New(created, svc, "", nil)
 	s = screentest.Init(t, s)
 
 	// Edit the title from the Title field, then submit via ctrl+s without
@@ -130,7 +175,7 @@ func TestCtrlEnter_EmptyTitle_NoSave(t *testing.T) {
 	db := openTestDB(t)
 	svc := service.NewTaskService(db)
 
-	var s screen.Screen = New(gtd.Task{}, svc, "")
+	var s screen.Screen = New(gtd.Task{}, svc, "", nil)
 	s = screentest.Init(t, s)
 
 	// Title is empty; ctrl+s must not dismiss or create a task.

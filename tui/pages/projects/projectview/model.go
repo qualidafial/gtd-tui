@@ -50,7 +50,9 @@ func New(
 ) Model {
 	wrapped := service.NewProjectTaskService(taskSvc, project.ID)
 	projectNameFn := func(_ int64) string { return project.Title }
-	tasks := tasklist.New(wrapped, "", pickerFn, nil, projectNameFn, false)
+	// No view factory: the in-project task list is already a detail view, so
+	// enter edits rather than pushing a nested task view.
+	tasks := tasklist.New(wrapped, "", pickerFn, nil, projectNameFn, false, nil)
 
 	m := Model{
 		project:    project,

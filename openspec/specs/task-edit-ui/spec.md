@@ -2,9 +2,7 @@
 
 ## Purpose
 Defines the task editor overlay: form fields, defaults, read-only header, save/cancel behavior, and error handling.
-
 ## Requirements
-
 ### Requirement: Task editor form fields
 The task editor SHALL present a form for the editable fields of a task: Title, Description, Assignee, Due, and Defer Until, in that order. Title SHALL be required (a non-empty validation error blocks saving). Due and Defer Until SHALL use the shared date field (natural-language and `YYYY-MM-DD[ HH:MM]` input). Status SHALL NOT be editable from the editor; status changes are made through the transition confirmation overlay. The Kind field SHALL NOT appear.
 
@@ -51,17 +49,22 @@ The Status line in the read-only header SHALL show the task's status name (first
 - **THEN** the header shows `Status: Done (today)`
 
 ### Requirement: Save creates or updates
-Submitting the form SHALL create the task when it has no ID and update it otherwise. On success the editor SHALL dismiss its overlay and broadcast that tasks have changed so open task lists refresh.
+Submitting the form SHALL create the task when it has no ID and update it otherwise. When the editor was created with a view factory and the submission created a new task, the editor SHALL replace itself with the new task's view via `screen.Replace` (which morphs to the view and batches its window-size request and `Init`), so the parent list reloads when that view is later dismissed. Updates, and creates with no view factory, SHALL dismiss the overlay only (the revealed screen reloads on dismiss).
 
-#### Scenario: Create on submit
-- **WHEN** the form is submitted for a task with no ID
+#### Scenario: Create on submit without view factory
+- **WHEN** the form is submitted for a task with no ID and no view factory was supplied
 - **THEN** the task is created
-- **AND** the overlay is dismissed and lists are refreshed
+- **AND** the overlay is dismissed
+
+#### Scenario: Create on submit with view factory
+- **WHEN** the form is submitted for a task with no ID and a view factory was supplied
+- **THEN** the task is created
+- **AND** the editor is replaced by the new task's view screen
 
 #### Scenario: Update on submit
 - **WHEN** the form is submitted for a task with an ID
 - **THEN** the task is updated
-- **AND** the overlay is dismissed and lists are refreshed
+- **AND** the overlay is dismissed
 
 ### Requirement: Save-error surfacing and retry
 When a create or update fails, the editor SHALL render the error in red beneath the form rather than silently dropping it. Pressing esc SHALL clear the error and return the form to its editable state so the user can adjust input and retry; pressing esc again SHALL back out. While an error is showing, other keys SHALL be ignored so the form's completed state cannot re-fire the save.

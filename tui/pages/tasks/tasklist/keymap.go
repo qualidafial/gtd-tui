@@ -20,6 +20,7 @@ import (
 // non-nil, delegates the advertised bindings to the query bar.
 type KeyMap struct {
 	New              key.Binding
+	View             key.Binding
 	Edit             key.Binding
 	AssignToProject  key.Binding
 	ConvertToProject key.Binding
@@ -36,7 +37,8 @@ type KeyMap struct {
 func DefaultKeyMap() KeyMap {
 	return KeyMap{
 		New:              key.NewBinding(key.WithKeys("+", "insert"), key.WithHelp("+/insert", "new task")),
-		Edit:             key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "edit")),
+		View:             key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "view")),
+		Edit:             key.NewBinding(key.WithKeys("e"), key.WithHelp("e", "edit")),
 		AssignToProject:  key.NewBinding(key.WithKeys("p"), key.WithHelp("p", "assign to project")),
 		ConvertToProject: key.NewBinding(key.WithKeys("c"), key.WithHelp("c", "convert to project")),
 		ToggleComplete:   key.NewBinding(key.WithKeys("space"), key.WithHelp("space", "complete")),
@@ -62,6 +64,7 @@ func (k KeyMap) Keys() []keymap.Group {
 		},
 		{
 			{Binding: k.New, Vis: keymap.Short},
+			{Binding: k.View, Vis: keymap.Short},
 			{Binding: k.Edit, Vis: keymap.Short},
 			{Binding: k.AssignToProject, Vis: keymap.Short},
 			{Binding: k.ConvertToProject, Vis: keymap.Short},

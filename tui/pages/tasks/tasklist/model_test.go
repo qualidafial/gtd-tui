@@ -11,8 +11,80 @@ import (
 	"github.com/qualidafial/gtd-tui/service"
 	"github.com/qualidafial/gtd-tui/sqlite"
 	"github.com/qualidafial/gtd-tui/tui/components/screen"
+	"github.com/qualidafial/gtd-tui/tui/internal/keymap"
+	"github.com/qualidafial/gtd-tui/tui/pages/tasks/taskedit"
 	"github.com/qualidafial/gtd-tui/tui/pages/tasks/taskstatus"
 )
+
+// viewStub is a no-op Screen returned by a test view factory.
+type viewStub struct{}
+
+func (viewStub) Init() tea.Cmd                             { return nil }
+func (s viewStub) Update(tea.Msg) (screen.Screen, tea.Cmd) { return s, nil }
+func (viewStub) View() string                              { return "" }
+func (viewStub) Keys() []keymap.Group                      { return nil }
+
+// pushedScreen runs cmd, asserts it yields a PushMsg, and returns the pushed
+// screen.
+func pushedScreen(t *testing.T, cmd tea.Cmd) screen.Screen {
+	t.Helper()
+	if cmd == nil {
+		t.Fatal("expected a cmd")
+	}
+	push, ok := cmd().(screen.PushMsg)
+	if !ok {
+		t.Fatalf("expected PushMsg, got %T", cmd())
+	}
+	return push.Screen
+}
+
+// selectOne builds a tasklist with the given view factory and a single
+// selected open task.
+func selectOne(viewFn ViewFactory) Model {
+	m := New(nil, "", nil, nil, nil, false, viewFn)
+	loaded, _ := m.Update(TasksLoadedMsg{
+		tasks: []gtd.Task{{ID: 5, Title: "t", Status: gtd.TaskStatusOpen}},
+	})
+	return loaded.(Model)
+}
+
+func TestModel_EnterKey_OpensView(t *testing.T) {
+	var got gtd.Task
+	m := selectOne(func(task gtd.Task) screen.Screen {
+		got = task
+		return viewStub{}
+	})
+
+	_, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+
+	if _, ok := pushedScreen(t, cmd).(viewStub); !ok {
+		t.Fatal("enter should push the task view")
+	}
+	if got.ID != 5 {
+		t.Fatalf("view factory received task %d, want 5", got.ID)
+	}
+}
+
+func TestModel_EnterKey_FallsBackToEditorWithoutViewFn(t *testing.T) {
+	m := selectOne(nil)
+
+	_, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+
+	if _, ok := pushedScreen(t, cmd).(taskedit.Model); !ok {
+		t.Fatal("enter without a view factory should open the editor")
+	}
+}
+
+func TestModel_EKey_OpensEditor(t *testing.T) {
+	// A view factory is present to prove "e" still edits rather than viewing.
+	m := selectOne(func(gtd.Task) screen.Screen { return viewStub{} })
+
+	_, cmd := m.Update(tea.KeyPressMsg{Code: 'e', Text: "e"})
+
+	if _, ok := pushedScreen(t, cmd).(taskedit.Model); !ok {
+		t.Fatal("e should open the task editor")
+	}
+}
 
 func openTestTaskSvc(t *testing.T) gtd.TaskService {
 	t.Helper()
@@ -27,7 +99,7 @@ func openTestTaskSvc(t *testing.T) gtd.TaskService {
 // applied returns a tasklist whose query bar holds a non-default applied query,
 // with the reset binding reconciled as it would be after a reload.
 func applied(svc gtd.TaskService, defaultQuery, applied string) Model {
-	m := New(svc, defaultQuery, nil, nil, nil, false)
+	m := New(svc, defaultQuery, nil, nil, nil, false, nil)
 	m.query.SetValue(applied)
 	m.updateKeybindings()
 	return m
@@ -63,7 +135,7 @@ func TestModel_ResetQuery_EscAfterRevertRevertsToDefault(t *testing.T) {
 }
 
 func TestModel_ResetQuery_DisabledAtDefault(t *testing.T) {
-	m := New(openTestTaskSvc(t), "status:open ready:now", nil, nil, nil, false)
+	m := New(openTestTaskSvc(t), "status:open ready:now", nil, nil, nil, false, nil)
 	if m.KeyMap.ResetQuery.Enabled() {
 		t.Fatal("ResetQuery should be disabled when query equals default")
 	}
@@ -78,7 +150,7 @@ func TestModel_ResetQuery_DisabledAtDefault(t *testing.T) {
 }
 
 func TestModel_ResetQuery_InertWhileEditing(t *testing.T) {
-	m := New(openTestTaskSvc(t), "status:open ready:now", nil, nil, nil, false)
+	m := New(openTestTaskSvc(t), "status:open ready:now", nil, nil, nil, false, nil)
 	focused, _ := m.Update(tea.KeyPressMsg{Code: '/', Text: "/"})
 	typed, _ := focused.(Model).Update(tea.KeyPressMsg{Code: '\\', Text: "\\"})
 	got := typed.(Model)
@@ -104,7 +176,7 @@ func TestModel_ResetQuery_EmptyDefaultClears(t *testing.T) {
 
 func TestModel_TasksLoaded_AppliesItems(t *testing.T) {
 	var svc gtd.TaskService = nil
-	pending := New(svc, "status:open", nil, nil, nil, false)
+	pending := New(svc, "status:open", nil, nil, nil, false, nil)
 
 	updated, _ := pending.Update(TasksLoadedMsg{
 		tasks: []gtd.Task{{ID: 1, Title: "open task", Status: gtd.TaskStatusOpen}},
@@ -127,7 +199,7 @@ func TestModel_NewTaskKey_OpensEditor(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			m := New(nil, "status:open", nil, nil, nil, false)
+			m := New(nil, "status:open", nil, nil, nil, false, nil)
 			_, cmd := m.Update(tt.key)
 			if cmd == nil {
 				t.Fatal("expected a cmd from new-task keybinding")
@@ -141,7 +213,7 @@ func TestModel_NewTaskKey_OpensEditor(t *testing.T) {
 }
 
 func TestModel_NKey_NoLongerOpensEditor(t *testing.T) {
-	m := New(nil, "status:open", nil, nil, nil, false)
+	m := New(nil, "status:open", nil, nil, nil, false, nil)
 	_, cmd := m.Update(tea.KeyPressMsg{Code: 'n', Text: "n"})
 	if cmd != nil {
 		if msg := cmd(); msg != nil {
@@ -154,7 +226,7 @@ func TestModel_NKey_NoLongerOpensEditor(t *testing.T) {
 
 // loadOne builds a tasklist with a single selected task of the given status.
 func loadOne(status gtd.TaskStatus) Model {
-	m := New(nil, "", nil, nil, nil, false)
+	m := New(nil, "", nil, nil, nil, false, nil)
 	updated, _ := m.Update(TasksLoadedMsg{
 		tasks: []gtd.Task{{ID: 1, Title: "t", Status: status}},
 	})
@@ -227,7 +299,7 @@ func TestModel_Delete_NoOpOnClosedTasks(t *testing.T) {
 }
 
 func TestModel_MoveBindings_Boundaries(t *testing.T) {
-	m := New(nil, "", nil, nil, nil, false)
+	m := New(nil, "", nil, nil, nil, false, nil)
 	upd, _ := m.Update(TasksLoadedMsg{
 		tasks: []gtd.Task{
 			{ID: 1, Title: "a", Status: gtd.TaskStatusOpen},
@@ -290,7 +362,7 @@ func TestModel_MoveLast_ReordersAndKeepsCursor(t *testing.T) {
 		t.Fatalf("list tasks: %v", err)
 	}
 
-	m := New(svc, "", nil, nil, nil, false)
+	m := New(svc, "", nil, nil, nil, false, nil)
 	loaded, _ := m.Update(TasksLoadedMsg{tasks: tasks})
 	m = loaded.(Model)
 

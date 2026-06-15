@@ -20,6 +20,7 @@ import (
 	"github.com/qualidafial/gtd-tui/tui/pages/projects/projectview"
 	"github.com/qualidafial/gtd-tui/tui/pages/tasks/taskconvert"
 	"github.com/qualidafial/gtd-tui/tui/pages/tasks/tasklist"
+	"github.com/qualidafial/gtd-tui/tui/pages/tasks/taskview"
 )
 
 var (
@@ -44,10 +45,12 @@ func New(
 	pickerFn := func(task gtd.Task) screen.Screen {
 		return projectpicker.New(task, taskSvc, projectSvc)
 	}
+	// projectViewFn is shared by the convert-to-project wizard and the task
+	// view's go-to-project action; hoisting it keeps a single definition.
+	projectViewFn := func(p gtd.Project) screen.Screen {
+		return projectview.New(p, taskSvc, projectSvc, pickerFn)
+	}
 	convertFn := func(task gtd.Task) screen.Screen {
-		projectViewFn := func(p gtd.Project) screen.Screen {
-			return projectview.New(p, taskSvc, projectSvc, pickerFn)
-		}
 		return taskconvert.New(task, projectSvc, projectViewFn)
 	}
 	projectNameFn := func(id int64) string {
@@ -58,7 +61,10 @@ func New(
 		}
 		return p.Title
 	}
-	pending := tasklist.New(taskSvc, "status:open ready:now", pickerFn, convertFn, projectNameFn, true)
+	taskViewFn := func(t gtd.Task) screen.Screen {
+		return taskview.New(t, taskSvc, projectNameFn, pickerFn, convertFn, projectViewFn)
+	}
+	pending := tasklist.New(taskSvc, "status:open ready:now", pickerFn, convertFn, projectNameFn, true, taskViewFn)
 	projectList := projects.New(projectSvc, taskSvc, pickerFn)
 	inboxPage := inbox.New(inboxSvc, taskSvc, projectSvc)
 

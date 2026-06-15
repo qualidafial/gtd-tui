@@ -38,11 +38,17 @@ type ConvertFactory func(gtd.Task) screen.Screen
 // When nil, the task editor omits the project line.
 type ProjectNameFunc func(id int64) string
 
+// ViewFactory creates the task view screen for the given task, pushed on enter
+// and after a new task is created. When nil (e.g. the in-project task list,
+// which is already a detail view), enter falls back to opening the editor.
+type ViewFactory func(gtd.Task) screen.Screen
+
 type Model struct {
 	svc           gtd.TaskService
 	pickerFn      PickerFactory
 	convertFn     ConvertFactory
 	projectNameFn ProjectNameFunc
+	viewFn        ViewFactory
 	defaultQuery  string
 	filter        gtd.TaskFilter
 	query         querybar.Model
@@ -66,7 +72,7 @@ type tasksReorderedMsg struct {
 // renders a `+<project title>` chip for tasks that belong to a project; pass
 // false for the in-project task list where every row would share the same
 // project. The chip is independent of projectNameFn's role in the task editor.
-func New(svc gtd.TaskService, query string, pickerFn PickerFactory, convertFn ConvertFactory, projectNameFn ProjectNameFunc, showProjectChip bool) Model {
+func New(svc gtd.TaskService, query string, pickerFn PickerFactory, convertFn ConvertFactory, projectNameFn ProjectNameFunc, showProjectChip bool, viewFn ViewFactory) Model {
 	keys := DefaultKeyMap()
 
 	l := list.New(nil, newDelegate(keys, projectChipResolver(showProjectChip, projectNameFn)), 0, 0)
@@ -99,6 +105,7 @@ func New(svc gtd.TaskService, query string, pickerFn PickerFactory, convertFn Co
 		pickerFn:      pickerFn,
 		convertFn:     convertFn,
 		projectNameFn: projectNameFn,
+		viewFn:        viewFn,
 		defaultQuery:  query,
 		filter:        filter,
 		query:         qb,
@@ -206,10 +213,19 @@ func (m Model) Update(msg tea.Msg) (screen.Screen, tea.Cmd) {
 			t := gtd.Task{
 				Status: gtd.TaskStatusOpen,
 			}
-			return m, screen.Push(taskedit.New(t, m.svc, ""))
+			// Pass the view factory so a newly created task lands on its view.
+			return m, screen.Push(taskedit.New(t, m.svc, "", taskedit.ViewFactory(m.viewFn)))
+		case key.Matches(msg, m.KeyMap.View):
+			if ti, ok := m.list.SelectedItem().(Item); ok {
+				if m.viewFn != nil {
+					return m, screen.Push(m.viewFn(ti.task))
+				}
+				// No view factory (e.g. the in-project task list): enter edits.
+				return m, screen.Push(taskedit.New(ti.task, m.svc, m.resolveProjectName(ti.task), nil))
+			}
 		case key.Matches(msg, m.KeyMap.Edit):
 			if ti, ok := m.list.SelectedItem().(Item); ok {
-				return m, screen.Push(taskedit.New(ti.task, m.svc, m.resolveProjectName(ti.task)))
+				return m, screen.Push(taskedit.New(ti.task, m.svc, m.resolveProjectName(ti.task), nil))
 			}
 		case key.Matches(msg, m.KeyMap.AssignToProject):
 			if ti, ok := m.list.SelectedItem().(Item); ok && m.pickerFn != nil {

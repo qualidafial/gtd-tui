@@ -31,16 +31,22 @@ var (
 	metaValueStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("245"))
 )
 
+// ViewFactory builds the screen shown after a new task is created, so the
+// editor can navigate to the new task's view. When nil, creating dismisses
+// the editor without pushing a view (and updates always dismiss only).
+type ViewFactory func(task gtd.Task) screen.Screen
+
 type Model struct {
 	task        gtd.Task
 	svc         gtd.TaskService
 	projectName string
+	viewFactory ViewFactory
 	err         error
 	form        form.Model
 	saving      bool
 }
 
-func New(task gtd.Task, svc gtd.TaskService, projectName string) Model {
+func New(task gtd.Task, svc gtd.TaskService, projectName string, viewFactory ViewFactory) Model {
 	if task.ID == 0 {
 		task.Status = gtd.TaskStatusOpen
 	}
@@ -88,6 +94,7 @@ func New(task gtd.Task, svc gtd.TaskService, projectName string) Model {
 		task:        task,
 		svc:         svc,
 		projectName: projectName,
+		viewFactory: viewFactory,
 		form:        form.New(title, desc, asg, due, deferUntil, save),
 	}
 }
@@ -134,6 +141,9 @@ func (m Model) handleSaved(msg taskSavedMsg) (screen.Screen, tea.Cmd) {
 		err := msg.err
 		return m, cmds.Emit(fmt.Errorf("save failed: %w", err))
 	}
+	if msg.created && m.viewFactory != nil {
+		return screen.Replace(m.viewFactory(msg.task))
+	}
 	return screen.Dismiss()
 }
 
@@ -151,11 +161,12 @@ func (m Model) saveCmd() tea.Cmd {
 	task.DeferUntil, _ = values["defer"].(*time.Time)
 
 	svc := m.svc
+	creating := task.ID == 0
 	return func() tea.Msg {
 		var saved gtd.Task
 		var err error
 		ctx := context.Background()
-		if task.ID == 0 {
+		if creating {
 			saved, err = svc.CreateTask(ctx, task)
 		} else {
 			saved, err = svc.UpdateTask(ctx, task)
@@ -163,7 +174,7 @@ func (m Model) saveCmd() tea.Cmd {
 		if err != nil {
 			slog.Error("saving task: " + err.Error())
 		}
-		return taskSavedMsg{task: saved, err: err}
+		return taskSavedMsg{task: saved, created: creating, err: err}
 	}
 }
 
@@ -212,6 +223,7 @@ func (m Model) Keys() []keymap.Group {
 }
 
 type taskSavedMsg struct {
-	task gtd.Task
-	err  error
+	task    gtd.Task
+	created bool
+	err     error
 }

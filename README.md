@@ -102,7 +102,8 @@ Task list:
 | Key        | Action            |
 | ---------- | ----------------- |
 | `+` / `insert` | New task      |
-| `enter`    | Edit task         |
+| `enter`    | Open task view    |
+| `e`        | Edit task         |
 | `space`    | Toggle complete   |
 | `delete`   | Drop task         |
 | `p`        | Jump to project   |
@@ -135,6 +136,17 @@ Project view:
 | `e`     | Edit project                                |
 | `l`     | Link an existing standalone task into the project |
 | `c`     | Convert to task (empty open projects only)  |
+
+Task view:
+
+| Key      | Action                                      |
+| -------- | ------------------------------------------- |
+| `e`      | Edit task                                   |
+| `space`  | Toggle complete                             |
+| `delete` | Drop task                                   |
+| `p`      | Assign to project                           |
+| `c`      | Convert to project (standalone tasks only)  |
+| `g`      | Go to linked project (tasks in a project)   |
 
 Linking a task into a `someday` project removes it from the default task views
 until the project is reopened — the task's status is unchanged.
