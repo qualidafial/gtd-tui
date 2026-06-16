@@ -44,7 +44,7 @@ type chipColors struct {
 	deferred lipgloss.Style // dim blue
 	ready    lipgloss.Style // teal
 	assignee lipgloss.Style // magenta
-	project  lipgloss.Style // green
+	project  lipgloss.Style // indigo
 }
 
 // newChipColors returns the urgency palette. Dark theme is the only tuned
@@ -65,11 +65,11 @@ func newChipColors(hasDarkBg bool) chipColors {
 }
 
 // taskChips builds the ordered chips for a task: due/overdue, then defer/ready,
-// then assignee, then project. Due and defer chips are suppressed on done and
-// dropped tasks; assignee and project chips survive on done tasks; dropped
-// tasks show no chips. projectName is the resolved title to render in the
-// `+<name>` chip; an empty string suppresses the chip.
-func taskChips(t gtd.Task, now time.Time, c chipColors, projectName string) []chip {
+// then assignee. Due and defer chips are suppressed on done and dropped tasks;
+// the assignee chip survives on done tasks; dropped tasks show no chips. The
+// project association is rendered separately as a leading label (see
+// projectLabel), not as a trailing chip.
+func taskChips(t gtd.Task, now time.Time, c chipColors) []chip {
 	var chips []chip
 
 	if t.Status == gtd.TaskStatusDropped {
@@ -89,11 +89,17 @@ func taskChips(t gtd.Task, now time.Time, c chipColors, projectName string) []ch
 		chips = append(chips, chip{text: "@" + *t.Assignee, style: c.assignee})
 	}
 
-	if projectName != "" {
-		chips = append(chips, chip{text: "+" + projectName, style: c.project})
-	}
-
 	return chips
+}
+
+// projectLabel returns the project association to render as a leading label
+// ahead of the task title, or "" to suppress it. projectName is the resolved
+// title; dropped tasks suppress the label so a dropped row carries no metadata.
+func projectLabel(t gtd.Task, projectName string) string {
+	if t.Status == gtd.TaskStatusDropped {
+		return ""
+	}
+	return projectName
 }
 
 // dueChip builds the due/overdue chip. The word is decided by the reference
@@ -197,11 +203,11 @@ func titleStyle(s gtd.TaskStatus) lipgloss.Style {
 	}
 }
 
-// delegate renders task rows: a status marker, the title (truncated first under
-// width pressure and carrying the per-status style and selection highlight),
-// and inline urgency-colored chips that keep their colors on the selected row.
-// projectResolver returns the project name to render in the project chip for
-// a task, or "" to suppress the chip.
+// delegate renders task rows: a status marker, a leading project label, the
+// title (truncated first under width pressure and carrying the per-status style
+// and selection highlight), and inline urgency-colored chips that keep their
+// colors on the selected row. projectResolver returns the project name to
+// render in the leading label for a task, or "" to suppress it.
 type projectResolver func(gtd.Task) string
 
 type delegate struct {
@@ -247,7 +253,21 @@ func (d *delegate) Render(w io.Writer, m list.Model, index int, item list.Item) 
 	prefix := cursor + marker
 
 	colors := newChipColors(d.hasDarkBg)
-	chips := taskChips(it.task, time.Now(), colors, d.project(it.task))
+
+	// Project label leads the row, ahead of the title. It brightens (bolds)
+	// alongside the title on the selected row.
+	var projectStr string
+	projectWidth := 0
+	if name := projectLabel(it.task, d.project(it.task)); name != "" {
+		ps := colors.project
+		if selected {
+			ps = ps.Bold(true)
+		}
+		projectStr = ps.Render(name)
+		projectWidth = lipgloss.Width(projectStr) + 1 // trailing gap before title
+	}
+
+	chips := taskChips(it.task, time.Now(), colors)
 	var chipParts []string
 	for _, ch := range chips {
 		chipParts = append(chipParts, ch.style.Render(ch.text))
@@ -258,8 +278,8 @@ func (d *delegate) Render(w io.Writer, m list.Model, index int, item list.Item) 
 		chipWidth += 2 // leading gap between title and chips
 	}
 
-	// Title truncates first; chips are short and kept intact.
-	titleBudget := width - lipgloss.Width(prefix) - chipWidth
+	// Title truncates first; the project label and chips are short and kept intact.
+	titleBudget := width - lipgloss.Width(prefix) - projectWidth - chipWidth
 	if titleBudget < 1 {
 		titleBudget = 1
 	}
@@ -273,6 +293,10 @@ func (d *delegate) Render(w io.Writer, m list.Model, index int, item list.Item) 
 
 	var b strings.Builder
 	b.WriteString(prefix)
+	if projectStr != "" {
+		b.WriteString(projectStr)
+		b.WriteString(" ")
+	}
 	b.WriteString(title)
 	if chipStr != "" {
 		b.WriteString(" ")

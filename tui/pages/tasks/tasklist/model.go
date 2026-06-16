@@ -69,9 +69,9 @@ type tasksReorderedMsg struct {
 }
 
 // New constructs a task list. showProjectChip controls whether each row
-// renders a `+<project title>` chip for tasks that belong to a project; pass
-// false for the in-project task list where every row would share the same
-// project. The chip is independent of projectNameFn's role in the task editor.
+// renders a leading project-title label for tasks that belong to a project;
+// pass false for the in-project task list where every row would share the same
+// project. The label is independent of projectNameFn's role in the task editor.
 func New(svc gtd.TaskService, query string, pickerFn PickerFactory, convertFn ConvertFactory, projectNameFn ProjectNameFunc, showProjectChip bool, viewFn ViewFactory) Model {
 	keys := DefaultKeyMap()
 
@@ -117,9 +117,9 @@ func New(svc gtd.TaskService, query string, pickerFn PickerFactory, convertFn Co
 }
 
 // projectChipResolver returns a per-task project-name resolver suitable for
-// the row renderer. It returns "" — suppressing the chip — when the list is
-// configured without a project chip, when no resolver was supplied, or when
-// the task is standalone.
+// the row renderer. It returns "" — suppressing the leading project label —
+// when the list is configured without one, when no resolver was supplied, or
+// when the task is standalone.
 func projectChipResolver(enabled bool, fn ProjectNameFunc) projectResolver {
 	if !enabled || fn == nil {
 		return nil

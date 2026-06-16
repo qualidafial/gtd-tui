@@ -75,7 +75,7 @@ func TestTaskChips(t *testing.T) {
 			Due:      new(dateOnly(2026, 5, 20)),
 			Assignee: new("alice"),
 		}
-		chips := taskChips(task, now, colors, "")
+		chips := taskChips(task, now, colors)
 		assert.Equal(t, []chip{{text: "@alice", style: colors.assignee}}, chips)
 	})
 
@@ -85,62 +85,27 @@ func TestTaskChips(t *testing.T) {
 			Due:      new(dateOnly(2026, 5, 20)),
 			Assignee: new("bob"),
 		}
-		assert.Empty(t, taskChips(task, now, colors, "Kitchen remodel"))
+		assert.Empty(t, taskChips(task, now, colors))
 	})
 
-	t.Run("chip order: due, defer, assignee, project", func(t *testing.T) {
+	t.Run("chip order: due, defer, assignee", func(t *testing.T) {
 		task := gtd.Task{
 			Status:     gtd.TaskStatusOpen,
 			Due:        new(dateOnly(2026, 6, 21)), // 28d out
 			DeferUntil: new(dateOnly(2026, 6, 7)),  // 14d out
 			Assignee:   new("carol"),
 		}
-		chips := taskChips(task, now, colors, "Kitchen remodel")
+		chips := taskChips(task, now, colors)
 		var texts []string
 		for _, ch := range chips {
 			texts = append(texts, ch.text)
 		}
-		assert.Equal(t, []string{"due:28d", "defer:14d", "@carol", "+Kitchen remodel"}, texts)
+		assert.Equal(t, []string{"due:28d", "defer:14d", "@carol"}, texts)
 	})
 
-	t.Run("open task with project shows project chip", func(t *testing.T) {
+	t.Run("project is not a chip", func(t *testing.T) {
 		task := gtd.Task{Status: gtd.TaskStatusOpen, ProjectID: new(int64(1))}
-		chips := taskChips(task, now, colors, "Kitchen remodel")
-		assert.Equal(t, []chip{{text: "+Kitchen remodel", style: colors.project}}, chips)
-	})
-
-	t.Run("empty project name suppresses project chip", func(t *testing.T) {
-		task := gtd.Task{Status: gtd.TaskStatusOpen, ProjectID: new(int64(1))}
-		chips := taskChips(task, now, colors, "")
-		assert.Empty(t, chips)
-	})
-
-	t.Run("done task keeps project chip", func(t *testing.T) {
-		task := gtd.Task{Status: gtd.TaskStatusDone, ProjectID: new(int64(1)), Assignee: new("alice")}
-		chips := taskChips(task, now, colors, "Kitchen remodel")
-		assert.Equal(t, []chip{
-			{text: "@alice", style: colors.assignee},
-			{text: "+Kitchen remodel", style: colors.project},
-		}, chips)
-	})
-
-	t.Run("dropped task hides project chip", func(t *testing.T) {
-		task := gtd.Task{Status: gtd.TaskStatusDropped, ProjectID: new(int64(1))}
-		assert.Empty(t, taskChips(task, now, colors, "Kitchen remodel"))
-	})
-
-	t.Run("project chip resolver suppressed when flag is off", func(t *testing.T) {
-		// In-project tasklist: showProjectChip=false ⇒ no resolver, so chips don't
-		// render the project chip even when ProjectID is set.
-		resolver := projectChipResolver(false, func(id int64) string { return "Kitchen remodel" })
-		assert.Nil(t, resolver)
-	})
-
-	t.Run("project chip resolver returns name when enabled", func(t *testing.T) {
-		resolver := projectChipResolver(true, func(id int64) string { return "Kitchen remodel" })
-		require.NotNil(t, resolver)
-		assert.Equal(t, "Kitchen remodel", resolver(gtd.Task{ProjectID: new(int64(1))}))
-		assert.Equal(t, "", resolver(gtd.Task{}))
+		assert.Empty(t, taskChips(task, now, colors))
 	})
 
 	t.Run("ready day-count and color", func(t *testing.T) {
@@ -150,5 +115,41 @@ func TestTaskChips(t *testing.T) {
 		assert.True(t, ok)
 		assert.Equal(t, "ready:3d", ch.text)
 		assert.Equal(t, colors.ready, ch.style)
+	})
+}
+
+func TestProjectLabel(t *testing.T) {
+	t.Run("open task shows project label without + prefix", func(t *testing.T) {
+		task := gtd.Task{Status: gtd.TaskStatusOpen, ProjectID: new(int64(1))}
+		assert.Equal(t, "Kitchen remodel", projectLabel(task, "Kitchen remodel"))
+	})
+
+	t.Run("empty project name suppresses label", func(t *testing.T) {
+		task := gtd.Task{Status: gtd.TaskStatusOpen, ProjectID: new(int64(1))}
+		assert.Equal(t, "", projectLabel(task, ""))
+	})
+
+	t.Run("done task keeps project label", func(t *testing.T) {
+		task := gtd.Task{Status: gtd.TaskStatusDone, ProjectID: new(int64(1))}
+		assert.Equal(t, "Kitchen remodel", projectLabel(task, "Kitchen remodel"))
+	})
+
+	t.Run("dropped task hides project label", func(t *testing.T) {
+		task := gtd.Task{Status: gtd.TaskStatusDropped, ProjectID: new(int64(1))}
+		assert.Equal(t, "", projectLabel(task, "Kitchen remodel"))
+	})
+
+	t.Run("project chip resolver suppressed when flag is off", func(t *testing.T) {
+		// In-project tasklist: showProjectChip=false ⇒ no resolver, so the row
+		// renders no project label even when ProjectID is set.
+		resolver := projectChipResolver(false, func(id int64) string { return "Kitchen remodel" })
+		assert.Nil(t, resolver)
+	})
+
+	t.Run("project chip resolver returns name when enabled", func(t *testing.T) {
+		resolver := projectChipResolver(true, func(id int64) string { return "Kitchen remodel" })
+		require.NotNil(t, resolver)
+		assert.Equal(t, "Kitchen remodel", resolver(gtd.Task{ProjectID: new(int64(1))}))
+		assert.Equal(t, "", resolver(gtd.Task{}))
 	})
 }
