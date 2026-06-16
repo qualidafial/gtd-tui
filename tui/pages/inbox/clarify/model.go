@@ -43,7 +43,7 @@ var (
 	keyBack = key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "cancel"))
 
 	headerStyle   = theme.Title
-	itemDescStyle = lipgloss.NewStyle().Foreground(theme.Soft)
+	itemDescStyle = lipgloss.NewStyle().Foreground(theme.Muted)
 	doneStyle     = theme.DoneTitle
 	errStyle      = theme.Error
 	hintStyle     = theme.Label.Italic(true)

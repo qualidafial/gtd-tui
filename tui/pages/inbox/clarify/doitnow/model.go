@@ -28,7 +28,7 @@ var (
 	titleStyle  = theme.Title
 	dimStyle    = theme.Value
 	bannerStyle = lipgloss.NewStyle().Foreground(theme.Warning)
-	descStyle   = lipgloss.NewStyle().Foreground(theme.Soft)
+	descStyle   = lipgloss.NewStyle().Foreground(theme.Muted)
 )
 
 // ResultMsg is emitted alongside the dismiss when the user closes the prompt.

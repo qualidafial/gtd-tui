@@ -10,33 +10,37 @@ package theme
 
 import "charm.land/lipgloss/v2"
 
-// Palette. A single ANSI code can serve more than one semantic role
-// (e.g. Danger is both errors and overdue); names lean on the role that
-// drove the choice and the comments note the rest. Only a dark terminal
-// background is tuned today.
+// Palette. Colors whose role matches huh's Charm theme use that theme's
+// exact (dark-background) values so the app reads as a Charm app: fuchsia
+// for focus/selection, indigo for the logo, green for ready/needs-action,
+// red for errors, cream for text on fills, and huh's 243 neutral text
+// tone. App-specific hues with no huh analog (due-date orange/yellow,
+// deferred blue, project teal) keep their tuned ANSI codes. A single
+// value can serve more than one semantic role (e.g. Danger is both errors
+// and overdue); names lean on the role that drove the choice and the
+// comments note the rest. Only a dark terminal background is tuned today.
 var (
 	// Status / urgency hues.
-	Danger   = lipgloss.Color("9")   // errors, overdue
-	DueToday = lipgloss.Color("208") // orange
-	Warning  = lipgloss.Color("11")  // yellow: due soon, banners
-	Ready    = lipgloss.Color("44")  // teal: ready / needs-action
-	Deferred = lipgloss.Color("67")  // dim blue
-	Project  = lipgloss.Color("36")  // green: project association
-	Done     = lipgloss.Color("65")  // muted green: completed items
-	Accent   = lipgloss.Color("13")  // magenta: focus affordance, assignee
-	Active   = lipgloss.Color("212") // pink: active tab / bullet
+	Danger   = lipgloss.Color("#ED567A") // huh red: errors, overdue
+	DueToday = lipgloss.Color("208")     // orange
+	Warning  = lipgloss.Color("136")     // dark amber: due soon, banners
+	Ready    = lipgloss.Color("#02BF87") // huh green: ready / needs-action
+	Deferred = lipgloss.Color("67")      // dim blue
+	Project  = lipgloss.Color("36")      // green: project association
+	Done     = lipgloss.Color("65")      // muted green: completed items
+	Accent   = lipgloss.Color("#F780E2") // huh fuchsia: focus affordance, assignee
+	Active   = lipgloss.Color("#F780E2") // huh fuchsia: active tab / bullet
 
 	// Neutral text tones, dimmest to brightest.
-	Subtle = lipgloss.Color("240") // labels, hints, inactive tabs, dropped
-	Muted  = lipgloss.Color("245") // secondary values, descriptions
-	Soft   = lipgloss.Color("250") // slightly brighter descriptions
-	White  = lipgloss.Color("15")  // text on accent fills
+	Subtle = lipgloss.Color("240")     // labels, hints, inactive tabs, dropped
+	Muted  = lipgloss.Color("243")     // huh description: secondary values, descriptions
+	White  = lipgloss.Color("#FFFDF5") // huh cream: text on accent fills
 
 	// Surfaces / fills.
-	LogoBg        = lipgloss.Color("62")  // logo background
-	LogoFg        = lipgloss.Color("230") // logo text
-	MutedAccentBg = lipgloss.Color("90")  // selected pill on a blurred field
-	PillBg        = lipgloss.Color("8")   // unselected pill background
+	LogoBg        = lipgloss.Color("#7571F9") // huh indigo: logo background
+	LogoFg        = lipgloss.Color("#FFFDF5") // huh cream: logo text
+	MutedAccentBg = lipgloss.Color("#A24FA0") // dimmed fuchsia: selected pill on a blurred field
+	PillBg        = lipgloss.Color("237")     // huh blurred-button bg: unselected pill
 )
 
 // Reusable styles. Heads, labels, values and item-title variants recur
