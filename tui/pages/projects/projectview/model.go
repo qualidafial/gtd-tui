@@ -48,12 +48,13 @@ func New(
 	taskSvc gtd.TaskService,
 	projectSvc gtd.ProjectService,
 	pickerFn tasklist.PickerFactory,
+	taskViewFn tasklist.ViewFactory,
 ) Model {
 	wrapped := service.NewProjectTaskService(taskSvc, project.ID)
 	projectNameFn := func(_ int64) string { return project.Title }
-	// No view factory: the in-project task list is already a detail view, so
-	// enter edits rather than pushing a nested task view.
-	tasks := tasklist.New(wrapped, "", pickerFn, nil, projectNameFn, false, nil)
+	// enter pushes the task view; e edits. The in-project list is itself a
+	// detail view, but enter on a task should still drill into that task.
+	tasks := tasklist.New(wrapped, "", pickerFn, nil, projectNameFn, false, taskViewFn)
 
 	m := Model{
 		project:    project,

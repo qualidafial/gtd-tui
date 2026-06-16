@@ -41,7 +41,7 @@ func TestHeader_AllFields(t *testing.T) {
 		Outcome: "A functional shed",
 		Due:     &due,
 	}
-	m := New(p, nil, nil, nil)
+	m := New(p, nil, nil, nil, nil)
 	header := m.renderHeader()
 
 	assert.Contains(t, header, "Build shed")
@@ -56,7 +56,7 @@ func TestHeader_OmitsEmpty(t *testing.T) {
 		Title:  "Minimal",
 		Status: gtd.ProjectStatusOpen,
 	}
-	m := New(p, nil, nil, nil)
+	m := New(p, nil, nil, nil, nil)
 	header := m.renderHeader()
 
 	assert.Contains(t, header, "Minimal")
@@ -77,7 +77,7 @@ func TestTaskScoping(t *testing.T) {
 	_, err = e.taskSvc.CreateTask(ctx, gtd.Task{Title: "Standalone", Status: gtd.TaskStatusOpen})
 	require.NoError(t, err)
 
-	m := New(p, e.taskSvc, e.projectSvc, nil)
+	m := New(p, e.taskSvc, e.projectSvc, nil, nil)
 	m = screentest.Init(t, m).(Model)
 
 	s, _ := m.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
@@ -114,7 +114,7 @@ func TestHeader_StatusLabels(t *testing.T) {
 	} {
 		t.Run(string(tt.status), func(t *testing.T) {
 			p := gtd.Project{ID: 1, Title: "T", Status: tt.status}
-			m := New(p, nil, nil, nil)
+			m := New(p, nil, nil, nil, nil)
 			header := m.renderHeader()
 			found := false
 			for _, line := range strings.Split(header, "\n") {

@@ -46,14 +46,6 @@ func New(
 	pickerFn := func(task gtd.Task) screen.Screen {
 		return projectpicker.New(task, taskSvc, projectSvc)
 	}
-	// projectViewFn is shared by the convert-to-project wizard and the task
-	// view's go-to-project action; hoisting it keeps a single definition.
-	projectViewFn := func(p gtd.Project) screen.Screen {
-		return projectview.New(p, taskSvc, projectSvc, pickerFn)
-	}
-	convertFn := func(task gtd.Task) screen.Screen {
-		return taskconvert.New(task, projectSvc, projectViewFn)
-	}
 	projectNameFn := func(id int64) string {
 		p, err := projectSvc.GetProject(context.Background(), id)
 		if err != nil {
@@ -62,11 +54,28 @@ func New(
 		}
 		return p.Title
 	}
+	// projectViewFn is declared up front so the closures it depends on (the
+	// convert wizard and the in-project task view, both reached via a project
+	// view) can capture it before it is assigned below.
+	var projectViewFn func(gtd.Project) screen.Screen
+	convertFn := func(task gtd.Task) screen.Screen {
+		return taskconvert.New(task, projectSvc, projectViewFn)
+	}
+	// taskViewFn backs the top-level Tasks tab: a task view there jumps to its
+	// project on go-to-project.
 	taskViewFn := func(t gtd.Task) screen.Screen {
 		return taskview.New(t, taskSvc, projectNameFn, pickerFn, convertFn, projectViewFn)
 	}
+	// projectTaskViewFn backs the in-project task list: the project is already
+	// the parent screen, so go-to-project is disabled (nil ProjectViewFactory).
+	projectTaskViewFn := func(t gtd.Task) screen.Screen {
+		return taskview.New(t, taskSvc, projectNameFn, pickerFn, convertFn, nil)
+	}
+	projectViewFn = func(p gtd.Project) screen.Screen {
+		return projectview.New(p, taskSvc, projectSvc, pickerFn, projectTaskViewFn)
+	}
 	pending := tasklist.New(taskSvc, "status:open ready:now", pickerFn, convertFn, projectNameFn, true, taskViewFn)
-	projectList := projects.New(projectSvc, taskSvc, pickerFn)
+	projectList := projects.New(projectSvc, taskSvc, pickerFn, projectTaskViewFn)
 	inboxPage := inbox.New(inboxSvc, taskSvc, projectSvc)
 
 	tabs := tabcontainer.New(

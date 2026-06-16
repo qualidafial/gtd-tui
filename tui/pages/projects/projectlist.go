@@ -28,10 +28,11 @@ const projectQueryDebounceDelay = 500 * time.Millisecond
 const defaultProjectQuery = "status:open"
 
 type Model struct {
-	svc      gtd.ProjectService
-	taskSvc  gtd.TaskService
-	pickerFn tasklist.PickerFactory
-	filter   gtd.ProjectFilter
+	svc        gtd.ProjectService
+	taskSvc    gtd.TaskService
+	pickerFn   tasklist.PickerFactory
+	taskViewFn tasklist.ViewFactory
+	filter     gtd.ProjectFilter
 	projects []gtd.Project
 	query    querybar.Model
 	list     list.Model
@@ -52,7 +53,7 @@ type projectsReorderedMsg struct {
 	selectID int64
 }
 
-func New(svc gtd.ProjectService, taskSvc gtd.TaskService, pickerFn tasklist.PickerFactory) Model {
+func New(svc gtd.ProjectService, taskSvc gtd.TaskService, pickerFn tasklist.PickerFactory, taskViewFn tasklist.ViewFactory) Model {
 	keys := DefaultKeyMap()
 	l := list.New(nil, newDelegate(keys), 0, 0)
 	l.SetStatusBarItemName("project", "projects")
@@ -76,13 +77,14 @@ func New(svc gtd.ProjectService, taskSvc gtd.TaskService, pickerFn tasklist.Pick
 	filter, _ := projectquery.Parse(defaultProjectQuery)
 
 	m := Model{
-		svc:      svc,
-		taskSvc:  taskSvc,
-		pickerFn: pickerFn,
-		filter:   filter,
-		query:    qb,
-		list:     l,
-		KeyMap:   keys,
+		svc:        svc,
+		taskSvc:    taskSvc,
+		pickerFn:   pickerFn,
+		taskViewFn: taskViewFn,
+		filter:     filter,
+		query:      qb,
+		list:       l,
+		KeyMap:     keys,
 	}
 	m.updateKeybindings()
 	return m
@@ -201,7 +203,7 @@ func (m Model) Update(msg tea.Msg) (screen.Screen, tea.Cmd) {
 
 		case key.Matches(msg, m.KeyMap.View):
 			if it, ok := m.list.SelectedItem().(Item); ok {
-				return m, screen.Push(projectview.New(it.project, m.taskSvc, m.svc, m.pickerFn))
+				return m, screen.Push(projectview.New(it.project, m.taskSvc, m.svc, m.pickerFn, m.taskViewFn))
 			}
 
 		case key.Matches(msg, m.KeyMap.ConvertToTask):
@@ -360,7 +362,7 @@ func (m Model) currentCounts() map[int64]gtd.ProjectTaskCounts {
 
 func (m Model) viewFactory() projectedit.ViewFactory {
 	return func(project gtd.Project) screen.Screen {
-		return projectview.New(project, m.taskSvc, m.svc, m.pickerFn)
+		return projectview.New(project, m.taskSvc, m.svc, m.pickerFn, m.taskViewFn)
 	}
 }
 
