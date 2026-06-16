@@ -1,4 +1,4 @@
-package projects
+package projectlist
 
 import "github.com/qualidafial/gtd-tui"
 

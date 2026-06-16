@@ -1,4 +1,4 @@
-package projects
+package projectlist
 
 import (
 	"charm.land/bubbles/v2/key"

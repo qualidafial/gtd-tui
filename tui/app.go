@@ -15,7 +15,7 @@ import (
 	"github.com/qualidafial/gtd-tui/tui/components/tabcontainer"
 	"github.com/qualidafial/gtd-tui/tui/internal/keymap"
 	"github.com/qualidafial/gtd-tui/tui/pages/inbox"
-	"github.com/qualidafial/gtd-tui/tui/pages/projects"
+	"github.com/qualidafial/gtd-tui/tui/pages/projects/projectlist"
 	"github.com/qualidafial/gtd-tui/tui/pages/projects/projectpicker"
 	"github.com/qualidafial/gtd-tui/tui/pages/projects/projectview"
 	"github.com/qualidafial/gtd-tui/tui/pages/tasks/taskconvert"
@@ -75,7 +75,7 @@ func New(
 		return projectview.New(p, taskSvc, projectSvc, pickerFn, projectTaskViewFn)
 	}
 	pending := tasklist.New(taskSvc, "status:open ready:now", pickerFn, convertFn, projectNameFn, true, taskViewFn)
-	projectList := projects.New(projectSvc, taskSvc, pickerFn, projectTaskViewFn)
+	projectList := projectlist.New(projectSvc, taskSvc, pickerFn, projectTaskViewFn)
 	inboxPage := inbox.New(inboxSvc, taskSvc, projectSvc)
 
 	tabs := tabcontainer.New(

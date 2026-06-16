@@ -1,4 +1,4 @@
-package projects
+package projectlist
 
 import (
 	"slices"
