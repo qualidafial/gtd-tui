@@ -21,7 +21,7 @@ type stubField struct {
 	focused  bool
 	visible  func(form.Values) bool
 	validate func() error
-	bindings   []keymap.Group
+	bindings []keymap.Group
 
 	// Pointer-backed counters so they survive value copies of stubField.
 	validateCalls *int
@@ -416,6 +416,49 @@ func TestFieldValuesExcludesHiddenFields(t *testing.T) {
 	assert.Equal(t, "cv", vals["c"])
 	_, present := vals["b"]
 	assert.False(t, present, "hidden field must not appear in FieldValues")
+}
+
+func TestUpdateFieldReplacesInPlaceAndReflectsInValuesAndView(t *testing.T) {
+	a := newStub("a")
+	a.val = "av"
+	b := newStub("b")
+	b.val = "bv"
+	f := form.New(a.asField(), b.asField())
+	f, _ = f.Update(tea.WindowSizeMsg{Width: 80, Height: 20})
+
+	f = f.UpdateField("b", func(field form.Field) form.Field {
+		s := field.(stubField)
+		s.val = "loaded"
+		s.key = "b" // key is immutable; identity must be preserved by callers
+		return s
+	})
+
+	assert.Equal(t, "loaded", f.FieldValues()["b"], "UpdateField result is visible to FieldValues")
+	assert.Equal(t, "av", f.FieldValues()["a"], "other fields are untouched")
+	assert.Contains(t, f.View(), "b-view", "viewport is re-synced after UpdateField")
+}
+
+func TestUpdateFieldPreservesFocus(t *testing.T) {
+	a := newStub("a")
+	b := newStub("b")
+	f := form.New(a.asField(), b.asField()) // a starts focused
+
+	f = f.UpdateField("a", func(field form.Field) form.Field {
+		s := field.(stubField)
+		s.val = "x"
+		return s
+	})
+
+	require.NotNil(t, f.Focused())
+	assert.Equal(t, "a", f.Focused().Key(), "focus stays on the updated field")
+	assert.Equal(t, "x", f.Focused().Value())
+}
+
+func TestUpdateFieldPanicsOnUnknownKey(t *testing.T) {
+	f := form.New(newStub("a").asField())
+	assert.Panics(t, func() {
+		f.UpdateField("missing", func(field form.Field) form.Field { return field })
+	})
 }
 
 func TestVisibilityPredicateOnlySeesPriorFields(t *testing.T) {

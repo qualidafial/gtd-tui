@@ -24,7 +24,7 @@ type Model struct {
 	projectSvc gtd.ProjectService
 	original   int64
 	form       form.Model
-	ready      bool
+	loaded     bool
 	saving     bool
 }
 
@@ -33,15 +33,29 @@ func New(task gtd.Task, taskSvc gtd.TaskService, projectSvc gtd.ProjectService) 
 	if task.ProjectID != nil {
 		projectID = *task.ProjectID
 	}
+
+	// Build the form immediately with an empty option set; the project list
+	// loads asynchronously (see loadCmd) and is populated in place via
+	// form.UpdateField when projectsLoadedMsg arrives. WithInitialValue
+	// re-applies once the real options land.
+	fieldOpts := []selectfield.FieldOption[int64]{
+		selectfield.WithNone[int64]("(none)"),
+		selectfield.WithSubmitOnEnter[int64](),
+	}
+	if task.ProjectID != nil {
+		fieldOpts = append(fieldOpts, selectfield.WithInitialValue(*task.ProjectID))
+	}
+
 	return Model{
 		task:       task,
 		taskSvc:    taskSvc,
 		projectSvc: projectSvc,
 		original:   projectID,
+		form:       form.New(selectfield.New[int64]("project", "Project", nil, fieldOpts...)),
 	}
 }
 
-func (m Model) Init() tea.Cmd { return m.loadCmd() }
+func (m Model) Init() tea.Cmd { return tea.Batch(m.form.Init(), m.loadCmd()) }
 
 func (m Model) loadCmd() tea.Cmd {
 	svc := m.projectSvc
@@ -57,9 +71,15 @@ func (m Model) loadCmd() tea.Cmd {
 func (m Model) Update(msg tea.Msg) (screen.Screen, tea.Cmd) {
 	switch msg := msg.(type) {
 	case projectsLoadedMsg:
-		m.form = m.buildForm(msg.projects)
-		m.ready = true
-		return m, m.form.Init()
+		opts := make([]selectfield.Option[int64], 0, len(msg.projects))
+		for _, p := range msg.projects {
+			opts = append(opts, selectfield.Option[int64]{Display: p.Title, Value: p.ID})
+		}
+		m.form = m.form.UpdateField("project", func(f form.Field) form.Field {
+			return f.(selectfield.Model[int64]).SetOptions(opts)
+		})
+		m.loaded = true
+		return m, nil
 	case savedMsg:
 		if msg.err != nil {
 			m.saving = false
@@ -69,7 +89,7 @@ func (m Model) Update(msg tea.Msg) (screen.Screen, tea.Cmd) {
 		return screen.Dismiss()
 	}
 
-	if !m.ready || m.saving {
+	if m.saving {
 		return m, nil
 	}
 
@@ -77,7 +97,9 @@ func (m Model) Update(msg tea.Msg) (screen.Screen, tea.Cmd) {
 		return screen.Dismiss()
 	}
 
-	if _, ok := msg.(form.SubmittedMsg); ok {
+	// Submission is only meaningful once the project list has loaded; before
+	// then the field holds only the synthetic "(none)" entry.
+	if _, ok := msg.(form.SubmittedMsg); ok && m.loaded {
 		selected, _ := m.form.FieldValues()["project"].(int64)
 		if selected == m.original {
 			return screen.Dismiss()
@@ -89,28 +111,6 @@ func (m Model) Update(msg tea.Msg) (screen.Screen, tea.Cmd) {
 	var cmd tea.Cmd
 	m.form, cmd = m.form.Update(msg)
 	return m, cmd
-}
-
-func (m Model) buildForm(projects []gtd.Project) form.Model {
-	opts := make([]selectfield.Option[int64], 0, len(projects))
-	for _, p := range projects {
-		opts = append(opts, selectfield.Option[int64]{Display: p.Title, Value: p.ID})
-	}
-
-	// Initial selection (when the task already has a project) is applied
-	// at construction via WithInitialValue so the index settles after
-	// WithNone has prepended its synthetic option.
-	if m.task.ProjectID != nil {
-		return form.New(selectfield.New("project", "Project", opts,
-			selectfield.WithNone[int64]("(none)"),
-			selectfield.WithSubmitOnEnter[int64](),
-			selectfield.WithInitialValue(*m.task.ProjectID),
-		))
-	}
-	return form.New(selectfield.New("project", "Project", opts,
-		selectfield.WithNone[int64]("(none)"),
-		selectfield.WithSubmitOnEnter[int64](),
-	))
 }
 
 func (m Model) saveCmd(selected int64) tea.Cmd {
@@ -131,21 +131,18 @@ func (m Model) saveCmd(selected int64) tea.Cmd {
 }
 
 func (m Model) View() string {
-	if !m.ready {
+	if !m.loaded {
 		return "Loading projects..."
 	}
 	return m.form.View()
 }
 
-func (m Model) CapturingInput() bool { return m.ready && !m.saving }
+func (m Model) CapturingInput() bool { return !m.saving }
 
-// Keys returns nothing until the project list has loaded; afterward it
-// aggregates the form's resolved bindings plus this screen's own esc
-// binding (Resolve subtracts the overlay's duplicate esc).
+// Keys aggregates the form's resolved bindings plus this screen's own esc
+// binding (Resolve subtracts the overlay's duplicate esc). esc works even
+// while the project list is still loading.
 func (m Model) Keys() []keymap.Group {
-	if !m.ready {
-		return nil
-	}
 	return append(m.form.Keys(), keymap.Group{{Binding: keyBack, Vis: keymap.Short}})
 }
 

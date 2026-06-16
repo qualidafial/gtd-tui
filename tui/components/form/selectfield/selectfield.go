@@ -71,33 +71,53 @@ type Model[T comparable] struct {
 	visible       func(form.Values) bool
 	focused       bool
 	submitOnEnter bool
+	hideWhenEmpty bool
 	initialMatch  func(T) bool
+
+	// Option configuration replayed by setOptions whenever the option set
+	// changes, so dynamic updates preserve construction-time behavior.
+	hasNone        bool
+	noneDisplay    string
+	explicitHeight bool
 
 	err     error
 	lastVal T
 }
 
-// fieldOption configures a [Model] at construction time. (Named
-// `fieldOption` internally so it doesn't shadow the user-facing
+// FieldOption configures a [Model] at construction time. (Named
+// `FieldOption` rather than `Option` so it doesn't shadow the user-facing
 // [Option][T] item type.)
-type fieldOption[T comparable] func(*Model[T])
+type FieldOption[T comparable] func(*Model[T])
 
 // WithValidator installs a validator run by Validate. It receives the
 // currently selected value of T.
-func WithValidator[T comparable](fn func(T) error) fieldOption[T] {
+func WithValidator[T comparable](fn func(T) error) FieldOption[T] {
 	return func(m *Model[T]) { m.validator = fn }
 }
 
 // WithVisible installs a visibility predicate. The default visibility
 // returns true.
-func WithVisible[T comparable](p func(form.Values) bool) fieldOption[T] {
+func WithVisible[T comparable](p func(form.Values) bool) FieldOption[T] {
 	return func(m *Model[T]) { m.visible = p }
 }
 
+// WithHideWhenEmpty hides the field while it has no real (non-WithNone)
+// options. Combined with [Model.SetOptions], this lets a field be built up
+// front and stay hidden until its options load — or remain hidden when the
+// loaded set turns out to be empty. It composes with WithVisible: the field
+// shows only when it has options AND the predicate passes.
+func WithHideWhenEmpty[T comparable]() FieldOption[T] {
+	return func(m *Model[T]) { m.hideWhenEmpty = true }
+}
+
 // WithHeight sets the rendered list height in rows. The default is the
-// number of options, capped at 8.
-func WithHeight[T comparable](rows int) fieldOption[T] {
-	return func(m *Model[T]) { m.list.SetHeight(rows) }
+// number of options, capped at 8. Setting an explicit height pins it, so
+// later SetOptions calls no longer auto-size the list.
+func WithHeight[T comparable](rows int) FieldOption[T] {
+	return func(m *Model[T]) {
+		m.list.SetHeight(rows)
+		m.explicitHeight = true
+	}
 }
 
 // WithSubmitOnEnter makes Enter on a non-filtering list commit the
@@ -106,14 +126,14 @@ func WithHeight[T comparable](rows int) fieldOption[T] {
 // no trailing savefield. While the list is in the Filtering state Enter
 // is left to the list (it accepts the filter); once the filter is
 // applied or unfiltered, Enter submits.
-func WithSubmitOnEnter[T comparable]() fieldOption[T] {
+func WithSubmitOnEnter[T comparable]() FieldOption[T] {
 	return func(m *Model[T]) { m.submitOnEnter = true }
 }
 
 // WithInitialValue selects the option whose Value equals v at
 // construction time. Applied after all other options (including
 // WithNone) so the index is correct.
-func WithInitialValue[T comparable](v T) fieldOption[T] {
+func WithInitialValue[T comparable](v T) FieldOption[T] {
 	return func(m *Model[T]) {
 		m.initialMatch = func(got T) bool { return got == v }
 	}
@@ -123,44 +143,30 @@ func WithInitialValue[T comparable](v T) fieldOption[T] {
 // construction time. Use when T has no useful `==` (e.g. pointer types
 // where equality should be by pointed-to value). Applied after all
 // other options.
-func WithInitialFn[T comparable](match func(T) bool) fieldOption[T] {
+func WithInitialFn[T comparable](match func(T) bool) FieldOption[T] {
 	return func(m *Model[T]) { m.initialMatch = match }
 }
 
 // WithNone prepends a synthetic option that, when selected, yields the
 // zero value of T (for pointer-typed T, that is nil). Intended for
-// "(none)"-style entries on optional pointer-typed selects.
-func WithNone[T comparable](display string) fieldOption[T] {
+// "(none)"-style entries on optional pointer-typed selects. The synthetic
+// option is re-prepended on every SetOptions call.
+func WithNone[T comparable](display string) FieldOption[T] {
 	return func(m *Model[T]) {
-		items := m.list.Items()
-		none := item[T]{opt: Option[T]{Display: display}} // Value is zero
-		newItems := append([]list.Item{none}, items...)
-		_ = m.list.SetItems(newItems)
+		m.hasNone = true
+		m.noneDisplay = display
 	}
 }
 
 // New creates a selectfield over options. key is required and non-empty.
-// The first option in the resulting list is initially selected.
-func New[T comparable](k, label string, options []Option[T], opts ...fieldOption[T]) Model[T] {
+// The first option in the resulting list is initially selected. Options
+// may be nil and supplied later via [Model.SetOptions].
+func New[T comparable](k, label string, options []Option[T], opts ...FieldOption[T]) Model[T] {
 	if k == "" {
 		panic("selectfield: key is required")
 	}
 
-	items := make([]list.Item, len(options))
-	for i, o := range options {
-		items[i] = item[T]{opt: o}
-	}
-
-	defaultHeight := len(options)
-	const heightCap = 8
-	if defaultHeight > heightCap {
-		defaultHeight = heightCap
-	}
-	if defaultHeight < 1 {
-		defaultHeight = 1
-	}
-
-	l := list.New(items, delegate{}, 0, defaultHeight)
+	l := list.New(nil, delegate{}, 0, 1)
 	l.SetShowTitle(false)
 	l.SetShowStatusBar(false)
 	l.SetShowPagination(false)
@@ -175,6 +181,38 @@ func New[T comparable](k, label string, options []Option[T], opts ...fieldOption
 	for _, opt := range opts {
 		opt(&m)
 	}
+	m.setOptions(options)
+	return m
+}
+
+// SetOptions replaces the field's options after construction, enabling
+// option sets that are loaded or computed asynchronously. Any WithNone
+// entry is re-prepended, the list height is recomputed (unless WithHeight
+// pinned an explicit height), and the WithInitial* selection is re-applied
+// against the new options. Returns the updated field.
+func (m Model[T]) SetOptions(options []Option[T]) Model[T] {
+	m.setOptions(options)
+	return m
+}
+
+// setOptions rebuilds the underlying list items from options, applying the
+// replayed WithNone/WithHeight/WithInitial* configuration. It mutates the
+// receiver in place; callers using the value-type Field contract should go
+// through New or SetOptions.
+func (m *Model[T]) setOptions(options []Option[T]) {
+	items := make([]list.Item, 0, len(options)+1)
+	if m.hasNone {
+		items = append(items, item[T]{opt: Option[T]{Display: m.noneDisplay}}) // Value is zero
+	}
+	for _, o := range options {
+		items = append(items, item[T]{opt: o})
+	}
+	_ = m.list.SetItems(items)
+
+	if !m.explicitHeight {
+		m.list.SetHeight(defaultHeight(len(options)))
+	}
+
 	if m.initialMatch != nil {
 		for i, it := range m.list.Items() {
 			if got, ok := it.(item[T]); ok && m.initialMatch(got.opt.Value) {
@@ -183,7 +221,20 @@ func New[T comparable](k, label string, options []Option[T], opts ...fieldOption
 			}
 		}
 	}
-	return m
+}
+
+// defaultHeight derives the auto-sized list height from the number of
+// (non-synthetic) options: the option count, capped at 8 and floored at 1.
+func defaultHeight(options int) int {
+	const heightCap = 8
+	switch {
+	case options > heightCap:
+		return heightCap
+	case options < 1:
+		return 1
+	default:
+		return options
+	}
 }
 
 // form.Field interface --------------------------------------------------------
@@ -197,10 +248,23 @@ func (m Model[T]) Key() string { return m.key }
 func (m Model[T]) Focused() bool { return m.focused }
 
 func (m Model[T]) Visible(v form.Values) bool {
+	if m.hideWhenEmpty && m.realOptionCount() == 0 {
+		return false
+	}
 	if m.visible == nil {
 		return true
 	}
 	return m.visible(v)
+}
+
+// realOptionCount is the number of selectable options excluding any
+// WithNone synthetic entry.
+func (m Model[T]) realOptionCount() int {
+	n := len(m.list.Items())
+	if m.hasNone {
+		n--
+	}
+	return n
 }
 
 func (m Model[T]) Focus() (form.Field, tea.Cmd) {

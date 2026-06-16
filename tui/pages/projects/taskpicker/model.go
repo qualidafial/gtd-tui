@@ -34,14 +34,22 @@ type Model struct {
 	taskSvc gtd.TaskService
 	tasks   []gtd.Task
 	form    form.Model
-	ready   bool
+	loaded  bool
 }
 
 func New(taskSvc gtd.TaskService) Model {
-	return Model{taskSvc: taskSvc}
+	// The form is built immediately with no options; the candidate tasks load
+	// asynchronously (see loadCmd) and are populated in place via
+	// form.UpdateField when tasksLoadedMsg arrives.
+	return Model{
+		taskSvc: taskSvc,
+		form: form.New(selectfield.New[int64]("task", "Task", nil,
+			selectfield.WithSubmitOnEnter[int64](),
+		)),
+	}
 }
 
-func (m Model) Init() tea.Cmd { return m.loadCmd() }
+func (m Model) Init() tea.Cmd { return tea.Batch(m.form.Init(), m.loadCmd()) }
 
 func (m Model) loadCmd() tea.Cmd {
 	svc := m.taskSvc
@@ -65,12 +73,14 @@ func (m Model) Update(msg tea.Msg) (screen.Screen, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tasksLoadedMsg:
 		m.tasks = msg.tasks
-		m.form = m.buildForm(msg.tasks)
-		m.ready = true
-		return m, m.form.Init()
-	}
-
-	if !m.ready {
+		opts := make([]selectfield.Option[int64], 0, len(msg.tasks))
+		for _, t := range msg.tasks {
+			opts = append(opts, selectfield.Option[int64]{Display: t.Title, Value: t.ID})
+		}
+		m.form = m.form.UpdateField("task", func(f form.Field) form.Field {
+			return f.(selectfield.Model[int64]).SetOptions(opts)
+		})
+		m.loaded = true
 		return m, nil
 	}
 
@@ -78,7 +88,8 @@ func (m Model) Update(msg tea.Msg) (screen.Screen, tea.Cmd) {
 		return screen.Dismiss()
 	}
 
-	if _, ok := msg.(form.SubmittedMsg); ok {
+	// Submission is only meaningful once the candidate tasks have loaded.
+	if _, ok := msg.(form.SubmittedMsg); ok && m.loaded {
 		selected, _ := m.form.FieldValues()["task"].(int64)
 		for _, t := range m.tasks {
 			if t.ID == selected {
@@ -95,32 +106,19 @@ func (m Model) Update(msg tea.Msg) (screen.Screen, tea.Cmd) {
 	return m, cmd
 }
 
-func (m Model) buildForm(tasks []gtd.Task) form.Model {
-	opts := make([]selectfield.Option[int64], 0, len(tasks))
-	for _, t := range tasks {
-		opts = append(opts, selectfield.Option[int64]{Display: t.Title, Value: t.ID})
-	}
-	return form.New(selectfield.New("task", "Task", opts,
-		selectfield.WithSubmitOnEnter[int64](),
-	))
-}
-
 func (m Model) View() string {
-	if !m.ready {
+	if !m.loaded {
 		return "Loading tasks..."
 	}
 	return m.form.View()
 }
 
-func (m Model) CapturingInput() bool { return m.ready }
+func (m Model) CapturingInput() bool { return true }
 
-// Keys returns nothing until the task list has loaded; afterward it aggregates
-// the form's resolved bindings plus this screen's own esc binding (Resolve
-// subtracts the overlay's duplicate esc).
+// Keys aggregates the form's resolved bindings plus this screen's own esc
+// binding (Resolve subtracts the overlay's duplicate esc). esc works even
+// while the task list is still loading.
 func (m Model) Keys() []keymap.Group {
-	if !m.ready {
-		return nil
-	}
 	return append(m.form.Keys(), keymap.Group{{Binding: keyBack, Vis: keymap.Short}})
 }
 

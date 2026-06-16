@@ -108,6 +108,78 @@ func TestWithNonePrependsZeroValueOption(t *testing.T) {
 	assert.Contains(t, m.View(), "(none)")
 }
 
+func TestSetOptionsReplacesOptions(t *testing.T) {
+	m := selectfield.New[kind]("kind", "Kind", nil)
+	assert.Equal(t, kind(""), m.SelectedValue(), "no options yields the zero value")
+
+	m = m.SetOptions(sample())
+	m = m.SetWidth(40).(selectfield.Model[kind])
+	assert.Equal(t, kindTask, m.SelectedValue(), "first option of the new set is selected")
+
+	f := focus(m)
+	f, _ = f.Update(tea.KeyPressMsg{Code: tea.KeyDown})
+	got := f.(selectfield.Model[kind])
+	assert.Equal(t, kindProject, got.SelectedValue(), "dynamic options are navigable")
+}
+
+func TestSetOptionsReprependsNone(t *testing.T) {
+	type id int64
+	m := selectfield.New[*id]("p", "Project", nil, selectfield.WithNone[*id]("(none)"))
+	m = m.SetWidth(40).(selectfield.Model[*id])
+	assert.Nil(t, m.SelectedValue())
+	assert.Contains(t, m.View(), "(none)")
+
+	one := new(id(1))
+	opts := []selectfield.Option[*id]{
+		{Display: "alpha", Value: one},
+		{Display: "beta", Value: new(id(2))},
+	}
+	m = m.SetOptions(opts)
+	m = m.SetWidth(40).(selectfield.Model[*id])
+	assert.Nil(t, m.SelectedValue(), "the re-prepended none option starts selected")
+	assert.Contains(t, m.View(), "(none)")
+
+	// Navigating past the none entry reaches the first real option.
+	f := focus(m)
+	f, _ = f.Update(tea.KeyPressMsg{Code: tea.KeyDown})
+	got := f.(selectfield.Model[*id])
+	assert.Equal(t, one, got.SelectedValue())
+}
+
+func TestSetOptionsReappliesInitialSelection(t *testing.T) {
+	m := selectfield.New("kind", "Kind", nil,
+		selectfield.WithInitialValue(kindProject),
+	)
+	m = m.SetOptions(sample())
+	assert.Equal(t, kindProject, m.SelectedValue(),
+		"WithInitialValue is re-applied against the new options")
+}
+
+func TestWithHideWhenEmpty(t *testing.T) {
+	m := selectfield.New[kind]("kind", "Kind", nil, selectfield.WithHideWhenEmpty[kind]())
+	assert.False(t, m.Visible(nil), "hidden while it has no real options")
+
+	m = m.SetOptions(sample())
+	assert.True(t, m.Visible(nil), "visible once options load")
+}
+
+func TestWithHideWhenEmptyIgnoresNoneEntry(t *testing.T) {
+	m := selectfield.New[kind]("kind", "Kind", nil,
+		selectfield.WithNone[kind]("(none)"),
+		selectfield.WithHideWhenEmpty[kind](),
+	)
+	assert.False(t, m.Visible(nil), "a WithNone entry alone does not count as a real option")
+}
+
+func TestWithHideWhenEmptyComposesWithVisible(t *testing.T) {
+	m := selectfield.New[kind]("kind", "Kind", sample(),
+		selectfield.WithHideWhenEmpty[kind](),
+		selectfield.WithVisible[kind](func(v form.Values) bool { return v.Get("on") == true }),
+	)
+	assert.False(t, m.Visible(stubValues{"on": false}), "predicate still gates a populated field")
+	assert.True(t, m.Visible(stubValues{"on": true}))
+}
+
 func TestValidatorPassesOnValidSelection(t *testing.T) {
 	m := selectfield.New("kind", "Kind", sample(),
 		selectfield.WithValidator(func(k kind) error {

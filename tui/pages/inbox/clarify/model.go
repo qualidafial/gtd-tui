@@ -65,7 +65,6 @@ type Model struct {
 
 	phase phase
 	form  form.Model
-	ready bool
 
 	committedProject *gtd.Project
 	committedTasks   []gtd.Task
@@ -75,19 +74,22 @@ type Model struct {
 }
 
 func New(item gtd.Item, svc gtd.InboxService, taskSvc gtd.TaskService, projectSvc gtd.ProjectService) Model {
-	// The initial form is built once the open-project list loads (Init →
-	// loadProjectsCmd → projectsLoadedMsg), so the single-task branch's
-	// Project select can be populated.
+	// The initial form is built immediately with an empty Project select; the
+	// open-project list loads asynchronously (Init → loadProjectsCmd →
+	// projectsLoadedMsg) and is populated in place via form.UpdateField. The
+	// Project select uses WithHideWhenEmpty so it stays hidden until (and
+	// unless) options arrive.
 	return Model{
 		item:       item,
 		svc:        svc,
 		taskSvc:    taskSvc,
 		projectSvc: projectSvc,
 		phase:      phaseInitial,
+		form:       buildInitialForm(item),
 	}
 }
 
-func (m Model) Init() tea.Cmd { return m.loadProjectsCmd() }
+func (m Model) Init() tea.Cmd { return tea.Batch(m.form.Init(), m.loadProjectsCmd()) }
 
 // -- form construction ------------------------------------------------------
 
@@ -117,9 +119,10 @@ const (
 
 // buildInitialForm assembles the full clarify form with progressive
 // visibility predicates so each branch's questions reveal as the user
-// answers the parent radio. openProjects populates the single-task
-// branch's optional Project select.
-func buildInitialForm(item gtd.Item, openProjects []gtd.Project) form.Model {
+// answers the parent radio. The single-task branch's optional Project
+// select starts empty and is populated later via [form.Model.UpdateField]
+// once the open-project list loads.
+func buildInitialForm(item gtd.Item) form.Model {
 	requireNonEmpty := func(label string) func(string) error {
 		return func(s string) error {
 			if strings.TrimSpace(s) == "" {
@@ -231,18 +234,16 @@ func buildInitialForm(item gtd.Item, openProjects []gtd.Project) form.Model {
 	// existing open project. Defaults to "(none)" (standalone). Shown for
 	// every single task regardless of the <2 min / doer answers, and never
 	// in the project branch (the first task auto-attaches to the new project)
-	// nor when there are no open projects to attach to.
-	hasProjects := len(openProjects) > 0
-	projectOpts := make([]selectfield.Option[int64], 0, len(openProjects))
-	for _, p := range openProjects {
-		projectOpts = append(projectOpts, selectfield.Option[int64]{Display: p.Title, Value: p.ID})
-	}
-	project := selectfield.New(kProject, "Project", projectOpts,
+	// nor when there are no open projects to attach to. Options load
+	// asynchronously; WithHideWhenEmpty keeps it hidden until they arrive (and
+	// when the loaded set is empty).
+	project := selectfield.New[int64](kProject, "Project", nil,
 		selectfield.WithNone[int64]("(none)"),
+		selectfield.WithHideWhenEmpty[int64](),
 		selectfield.WithVisible[int64](func(v form.Values) bool {
 			actYes, _ := v.Get(kActionable).(bool)
 			multi, _ := v.Get(kMultiStep).(bool)
-			return hasProjects && actYes && !multi
+			return actYes && !multi
 		}),
 	)
 
@@ -331,14 +332,9 @@ func (m Model) Update(msg tea.Msg) (screen.Screen, tea.Cmd) {
 		return m.handleSavingMsg(msg)
 	}
 
-	if !m.ready {
-		if msg, ok := msg.(projectsLoadedMsg); ok {
-			return m.handleProjectsLoaded(msg)
-		}
-		return m, nil
-	}
-
 	switch msg := msg.(type) {
+	case projectsLoadedMsg:
+		return m.handleProjectsLoaded(msg)
 	case discardedMsg:
 		return m.handleDiscarded(msg)
 	case incubatedMsg:
@@ -418,17 +414,27 @@ func (m Model) handleSubmitted() (screen.Screen, tea.Cmd) {
 
 // -- result handlers --------------------------------------------------------
 
-// handleProjectsLoaded builds the initial form once the open-project list
-// is available and unblocks input. A load failure surfaces via the error
-// path; the wizard stays on the loading view until dismissed.
+// handleProjectsLoaded populates the Project select in place once the
+// open-project list is available. A load failure surfaces via the error
+// path; the wizard remains usable (without project attachment) once the
+// error is dismissed. The select belongs only to the initial form, so the
+// update is skipped if the wizard has already moved into the project loop.
 func (m Model) handleProjectsLoaded(msg projectsLoadedMsg) (screen.Screen, tea.Cmd) {
 	if msg.err != nil {
 		m.err = msg.err
 		return m, cmds.Emit(fmt.Errorf("load projects: %w", msg.err))
 	}
-	m.form = buildInitialForm(m.item, msg.projects)
-	m.ready = true
-	return m, m.form.Init()
+	if m.phase != phaseInitial {
+		return m, nil
+	}
+	opts := make([]selectfield.Option[int64], 0, len(msg.projects))
+	for _, p := range msg.projects {
+		opts = append(opts, selectfield.Option[int64]{Display: p.Title, Value: p.ID})
+	}
+	m.form = m.form.UpdateField(kProject, func(f form.Field) form.Field {
+		return f.(selectfield.Model[int64]).SetOptions(opts)
+	})
+	return m, nil
 }
 
 func (m Model) handleDiscarded(msg discardedMsg) (screen.Screen, tea.Cmd) {
@@ -675,24 +681,6 @@ func taskFromVals(vals map[string]any) gtd.Task {
 // -- rendering --------------------------------------------------------------
 
 func (m Model) View() string {
-	if !m.ready {
-		var loading []string
-		loading = append(loading, headerStyle.Render(m.item.Title))
-		if m.item.Description != "" {
-			loading = append(loading, itemDescStyle.Render(m.item.Description))
-		}
-		loading = append(loading, "")
-		if m.err != nil {
-			loading = append(loading,
-				errStyle.Render(m.err.Error()),
-				hintStyle.Render("press esc to dismiss"),
-			)
-		} else {
-			loading = append(loading, hintStyle.Render("Loading projects…"))
-		}
-		return lipgloss.JoinVertical(lipgloss.Left, loading...)
-	}
-
 	var sections []string
 
 	sections = append(sections, headerStyle.Render(m.item.Title))
@@ -728,14 +716,11 @@ func (m Model) View() string {
 	return lipgloss.JoinVertical(lipgloss.Left, sections...)
 }
 
-func (m Model) CapturingInput() bool { return m.ready && m.err == nil && !m.saving }
+func (m Model) CapturingInput() bool { return m.err == nil && !m.saving }
 
 // Keys aggregates the form's resolved bindings and appends this screen's
 // own esc binding as a trailing group; Resolve subtracts the overlay's
 // duplicate esc.
 func (m Model) Keys() []keymap.Group {
-	if !m.ready {
-		return nil
-	}
 	return append(m.form.Keys(), keymap.Group{{Binding: keyBack, Vis: keymap.Short}})
 }

@@ -173,6 +173,35 @@ func (m Model) FieldValues() map[string]any {
 	return out
 }
 
+// UpdateField applies fn to the field registered under key, replacing it in
+// place with the returned Field and re-syncing the viewport so any
+// resulting view change (e.g. options that just finished loading) is shown
+// immediately. It panics if no field has that key — an unknown key is a
+// programming error, consistent with New's key invariants.
+//
+// UpdateField is the supported way to mutate a field after construction. It
+// lets a host build the form up front with empty inputs and populate
+// asynchronously-loaded data from a command's result message, rather than
+// deferring form construction until the data arrives:
+//
+//	case projectsLoadedMsg:
+//	    m.form = m.form.UpdateField("project", func(f form.Field) form.Field {
+//	        return f.(selectfield.Model[int64]).SetOptions(msg.options)
+//	    })
+//
+// The transform receives and returns the value-typed Field; return the
+// same concrete type so the field's focus, width, and validation state
+// carry over.
+func (m Model) UpdateField(key string, fn func(Field) Field) Model {
+	for i, f := range m.fields {
+		if f.Key() == key {
+			m.fields[i] = fn(f)
+			return m.syncViewport()
+		}
+	}
+	panic("form: UpdateField: unknown key: " + key)
+}
+
 // Focused returns the currently focused Field, or nil if no field is
 // focused (which is the state immediately after a successful Submit, or
 // when every field is hidden).
