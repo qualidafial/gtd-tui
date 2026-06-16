@@ -14,6 +14,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 	"github.com/qualidafial/gtd-tui/tui/cmds"
 	"github.com/qualidafial/gtd-tui/tui/internal/keymap"
+	"github.com/qualidafial/gtd-tui/tui/theme"
 )
 
 // ParseError reports an invalid token in a query string. Start and End are
@@ -36,7 +37,7 @@ type ApplyMsg struct{ Query string }
 // debounceMsg fires after a configurable delay following the last keystroke.
 type debounceMsg struct{ seq int }
 
-var errorHighlight = lipgloss.NewStyle().Foreground(lipgloss.Color("9")).Underline(true)
+var errorHighlight = theme.Error.Underline(true)
 
 // Model is the query bar component state.
 type Model struct {

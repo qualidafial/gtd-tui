@@ -21,11 +21,12 @@ import (
 	"github.com/qualidafial/gtd-tui/tui/pages/tasks/taskconvert"
 	"github.com/qualidafial/gtd-tui/tui/pages/tasks/tasklist"
 	"github.com/qualidafial/gtd-tui/tui/pages/tasks/taskview"
+	"github.com/qualidafial/gtd-tui/tui/theme"
 )
 
 var (
 	appStyle    = lipgloss.NewStyle().Margin(1, 2)
-	appErrStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("9")).Bold(true)
+	appErrStyle = theme.Error.Bold(true)
 )
 
 type Model struct {

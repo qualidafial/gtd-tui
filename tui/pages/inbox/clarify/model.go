@@ -36,16 +36,17 @@ import (
 	"github.com/qualidafial/gtd-tui/tui/components/screen"
 	"github.com/qualidafial/gtd-tui/tui/internal/keymap"
 	"github.com/qualidafial/gtd-tui/tui/pages/inbox/clarify/doitnow"
+	"github.com/qualidafial/gtd-tui/tui/theme"
 )
 
 var (
 	keyBack = key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "cancel"))
 
-	headerStyle   = lipgloss.NewStyle().Bold(true)
-	itemDescStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("250"))
-	doneStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("65")).Faint(true)
-	errStyle      = lipgloss.NewStyle().Foreground(lipgloss.Color("9"))
-	hintStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("240")).Italic(true)
+	headerStyle   = theme.Title
+	itemDescStyle = lipgloss.NewStyle().Foreground(theme.Soft)
+	doneStyle     = theme.DoneTitle
+	errStyle      = theme.Error
+	hintStyle     = theme.Label.Italic(true)
 )
 
 // phase tracks which form the wizard is currently showing.

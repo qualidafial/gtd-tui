@@ -20,13 +20,14 @@ import (
 	"github.com/qualidafial/gtd-tui/tui/pages/projects/projectedit"
 	"github.com/qualidafial/gtd-tui/tui/pages/projects/taskpicker"
 	"github.com/qualidafial/gtd-tui/tui/pages/tasks/tasklist"
+	"github.com/qualidafial/gtd-tui/tui/theme"
 )
 
 var (
-	titleStyle  = lipgloss.NewStyle().Bold(true)
-	labelStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("240")).Width(10)
-	valueStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("245"))
-	statusStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("245"))
+	titleStyle  = theme.Title
+	labelStyle  = theme.Label.Width(10)
+	valueStyle  = theme.Value
+	statusStyle = theme.Value
 )
 
 type Model struct {

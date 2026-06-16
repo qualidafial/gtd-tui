@@ -10,11 +10,13 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
+
+	"github.com/qualidafial/gtd-tui/tui/theme"
 )
 
 var (
 	titleStyle       = lipgloss.NewStyle()
-	descriptionStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("245"))
+	descriptionStyle = theme.Value
 )
 
 type delegate struct {

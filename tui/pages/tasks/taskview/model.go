@@ -8,7 +8,6 @@ import (
 
 	"charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
-	"charm.land/lipgloss/v2"
 
 	"github.com/qualidafial/gtd-tui"
 	"github.com/qualidafial/gtd-tui/tui/components/screen"
@@ -16,12 +15,13 @@ import (
 	"github.com/qualidafial/gtd-tui/tui/pages/tasks/taskedit"
 	"github.com/qualidafial/gtd-tui/tui/pages/tasks/tasklist"
 	"github.com/qualidafial/gtd-tui/tui/pages/tasks/taskstatus"
+	"github.com/qualidafial/gtd-tui/tui/theme"
 )
 
 var (
-	titleStyle = lipgloss.NewStyle().Bold(true)
-	labelStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("240")).Width(12)
-	valueStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("245"))
+	titleStyle = theme.Title
+	labelStyle = theme.Label.Width(12)
+	valueStyle = theme.Value
 )
 
 // ProjectViewFactory builds the linked project's view screen, used by the

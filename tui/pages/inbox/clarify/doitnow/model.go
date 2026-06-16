@@ -21,13 +21,14 @@ import (
 	"github.com/qualidafial/gtd-tui/tui/cmds"
 	"github.com/qualidafial/gtd-tui/tui/components/screen"
 	"github.com/qualidafial/gtd-tui/tui/internal/keymap"
+	"github.com/qualidafial/gtd-tui/tui/theme"
 )
 
 var (
-	titleStyle  = lipgloss.NewStyle().Bold(true)
-	dimStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("245"))
-	bannerStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("11"))
-	descStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("250"))
+	titleStyle  = theme.Title
+	dimStyle    = theme.Value
+	bannerStyle = lipgloss.NewStyle().Foreground(theme.Warning)
+	descStyle   = lipgloss.NewStyle().Foreground(theme.Soft)
 )
 
 // ResultMsg is emitted alongside the dismiss when the user closes the prompt.

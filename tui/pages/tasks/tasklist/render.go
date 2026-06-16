@@ -14,6 +14,7 @@ import (
 
 	"github.com/qualidafial/gtd-tui"
 	"github.com/qualidafial/gtd-tui/internal/reltime"
+	"github.com/qualidafial/gtd-tui/tui/theme"
 )
 
 // truncateToDay returns local midnight of t's calendar day.
@@ -52,14 +53,14 @@ type chipColors struct {
 func newChipColors(hasDarkBg bool) chipColors {
 	_ = hasDarkBg
 	return chipColors{
-		overdue:  lipgloss.NewStyle().Foreground(lipgloss.Color("9")),   // red
-		dueToday: lipgloss.NewStyle().Foreground(lipgloss.Color("208")), // orange
-		dueSoon:  lipgloss.NewStyle().Foreground(lipgloss.Color("11")),  // yellow
-		dueLater: lipgloss.NewStyle().Foreground(lipgloss.Color("245")), // dim
-		deferred: lipgloss.NewStyle().Foreground(lipgloss.Color("67")),  // dim blue
-		ready:    lipgloss.NewStyle().Foreground(lipgloss.Color("44")),  // teal
-		assignee: lipgloss.NewStyle().Foreground(lipgloss.Color("13")),  // magenta
-		project:  lipgloss.NewStyle().Foreground(lipgloss.Color("36")),  // green
+		overdue:  lipgloss.NewStyle().Foreground(theme.Danger),
+		dueToday: lipgloss.NewStyle().Foreground(theme.DueToday),
+		dueSoon:  lipgloss.NewStyle().Foreground(theme.Warning),
+		dueLater: lipgloss.NewStyle().Foreground(theme.Muted),
+		deferred: lipgloss.NewStyle().Foreground(theme.Deferred),
+		ready:    lipgloss.NewStyle().Foreground(theme.Ready),
+		assignee: lipgloss.NewStyle().Foreground(theme.Accent),
+		project:  lipgloss.NewStyle().Foreground(theme.Project),
 	}
 }
 
@@ -167,8 +168,8 @@ func endOfLocalDay(t time.Time) time.Time {
 
 // title styling per status.
 var (
-	doneTitleStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("65")).Faint(true)
-	droppedTitleStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("240")).Faint(true).Strikethrough(true)
+	doneTitleStyle    = theme.DoneTitle
+	droppedTitleStyle = theme.DroppedTitle
 	openTitleStyle    = lipgloss.NewStyle()
 )
 

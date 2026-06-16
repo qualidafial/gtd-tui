@@ -10,13 +10,14 @@ import (
 
 	"github.com/qualidafial/gtd-tui/tui/components/screen"
 	"github.com/qualidafial/gtd-tui/tui/internal/keymap"
+	"github.com/qualidafial/gtd-tui/tui/theme"
 )
 
 var (
-	logoStyle        = lipgloss.NewStyle().Bold(true).Padding(0, 1).Background(lipgloss.Color("62")).Foreground(lipgloss.Color("230"))
-	activeTabStyle   = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("212"))
-	inactiveTabStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
-	bulletStyle      = lipgloss.NewStyle().Foreground(lipgloss.Color("212"))
+	logoStyle        = theme.Title.Padding(0, 1).Background(theme.LogoBg).Foreground(theme.LogoFg)
+	activeTabStyle   = theme.Title.Foreground(theme.Active)
+	inactiveTabStyle = theme.Label
+	bulletStyle      = lipgloss.NewStyle().Foreground(theme.Active)
 )
 
 type Tab struct {

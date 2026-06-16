@@ -22,13 +22,14 @@ import (
 	"github.com/qualidafial/gtd-tui/tui/components/form/textfield"
 	"github.com/qualidafial/gtd-tui/tui/components/screen"
 	"github.com/qualidafial/gtd-tui/tui/internal/keymap"
+	"github.com/qualidafial/gtd-tui/tui/theme"
 )
 
 var keyBack = key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "back"))
 
 var (
-	metaLabelStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("240")).Width(11)
-	metaValueStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("245"))
+	metaLabelStyle = theme.Label.Width(11)
+	metaValueStyle = theme.Value
 )
 
 type ViewFactory func(project gtd.Project) screen.Screen

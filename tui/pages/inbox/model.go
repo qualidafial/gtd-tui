@@ -15,9 +15,10 @@ import (
 	"github.com/qualidafial/gtd-tui/tui/internal/keymap"
 	"github.com/qualidafial/gtd-tui/tui/pages/inbox/clarify"
 	"github.com/qualidafial/gtd-tui/tui/pages/inbox/itemcapture"
+	"github.com/qualidafial/gtd-tui/tui/theme"
 )
 
-var emptyStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("245")).Italic(true)
+var emptyStyle = theme.Value.Italic(true)
 
 // Model renders the inbox: unclarified, non-discarded items in FIFO order.
 // `+`/`insert` opens the capture overlay; `enter` on a selected item opens
@@ -27,10 +28,10 @@ type Model struct {
 	taskSvc    gtd.TaskService
 	projectSvc gtd.ProjectService
 	items      []gtd.Item
-	list    list.Model
-	KeyMap  KeyMap
-	width   int
-	height  int
+	list       list.Model
+	KeyMap     KeyMap
+	width      int
+	height     int
 }
 
 type itemsLoadedMsg struct{ items []gtd.Item }

@@ -14,13 +14,14 @@ import (
 
 	"github.com/qualidafial/gtd-tui"
 	"github.com/qualidafial/gtd-tui/internal/reltime"
+	"github.com/qualidafial/gtd-tui/tui/theme"
 )
 
 var (
 	openTitleStyle    = lipgloss.NewStyle()
-	somedayTitleStyle = lipgloss.NewStyle().Faint(true)
-	doneTitleStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("65")).Faint(true)
-	droppedTitleStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("240")).Faint(true).Strikethrough(true)
+	somedayTitleStyle = theme.Subtitle
+	doneTitleStyle    = theme.DoneTitle
+	droppedTitleStyle = theme.DroppedTitle
 )
 
 func projectStatusMarker(s gtd.ProjectStatus) string {
@@ -69,11 +70,11 @@ type chipColors struct {
 func newChipColors(hasDarkBg bool) chipColors {
 	_ = hasDarkBg
 	return chipColors{
-		overdue:  lipgloss.NewStyle().Foreground(lipgloss.Color("9")), // red
-		dueToday: lipgloss.NewStyle().Foreground(lipgloss.Color("208")),
-		dueSoon:  lipgloss.NewStyle().Foreground(lipgloss.Color("11")),
-		dueLater: lipgloss.NewStyle().Foreground(lipgloss.Color("245")),
-		warning:  lipgloss.NewStyle().Foreground(lipgloss.Color("44")), // teal
+		overdue:  lipgloss.NewStyle().Foreground(theme.Danger),
+		dueToday: lipgloss.NewStyle().Foreground(theme.DueToday),
+		dueSoon:  lipgloss.NewStyle().Foreground(theme.Warning),
+		dueLater: lipgloss.NewStyle().Foreground(theme.Muted),
+		warning:  lipgloss.NewStyle().Foreground(theme.Ready),
 	}
 }
 
@@ -84,7 +85,7 @@ func projectChips(p gtd.Project, counts gtd.ProjectTaskCounts, now time.Time, c 
 	if counts.Total > 0 {
 		chips = append(chips, chip{
 			text:  fmt.Sprintf("%d/%d tasks", counts.Complete, counts.Total),
-			style: lipgloss.NewStyle().Foreground(lipgloss.Color("245")),
+			style: theme.Value,
 		})
 	}
 

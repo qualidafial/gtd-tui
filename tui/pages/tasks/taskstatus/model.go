@@ -17,12 +17,13 @@ import (
 	"github.com/qualidafial/gtd-tui/tui/components/form/savefield"
 	"github.com/qualidafial/gtd-tui/tui/components/screen"
 	"github.com/qualidafial/gtd-tui/tui/internal/keymap"
+	"github.com/qualidafial/gtd-tui/tui/theme"
 )
 
 var (
 	keyBack    = key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "cancel"))
-	titleStyle = lipgloss.NewStyle().Bold(true)
-	descStyle  = lipgloss.NewStyle().Faint(true)
+	titleStyle = theme.Title
+	descStyle  = theme.Subtitle
 )
 
 type Model struct {
