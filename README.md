@@ -133,6 +133,7 @@ Project view:
 
 | Key     | Action                                      |
 | ------- | ------------------------------------------- |
+| `enter` | Open the selected task's view               |
 | `e`     | Edit project                                |
 | `l`     | Link an existing standalone task into the project |
 | `c`     | Convert to task (empty open projects only)  |
@@ -190,8 +191,9 @@ Briefly:
 
 - **Item** — an unprocessed inbox capture. Clarified into a Task, Project, or
   Reference (lineage preserved via soft-delete).
-- **Task** — a single actionable item. `Kind` is `next_action` or `delegated`;
-  `Status` is `open`, `done`, or `dropped`. Belongs to zero or one Project.
+- **Task** — a single actionable item. `Status` is `open`, `done`, or
+  `dropped`. A non-empty `Assignee` marks it as delegated (waiting on someone
+  else); there is no separate `Kind` field. Belongs to zero or one Project.
 - **Project** — a multi-step outcome. `Status` is `open`, `someday` (parked),
   `done`, or `dropped`. Terminal transitions cascade or detach open tasks; the
   invariant "no open tasks under a closed project" is enforced.

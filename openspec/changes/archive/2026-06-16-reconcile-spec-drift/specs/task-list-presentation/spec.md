@@ -1,8 +1,5 @@
-# task-list-presentation Specification
+## MODIFIED Requirements
 
-## Purpose
-Defines the visual rendering of task list items: status markers, date/assignee chips, urgency colors, and selection highlight.
-## Requirements
 ### Requirement: Status marker and title styling
 Each task row SHALL begin with a status marker, optionally followed by a leading project label (see Requirement: Project label), and then the task title. The marker and title styling SHALL reflect the task status:
 
@@ -21,86 +18,6 @@ Each task row SHALL begin with a status marker, optionally followed by a leading
 #### Scenario: Dropped task marker and strikethrough
 - **WHEN** rendering a dropped task
 - **THEN** the marker is `[-]` and the title is rendered with strikethrough in the dim dropped color
-
-### Requirement: Relative-time WHEN formatting
-Date chips SHALL render the date as a relative-time WHEN string computed against the current local time. Day counts SHALL be calendar-day differences in the local timezone, not 24-hour spans. Two ladders apply depending on whether the reference instant is in the future or the past.
-
-The future ladder (used by `due:` and `defer:`):
-
-- today, with a time-of-day component (not midnight), still ahead → clock time, e.g. `3pm`
-- today, date-only (midnight) → `today`
-- exactly one calendar day ahead → `tomorrow`
-- 2–6 calendar days ahead → lowercase weekday name, e.g. `thursday`
-- 7–30 days ahead → `Nd`, e.g. `30d`
-- more than 30 days ahead → absolute date `YYYY-MM-DD`
-
-The past ladder (used by `overdue:` and `ready:`):
-
-- earlier today, with a time-of-day component → clock time, e.g. `3pm`
-- 1–30 days ago → `Nd`, e.g. `3d`
-- more than 30 days ago → absolute date `YYYY-MM-DD`
-- the past ladder SHALL NOT use `tomorrow` or weekday names
-
-#### Scenario: Future day bands
-- **WHEN** a date is 1, 3, 7, and 30 calendar days ahead respectively
-- **THEN** the WHEN strings are `tomorrow`, the weekday name, `7d`, and `30d`
-
-#### Scenario: Timed today, still ahead
-- **WHEN** a date is today at 15:00 and the current time is earlier than 15:00
-- **THEN** the WHEN string is `3pm`
-
-#### Scenario: Beyond 30 days shows absolute date
-- **WHEN** a date is 31 calendar days ahead, falling on 2026-06-24
-- **THEN** the WHEN string is `2026-06-24`
-
-#### Scenario: Past day band
-- **WHEN** a date was 3 calendar days ago
-- **THEN** the WHEN string is `3d`
-
-### Requirement: Due and overdue chip
-An open task with a due date SHALL display a due chip. The chip word and reference instant depend on the due timestamp:
-
-- A date-only due date applies at **end of the local day**; a timed due date applies at its exact instant.
-- While the reference instant is in the future, the chip is `due:<WHEN>` using the future ladder.
-- Once the reference instant has passed, the chip is `overdue:<WHEN>` using the past ladder.
-
-#### Scenario: Date-only due today is not overdue
-- **WHEN** a pending task is due today (date-only) and the current time is 17:00
-- **THEN** the chip reads `due:today` (date-only due applies at end of day, so it is not yet overdue)
-
-#### Scenario: Date-only due flips to overdue next day
-- **WHEN** a pending task is due on the 27th (date-only) and today is the 28th
-- **THEN** the chip reads `overdue:1d`
-
-#### Scenario: Timed due earlier today is overdue
-- **WHEN** a pending task is due today at 15:00 and the current time is 17:00
-- **THEN** the chip reads `overdue:3pm`
-
-### Requirement: Defer and ready chip
-An open task with a defer date SHALL display a defer chip. The chip word and reference instant depend on the defer timestamp:
-
-- A date-only defer date applies at **start of the local day**; a timed defer date applies at its exact instant.
-- While the reference instant is in the future, the chip is `defer:<WHEN>` using the future ladder.
-- Once the reference instant has passed, the task has resurfaced and the chip is `ready:<WHEN>` using the past ladder.
-
-#### Scenario: Future defer
-- **WHEN** a pending task is deferred until the 27th (date-only) and today is the 26th
-- **THEN** the chip reads `defer:tomorrow`
-
-#### Scenario: Defer flips to ready at start of day
-- **WHEN** a pending task is deferred until the 27th (date-only) and today is the 27th
-- **THEN** the chip reads `ready:today` (date-only defer applies at start of day)
-
-#### Scenario: Resurfaced defer counts days since
-- **WHEN** a pending task was deferred until the 27th (date-only) and today is the 28th
-- **THEN** the chip reads `ready:1d`
-
-### Requirement: Assignee chip
-A task with a non-nil assignee SHALL display an `@<assignee>` chip.
-
-#### Scenario: Delegated task shows assignee
-- **WHEN** rendering a task assigned to "bob"
-- **THEN** the row includes the chip `@bob`
 
 ### Requirement: Chip suppression by status
 Due and defer chips signal actionability and SHALL be suppressed on done and dropped tasks. The assignee chip SHALL still render on done tasks; dropped tasks SHALL show no chips.
@@ -154,6 +71,8 @@ The list selection highlight SHALL affect the task title and, when present, the 
 - **WHEN** a row with a project label is selected
 - **THEN** the project label brightens (emphasizes) alongside the title
 
+## ADDED Requirements
+
 ### Requirement: Project label
 A task with a non-nil `ProjectID` SHALL display its project title as a leading label rendered ahead of the task title (after the status marker), with no `+` prefix, when the list is configured to show the project label and a `ProjectNameFunc` is provided. Lists rendered inside a single-project view (the in-project task list) SHALL NOT show the label on any row. The label SHALL be suppressed when the resolved title is empty. The label SHALL render on open and done tasks and SHALL be suppressed on dropped tasks. The label's foreground color SHALL be indigo (huh's logo color), visually distinct from the green `ready:` chip and from every other chip.
 
@@ -185,3 +104,8 @@ A task with a non-nil `ProjectID` SHALL display its project title as a leading l
 - **WHEN** a row renders a project label alongside a `ready:` chip
 - **THEN** the label's indigo foreground is visually distinguishable from the ready chip's green
 
+## REMOVED Requirements
+
+### Requirement: Project chip
+**Reason**: The project association moved from a trailing `+<title>` chip to a leading indigo label rendered ahead of the title. Its behavior is now covered by the ADDED Requirement: Project label.
+**Migration**: No code migration needed (the leading-label rendering already ships). Refer to Requirement: Project label for the project-association presentation contract.

@@ -2,9 +2,7 @@
 
 ## Purpose
 Defines the behavior of the project view screen, which displays a project's header attributes and an embedded task list scoped to that project.
-
 ## Requirements
-
 ### Requirement: Project view shows project header
 The project view screen SHALL display a compact header showing non-empty project attributes: title, status, outcome, and due. Description SHALL be omitted. Attributes that are empty or zero-valued SHALL be hidden.
 
@@ -95,3 +93,19 @@ Pressing esc SHALL dismiss the project view and return to the project list.
 - **WHEN** the user presses esc in the project view (while not capturing input)
 - **THEN** the project view overlay SHALL be dismissed
 - **AND** the project list SHALL reinitialize
+
+### Requirement: Open task view from project view
+Pressing `enter` on a task in the project view SHALL push that task's view screen, mirroring the top-level Tasks tab. The `e` binding SHALL continue to open the task editor. Because the project is already the parent screen, the task view pushed from a project view SHALL disable the go-to-project (`g`) action.
+
+#### Scenario: Enter opens the selected task's view
+- **WHEN** the user presses `enter` on a task in the project view
+- **THEN** the task view screen is pushed for the selected task
+
+#### Scenario: Edit still opens the editor
+- **WHEN** the user presses `e` on a task in the project view
+- **THEN** the task edit overlay is pushed for the selected task
+
+#### Scenario: In-project task view disables go-to-project
+- **WHEN** a task view is opened from the project view
+- **THEN** the go-to-project (`g`) action SHALL NOT be offered, since the project is the parent screen
+
