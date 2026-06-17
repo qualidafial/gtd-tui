@@ -18,6 +18,7 @@ import (
 	"github.com/qualidafial/gtd-tui/tui/components/form"
 	"github.com/qualidafial/gtd-tui/tui/components/form/datefield"
 	"github.com/qualidafial/gtd-tui/tui/components/form/inputfield"
+	"github.com/qualidafial/gtd-tui/tui/components/form/radiofield"
 	"github.com/qualidafial/gtd-tui/tui/components/form/savefield"
 	"github.com/qualidafial/gtd-tui/tui/components/form/textfield"
 	"github.com/qualidafial/gtd-tui/tui/components/screen"
@@ -48,9 +49,7 @@ type Model struct {
 }
 
 func New(task gtd.Task, svc gtd.TaskService, projectName string, viewFactory ViewFactory) Model {
-	if task.ID == 0 {
-		task.Status = gtd.TaskStatusOpen
-	}
+	creating := task.ID == 0
 
 	assignee := ""
 	if task.Assignee != nil {
@@ -85,18 +84,29 @@ func New(task gtd.Task, svc gtd.TaskService, projectName string, viewFactory Vie
 	}
 	deferUntil := datefield.New("defer", "Defer Until", deferOpts...)
 
-	saveLabel := "Save"
-	if task.ID == 0 {
-		saveLabel = "Create"
+	// New tasks pick their initial status inline (Open or Done) on the
+	// terminal field, so a finished task can be recorded straight to done.
+	// Existing tasks keep a plain Save button; their status changes only
+	// through the transition overlay.
+	var terminal form.Field
+	if creating {
+		terminal = radiofield.New("status", "Status",
+			[]radiofield.Option[gtd.TaskStatus]{
+				{Display: "Open", Value: gtd.TaskStatusOpen},
+				{Display: "Done", Value: gtd.TaskStatusDone},
+			},
+			radiofield.WithInitialValue(gtd.TaskStatusOpen),
+		)
+	} else {
+		terminal = savefield.New("save", savefield.WithLabel("Save"))
 	}
-	save := savefield.New("save", savefield.WithLabel(saveLabel))
 
 	return Model{
 		task:        task,
 		svc:         svc,
 		projectName: projectName,
 		viewFactory: viewFactory,
-		form:        form.New(title, desc, asg, due, deferUntil, save),
+		form:        form.New(title, desc, asg, due, deferUntil, terminal),
 	}
 }
 
@@ -163,6 +173,13 @@ func (m Model) saveCmd() tea.Cmd {
 
 	svc := m.svc
 	creating := task.ID == 0
+	if creating {
+		// The create form's terminal field is the status radio; existing
+		// tasks have no "status" key so their status is left untouched.
+		if status, ok := values["status"].(gtd.TaskStatus); ok {
+			task.Status = status
+		}
+	}
 	return func() tea.Msg {
 		var saved gtd.Task
 		var err error

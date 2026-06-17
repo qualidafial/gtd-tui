@@ -43,9 +43,7 @@ func New(taskSvc gtd.TaskService) Model {
 	// form.UpdateField when tasksLoadedMsg arrives.
 	return Model{
 		taskSvc: taskSvc,
-		form: form.New(selectfield.New[int64]("task", "Task", nil,
-			selectfield.WithSubmitOnEnter[int64](),
-		)),
+		form: form.New(selectfield.New[int64]("task", "Task", nil)),
 	}
 }
 

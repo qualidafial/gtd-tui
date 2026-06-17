@@ -104,6 +104,7 @@ type setValueMsg struct {
 func tab() tea.KeyPressMsg      { return tea.KeyPressMsg{Code: tea.KeyTab} }
 func shiftTab() tea.KeyPressMsg { return tea.KeyPressMsg{Code: tea.KeyTab, Mod: tea.ModShift} }
 func ctrlS() tea.KeyPressMsg    { return tea.KeyPressMsg{Code: 's', Mod: tea.ModCtrl} }
+func enter() tea.KeyPressMsg    { return tea.KeyPressMsg{Code: tea.KeyEnter} }
 
 // collectMsgs flattens a possibly-batched tea.Cmd into the slice of msgs it
 // would emit. Sufficient for inspecting whether SubmittedMsg fires.
@@ -292,6 +293,60 @@ func TestTabRefusesToAdvanceWhenValidatorFails(t *testing.T) {
 	f, _ = f.Update(tab())
 	assert.Equal(t, "a", f.Focused().Key(), "tab must not advance past a failing field")
 	assert.Equal(t, 1, *a.validateCalls)
+}
+
+func TestEnterOnLastVisibleFieldSubmits(t *testing.T) {
+	// The last field claims no keys, so Enter falls through to the form's
+	// last-field rule and submits.
+	a := newStub("a")
+	b := newStub("b")
+	f := form.New(a.asField(), b.asField())
+
+	f, _ = f.Update(tab())
+	require.Equal(t, "b", f.Focused().Key())
+
+	_, cmd := f.Update(enter())
+	assert.True(t, hasSubmittedMsg(cmd), "Enter on the last visible field submits")
+}
+
+func TestEnterOnNonLastFieldAdvances(t *testing.T) {
+	a := newStub("a")
+	b := newStub("b")
+	f := form.New(a.asField(), b.asField())
+	require.Equal(t, "a", f.Focused().Key())
+
+	f, cmd := f.Update(enter())
+	assert.Equal(t, "b", f.Focused().Key(), "Enter advances when a later field exists")
+	assert.False(t, hasSubmittedMsg(cmd), "Enter must not submit while a later field exists")
+}
+
+func TestEnterAdvanceIsValidatorGated(t *testing.T) {
+	a := newStub("a")
+	a.validate = func() error { return errors.New("a-invalid") }
+	b := newStub("b")
+	f := form.New(a.asField(), b.asField())
+
+	f, cmd := f.Update(enter())
+	assert.Equal(t, "a", f.Focused().Key(), "Enter gates on the validator like tab")
+	assert.False(t, hasSubmittedMsg(cmd))
+}
+
+func TestEnterOnClaimingLastFieldRoutesToField(t *testing.T) {
+	// A last field that claims Enter (e.g. a multi-line field, or a select
+	// in submit-on-enter mode) keeps the gesture; the form must not submit
+	// on its behalf.
+	enterBinding := key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "select"))
+	a := newStub("a")
+	b := newStub("b")
+	b.bindings = []keymap.Group{{{Binding: enterBinding, Vis: keymap.Short}}}
+	f := form.New(a.asField(), b.asField())
+
+	f, _ = f.Update(tab())
+	require.Equal(t, "b", f.Focused().Key())
+
+	_, cmd := f.Update(enter())
+	assert.False(t, hasSubmittedMsg(cmd), "a claiming last field keeps Enter; the form must not submit")
+	assert.Equal(t, 1, *b.updateCalls, "Enter routes to the claiming field's Update")
 }
 
 // helpDescs flattens a short-help projection to its binding descriptions.

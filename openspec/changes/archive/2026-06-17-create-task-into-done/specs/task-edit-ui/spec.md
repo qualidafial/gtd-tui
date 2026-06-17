@@ -1,8 +1,5 @@
-# task-edit-ui Specification
+## MODIFIED Requirements
 
-## Purpose
-Defines the task editor overlay: form fields, defaults, read-only header, save/cancel behavior, and error handling.
-## Requirements
 ### Requirement: Task editor form fields
 The task editor SHALL present a form for the editable fields of a task: Title, Description, Assignee, Due, and Defer Until, in that order. Title SHALL be required (a non-empty validation error blocks saving). Due and Defer Until SHALL use the shared date field (natural-language and `YYYY-MM-DD[ HH:MM]` input). When editing an existing task, Status SHALL NOT be editable from the editor; status changes for existing tasks are made through the transition confirmation overlay. When creating a new task, the form SHALL offer a terminal Status choice limited to `Open` and `Done` (see "Default values for new tasks"); `Dropped` SHALL NOT be offered at creation. The Kind field SHALL NOT appear.
 
@@ -27,33 +24,6 @@ When the editor is opened for a new task (no ID assigned), the form SHALL presen
 - **WHEN** the editor opens for a new task
 - **THEN** the Status choice offers exactly `Open` and `Done`
 - **AND** `Dropped` is not offered
-
-### Requirement: Non-editable properties header
-When editing an existing task (an ID is assigned), the editor SHALL render a compact, dimmed header above the form showing read-only properties: Task ID, Created, Updated, Status, and Project (when linked). Each property SHALL be a label/value line. Created and Updated SHALL render their timestamps in the local timezone. The Project line SHALL display the project's title and SHALL only appear when the task has a non-nil ProjectID. The header SHALL NOT appear when creating a new task.
-
-#### Scenario: Header shown for an existing task with project
-- **WHEN** the editor is opened for an existing task that has a ProjectID
-- **THEN** a dimmed header shows Task ID, Created, Updated, Status, and Project above the form
-
-#### Scenario: Header shown for an existing task without project
-- **WHEN** the editor is opened for an existing task that has no ProjectID
-- **THEN** a dimmed header shows Task ID, Created, Updated, and Status above the form
-- **AND** no Project line is shown
-
-#### Scenario: No header for a new task
-- **WHEN** the editor is opened to create a task
-- **THEN** no read-only properties header is shown
-
-### Requirement: Status property with relative change time
-The Status line in the read-only header SHALL show the task's status name (first letter capitalized) followed by a relative WHEN of the last status change, in parentheses, on the same line: `Status: <Status> (<WHEN>)`. The WHEN SHALL be computed from StatusChangedAt against the current time using the shared relative-time formatter's past ladder (`today`, `Nd` up to 30 days, then an absolute `YYYY-MM-DD` date; a change earlier the same day renders the clock time).
-
-#### Scenario: Open task changed three days ago
-- **WHEN** an existing open task's StatusChangedAt was 3 days ago
-- **THEN** the header shows `Status: Open (3d)`
-
-#### Scenario: Done task changed today
-- **WHEN** an existing task is done and its StatusChangedAt is today (date-only)
-- **THEN** the header shows `Status: Done (today)`
 
 ### Requirement: Save creates or updates
 Submitting the form SHALL create the task when it has no ID and update it otherwise. When creating, the task SHALL be created in the Status selected on the form (`Open` or `Done`); a `Done` task is created directly in done status (no order key, `StatusChangedAt` stamped at creation) without an intermediate open state. When the editor was created with a view factory and the submission created a new task, the editor SHALL replace itself with the new task's view via `screen.Replace` (which morphs to the view and batches its window-size request and `Init`), so the parent list reloads when that view is later dismissed. Updates, and creates with no view factory, SHALL dismiss the overlay only (the revealed screen reloads on dismiss).
@@ -81,26 +51,3 @@ Submitting the form SHALL create the task when it has no ID and update it otherw
 - **WHEN** the form is submitted for a task with an ID
 - **THEN** the task is updated
 - **AND** the overlay is dismissed
-
-### Requirement: Save-error surfacing and retry
-When a create or update fails, the editor SHALL render the error in red beneath the form rather than silently dropping it. Pressing esc SHALL clear the error and return the form to its editable state so the user can adjust input and retry; pressing esc again SHALL back out. While an error is showing, other keys SHALL be ignored so the form's completed state cannot re-fire the save.
-
-#### Scenario: Save failure is shown
-- **WHEN** a save fails
-- **THEN** the error message is displayed beneath the form
-
-#### Scenario: Esc clears the error for retry
-- **WHEN** an error is showing and the user presses esc
-- **THEN** the error is cleared and the form returns to its editable state
-
-#### Scenario: Other keys ignored during an error
-- **WHEN** an error is showing and the user presses a non-esc key
-- **THEN** the keypress is ignored and no save is re-fired
-
-### Requirement: Back out without saving
-Pressing esc while editing (with no error showing) SHALL abort the form and dismiss the overlay without saving changes.
-
-#### Scenario: Esc backs out
-- **WHEN** the user presses esc while editing
-- **THEN** the overlay is dismissed and no changes are saved
-

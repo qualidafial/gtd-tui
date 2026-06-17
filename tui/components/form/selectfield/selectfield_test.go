@@ -96,6 +96,38 @@ func TestKeysAdvertiseFilterAndClaimArrows(t *testing.T) {
 	assert.True(t, claimsUp && claimsDown, "selectfield Keys should claim up/down")
 }
 
+func claimsEnter[T comparable](m selectfield.Model[T]) bool {
+	for _, g := range m.Keys() {
+		for _, c := range g {
+			for _, k := range c.Keys() {
+				if k == "enter" {
+					return true
+				}
+			}
+		}
+	}
+	return false
+}
+
+func TestKeysClaimEnterOnlyWhileFiltering(t *testing.T) {
+	// Not filtering: Enter is unclaimed so the form's last-field rule can
+	// submit a terminal selectfield. While filtering: Enter is claimed so it
+	// routes to the list and accepts the filter instead of submitting.
+	opts := []selectfield.Option[string]{
+		{Display: "apple", Value: "apple"},
+		{Display: "banana", Value: "banana"},
+	}
+	m := selectfield.New("fruit", "Fruit", opts)
+	m = m.SetWidth(40).(selectfield.Model[string])
+
+	assert.False(t, claimsEnter(m), "a non-filtering selectfield must not claim enter")
+
+	f := focus(m)
+	f, _ = f.Update(tea.KeyPressMsg{Code: '/', Text: "/"})
+	assert.True(t, claimsEnter(f.(selectfield.Model[string])),
+		"a filtering selectfield claims enter to accept the filter")
+}
+
 func TestWithNonePrependsZeroValueOption(t *testing.T) {
 	type id int64
 	opts := []selectfield.Option[*id]{

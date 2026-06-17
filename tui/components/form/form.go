@@ -34,9 +34,10 @@ type SubmittedMsg struct{}
 
 // SubmitRequestMsg asks the form to invoke Submit, exactly as if the
 // user had pressed the Save key. Fields emit this from their Update cmd
-// to request submission — savefield uses it to wire Enter-to-submit.
-// External code generally should not emit this; press the Save key
-// instead.
+// to request submission — selectfield's submit-on-enter mode uses it. A
+// terminal field that does not claim Enter (e.g. savefield) instead relies
+// on the form's "Enter on the last visible field submits" rule. External
+// code generally should not emit this; press the Save key instead.
 type SubmitRequestMsg struct{}
 
 // Model is a form holding an ordered list of fields with a single focus.
@@ -131,6 +132,13 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 			m, cmd := m.handleSubmit()
 			return m.syncViewport(), cmd
 		case key.Matches(msg, m.KeyMap.Next):
+			// Enter on the last visible field submits the form (the focused
+			// field did not claim Enter, or the guard above would have routed
+			// it to the field). Tab/down at the end stay no-ops via Next.
+			if msg.Code == tea.KeyEnter && msg.Mod == 0 && !m.hasNextVisible() {
+				m, cmd := m.handleSubmit()
+				return m.syncViewport(), cmd
+			}
 			m, cmd := m.Next()
 			return m.syncViewport(), cmd
 		case key.Matches(msg, m.KeyMap.Prev):
@@ -231,6 +239,18 @@ func (m Model) Next() (Model, tea.Cmd) {
 		}
 	}
 	return m, nil
+}
+
+// hasNextVisible reports whether any visible field follows the current
+// focus. Used to decide whether Enter advances focus or submits the form.
+func (m Model) hasNextVisible() bool {
+	vis := visibility(m.fields)
+	for i := m.focus + 1; i < len(m.fields); i++ {
+		if vis[i] {
+			return true
+		}
+	}
+	return false
 }
 
 // Prev moves focus to the previous visible field. It is a no-op if no

@@ -188,7 +188,7 @@ On receipt of a `tea.WindowSizeMsg`, `form.Model.Update` SHALL invoke `SetWidth(
 - **THEN** every field's `SetWidth(80)` is called exactly once
 
 ### Requirement: Concrete field subpackages
-The toolkit SHALL provide concrete `Field` implementations as subpackages under `tui/components/form/`: `inputfield` (single-line text, wrapping `bubbles/v2/textinput`), `textfield` (multi-line text, wrapping `bubbles/v2/textarea`), `selectfield` (generic single-select backed by `bubbles/v2/list.Model`), `radiofield` (generic inline single-select for binary/small-N choices, equivalent to `huh.NewSelect().Inline(true)`), `datefield` (natural-time-parsed date/time, replacing `tui/components/date`), and `savefield` (a terminal `[ Save ]` button). Each subpackage exposes a `New(...)` constructor returning a `*Model` that implements `form.Field`. Each text-valued field SHALL accept an optional validator function via an `Option`.
+The toolkit SHALL provide concrete `Field` implementations as subpackages under `tui/components/form/`: `inputfield` (single-line text, wrapping `bubbles/v2/textinput`), `textfield` (multi-line text, wrapping `bubbles/v2/textarea`), `selectfield` (generic single-select backed by `bubbles/v2/list.Model`), `radiofield` (generic inline single-select for binary/small-N choices, equivalent to `huh.NewSelect().Inline(true)`), `datefield` (natural-time-parsed date/time, replacing `tui/components/date`), and `savefield` (a terminal `[ Save ]` button). Each subpackage exposes a `New(...)` constructor returning a `*Model` that implements `form.Field`. Each text-valued field SHALL accept an optional validator function via an `Option`. The `savefield` SHALL be a valueless focus placeholder: it carries no value, always validates, and does NOT claim Enter — submission when it holds focus is provided by the form-level "Enter on the last visible field submits" rule rather than by the field itself. The `selectfield` SHALL claim Enter only while its list is in the filtering state (so Enter accepts the filter); when not filtering it SHALL NOT claim Enter, so a terminal selectfield submits via the same form-level last-field rule. The toolkit SHALL NOT provide a `WithSubmitOnEnter` selectfield option.
 
 #### Scenario: inputfield rejects empty when validator is supplied
 - **WHEN** an `inputfield` is constructed with a validator that requires non-empty input
@@ -227,10 +227,16 @@ The toolkit SHALL provide concrete `Field` implementations as subpackages under 
 - **WHEN** `Validate()` is called on a `savefield`
 - **THEN** it returns nil
 
-#### Scenario: Enter on savefield triggers form submit
-- **WHEN** the user presses `enter` while focused on a `savefield` inside a form
-- **THEN** the form runs the same Submit path as `ctrl+s`
-- **AND** on success the form emits its submitted-message
+#### Scenario: savefield does not claim Enter
+- **WHEN** a `savefield` is focused inside a form
+- **THEN** its `Keys()` do not claim Enter
+- **AND** pressing Enter while it holds focus submits the form via the form-level last-field rule
+
+#### Scenario: selectfield claims Enter only while filtering
+- **WHEN** a focused `selectfield` is not filtering
+- **THEN** its `Keys()` do not claim Enter, so a terminal selectfield submits via the form's last-field rule
+- **AND WHEN** the list is in the filtering state
+- **THEN** its `Keys()` claim Enter so the gesture accepts the filter instead of submitting the form
 
 ### Requirement: Form rendering composes field views
 `Form.View()` SHALL render each field's `View()` in order, vertically joined. A field's own `View()` SHALL include its label, its current value/edit affordance, and (when present) its cached error styled as an error message.
@@ -266,4 +272,20 @@ A `selectfield` SHALL support populating its options after construction so a for
 #### Scenario: UpdateField edits one field in place by key
 - **WHEN** `form.UpdateField` is called with an existing field's key and a mutator
 - **THEN** that field is replaced by the mutator's result and the other fields are unchanged
+
+### Requirement: Enter on the last visible field submits
+When the focused field is the last visible field and does not itself claim the Enter key, pressing Enter SHALL run the form's Submit path (identical to the `Save` key), and on success the form SHALL emit its submitted-message. When the focused field claims Enter (its `Keys()` include Enter), the keypress SHALL route to that field instead, unchanged. When a later visible field exists, Enter SHALL continue to advance focus (gated by the current field's validator) rather than submit. This makes any non-Enter-claiming terminal field — for example an inline `radiofield` placed last — act as the form's submit affordance without bespoke wiring.
+
+#### Scenario: Enter on a non-claiming last field submits
+- **WHEN** focus is on the last visible field, that field does not claim Enter, and the user presses Enter
+- **THEN** the form runs the same Submit path as the `Save` key
+- **AND** on success the form emits its submitted-message
+
+#### Scenario: Enter still advances when a later field exists
+- **WHEN** focus is on a non-last visible field and the user presses Enter
+- **THEN** focus advances to the next visible field (subject to the current field's validator) and the form does not submit
+
+#### Scenario: A claiming last field keeps Enter
+- **WHEN** focus is on the last visible field and that field claims Enter (e.g. a multi-line field with an Enter binding)
+- **THEN** the keypress routes to the field and the form does not submit on its behalf
 

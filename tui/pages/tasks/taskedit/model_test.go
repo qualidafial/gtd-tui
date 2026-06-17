@@ -171,6 +171,81 @@ func TestCtrlEnter_SavesFromTitleField(t *testing.T) {
 	assert.Equal(t, "Original edited", got.Title)
 }
 
+func TestCreate_StatusRadio_DefaultsOpenOffersDoneNotDropped(t *testing.T) {
+	var s screen.Screen = New(gtd.Task{}, nil, "", nil)
+	s = screentest.Init(t, s)
+	s = screentest.Send(t, s, tea.WindowSizeMsg{Width: 80, Height: 24})
+
+	view := ansi.Strip(s.View())
+	assert.Contains(t, view, "Status")
+	assert.Contains(t, view, "Open")
+	assert.Contains(t, view, "Done")
+	assert.NotContains(t, view, "Dropped", "new tasks must not offer Dropped")
+
+	assert.Equal(t, gtd.TaskStatusOpen, s.(Model).form.FieldValues()["status"],
+		"the status radio defaults to Open")
+}
+
+func TestCreate_OpenStatus_CreatesOpenTask(t *testing.T) {
+	db := openTestDB(t)
+	svc := service.NewTaskService(db)
+
+	var s screen.Screen = New(gtd.Task{}, svc, "", nil)
+	s = screentest.Init(t, s)
+	s = screentest.TypeText(t, s, "Recorded task")
+	// Title→Description→Assignee→Due→Defer→Status.
+	for i := 0; i < 5; i++ {
+		s = screentest.Send(t, s, tea.KeyPressMsg{Code: tea.KeyTab})
+	}
+	require.Equal(t, "status", s.(Model).form.Focused().Key())
+
+	// Default selection is Open; Enter on the terminal radio submits.
+	_, dismissed := screentest.RunUntilDismiss(t, s, tea.KeyPressMsg{Code: tea.KeyEnter})
+	require.True(t, dismissed)
+
+	tasks, err := svc.ListTasks(t.Context(), gtd.TaskFilter{})
+	require.NoError(t, err)
+	require.Len(t, tasks, 1)
+	assert.Equal(t, "Recorded task", tasks[0].Title)
+	assert.Equal(t, gtd.TaskStatusOpen, tasks[0].Status)
+}
+
+func TestCreate_DoneStatus_CreatesDoneTask(t *testing.T) {
+	db := openTestDB(t)
+	svc := service.NewTaskService(db)
+
+	var s screen.Screen = New(gtd.Task{}, svc, "", nil)
+	s = screentest.Init(t, s)
+	s = screentest.TypeText(t, s, "Already finished")
+	for i := 0; i < 5; i++ {
+		s = screentest.Send(t, s, tea.KeyPressMsg{Code: tea.KeyTab})
+	}
+	require.Equal(t, "status", s.(Model).form.Focused().Key())
+
+	// Move the selection Open→Done, then submit on the terminal radio.
+	s = screentest.Send(t, s, tea.KeyPressMsg{Code: tea.KeyRight})
+	_, dismissed := screentest.RunUntilDismiss(t, s, tea.KeyPressMsg{Code: tea.KeyEnter})
+	require.True(t, dismissed)
+
+	tasks, err := svc.ListTasks(t.Context(), gtd.TaskFilter{})
+	require.NoError(t, err)
+	require.Len(t, tasks, 1)
+	assert.Equal(t, "Already finished", tasks[0].Title)
+	assert.Equal(t, gtd.TaskStatusDone, tasks[0].Status)
+	assert.WithinDuration(t, time.Now(), tasks[0].StatusChangedAt, time.Minute,
+		"a recorded done task is stamped done at creation")
+}
+
+func TestEdit_NoStatusField(t *testing.T) {
+	var s screen.Screen = New(gtd.Task{ID: 1, Title: "Existing", Status: gtd.TaskStatusOpen}, nil, "", nil)
+	s = screentest.Init(t, s)
+	s = screentest.Send(t, s, tea.WindowSizeMsg{Width: 80, Height: 24})
+
+	_, ok := s.(Model).form.FieldValues()["status"]
+	assert.False(t, ok, "existing-task form must not expose a status field")
+	assert.Contains(t, ansi.Strip(s.View()), "Save", "existing-task form keeps the Save button")
+}
+
 func TestCtrlEnter_EmptyTitle_NoSave(t *testing.T) {
 	db := openTestDB(t)
 	svc := service.NewTaskService(db)

@@ -10,7 +10,6 @@ import (
 	"github.com/qualidafial/gtd-tui/tui/components/form"
 	"github.com/qualidafial/gtd-tui/tui/components/form/inputfield"
 	"github.com/qualidafial/gtd-tui/tui/components/form/savefield"
-	"github.com/qualidafial/gtd-tui/tui/internal/keymap"
 )
 
 func TestNewRequiresKey(t *testing.T) {
@@ -33,14 +32,13 @@ func TestValidateAlwaysPasses(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-func TestEnterEmitsSubmitRequestWhenFocused(t *testing.T) {
+func TestEnterDoesNotEmitFromField(t *testing.T) {
+	// The savefield is a valueless placeholder: it no longer emits a submit
+	// request of its own. The form owns Enter-to-submit at the last field.
 	m := savefield.New("save")
 	f, _ := m.Focus()
 	_, cmd := f.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
-	require.NotNil(t, cmd)
-	msg := cmd()
-	_, ok := msg.(form.SubmitRequestMsg)
-	assert.True(t, ok, "Enter while focused must emit SubmitRequestMsg")
+	assert.Nil(t, cmd, "savefield must not emit a submit request from its own Update")
 }
 
 func TestEnterIgnoredWhenUnfocused(t *testing.T) {
@@ -50,10 +48,10 @@ func TestEnterIgnoredWhenUnfocused(t *testing.T) {
 	assert.Nil(t, cmd, "unfocused savefield must not emit a submit request")
 }
 
-func TestEnterInsideFormTriggersSubmittedMsg(t *testing.T) {
+func TestEnterOnSavefieldSubmitsForm(t *testing.T) {
 	// End-to-end: a form with one inputfield + savefield. Tab to the save
-	// button, press Enter, feed the resulting SubmitRequestMsg back into
-	// the form, and observe SubmittedMsg in the next batch.
+	// button and press Enter; the form's last-field rule submits directly
+	// (no SubmitRequestMsg round-trip), emitting SubmittedMsg in the batch.
 	title := inputfield.New("title", "Title", inputfield.WithValue("hi"))
 	save := savefield.New("save")
 
@@ -62,14 +60,7 @@ func TestEnterInsideFormTriggersSubmittedMsg(t *testing.T) {
 	require.Equal(t, "save", f.Focused().Key())
 
 	_, cmd := f.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
-	require.NotNil(t, cmd)
-	req, ok := cmd().(form.SubmitRequestMsg)
-	require.True(t, ok)
-
-	// Now route the SubmitRequestMsg back to the form.
-	_, cmd = f.Update(req)
-	require.NotNil(t, cmd)
-	assert.True(t, hasSubmittedMsg(cmd), "form must emit SubmittedMsg in response to SubmitRequestMsg")
+	assert.True(t, hasSubmittedMsg(cmd), "Enter on the terminal savefield submits the form")
 }
 
 func TestTabLeavesSavefieldWithoutSubmitting(t *testing.T) {
@@ -89,15 +80,12 @@ func TestTabLeavesSavefieldWithoutSubmitting(t *testing.T) {
 	assert.False(t, hasSubmittedMsg(cmd))
 }
 
-func TestKeysAdvertiseEnter(t *testing.T) {
+func TestKeysDoesNotClaimEnter(t *testing.T) {
+	// The placeholder claims no keys, so the form's last-field rule sees
+	// Enter and submits. (A non-empty Keys() claiming Enter would route the
+	// gesture to the field and defeat that rule.)
 	m := savefield.New("save")
-	groups := m.Keys()
-	require.NotEmpty(t, groups)
-	require.NotEmpty(t, groups[0])
-	c := groups[0][0]
-	assert.Equal(t, "enter", c.Help().Key)
-	assert.Equal(t, "save", c.Help().Desc)
-	assert.Equal(t, keymap.Short, c.Vis)
+	assert.Empty(t, m.Keys(), "savefield is a valueless placeholder and claims no keys")
 }
 
 func TestVisibleDefaultTrue(t *testing.T) {

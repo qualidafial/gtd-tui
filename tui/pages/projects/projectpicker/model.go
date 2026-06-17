@@ -40,7 +40,6 @@ func New(task gtd.Task, taskSvc gtd.TaskService, projectSvc gtd.ProjectService) 
 	// re-applies once the real options land.
 	fieldOpts := []selectfield.FieldOption[int64]{
 		selectfield.WithNone[int64]("(none)"),
-		selectfield.WithSubmitOnEnter[int64](),
 	}
 	if task.ProjectID != nil {
 		fieldOpts = append(fieldOpts, selectfield.WithInitialValue(*task.ProjectID))

@@ -1,18 +1,16 @@
 // Package savefield is a terminal "[ Save ]" button for use as the last
-// field in a [form.Form]. Pressing Enter while focused triggers the same
-// path as the form's Save key — Submit runs synchronously and, on
-// success, the form emits [form.SubmittedMsg].
+// field in a [form.Form]. It is a valueless focus placeholder: it carries
+// no value of its own and always validates. It does not claim Enter —
+// submitting when it holds focus comes from the form's "Enter on the last
+// visible field submits" rule, not from the field itself.
 package savefield
 
 import (
-	"charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/qualidafial/gtd-tui/tui/components/form"
 	"github.com/qualidafial/gtd-tui/tui/internal/keymap"
 )
-
-var enterKey = key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "save"))
 
 // Model is a single focusable "Save" button.
 type Model struct {
@@ -65,22 +63,9 @@ func (m Model) Visible(v form.Values) bool {
 func (m Model) Focus() (form.Field, tea.Cmd) { m.focused = true; return m, nil }
 func (m Model) Blur() form.Field             { m.focused = false; return m }
 
-// Update emits [form.SubmitRequestMsg] when Enter is pressed while
-// focused. The form intercepts that message and runs its normal Submit
-// path — same as ctrl+s, with full validation.
-func (m Model) Update(msg tea.Msg) (form.Field, tea.Cmd) {
-	if !m.focused {
-		return m, nil
-	}
-	km, ok := msg.(tea.KeyPressMsg)
-	if !ok {
-		return m, nil
-	}
-	if km.Code == tea.KeyEnter && km.Mod == 0 {
-		return m, func() tea.Msg { return form.SubmitRequestMsg{} }
-	}
-	return m, nil
-}
+// Update is a no-op: the savefield consumes no keys. When it is the last
+// visible field, the form submits on Enter via its own last-field rule.
+func (m Model) Update(tea.Msg) (form.Field, tea.Cmd) { return m, nil }
 
 func (m Model) SetWidth(int) form.Field { return m }
 
@@ -95,9 +80,7 @@ func (m Model) View() string {
 func (m Model) Value() any                    { return nil }
 func (m Model) Validate() (form.Field, error) { return m, nil }
 
-// Keys claims Enter so the form forwards it here (where Update emits
-// SubmitRequestMsg) instead of treating it as next-field navigation, and
-// advertises it as "enter save".
-func (m Model) Keys() []keymap.Group {
-	return []keymap.Group{{{Binding: enterKey, Vis: keymap.Short}}}
-}
+// Keys returns no bindings: the savefield is a valueless focus placeholder
+// and does not claim Enter, so the form's last-field rule receives it and
+// submits.
+func (m Model) Keys() []keymap.Group { return nil }

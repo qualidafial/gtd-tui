@@ -52,17 +52,17 @@ func TestVerify_RadiofieldArrows(t *testing.T) {
 	assert.Equal(t, "←/→", short["choose"])
 }
 
-// 7.3: a key bound by both field and form routes to the field. The
-// savefield claims enter; the form must forward enter (Handles true) so it
-// is not treated as next-field.
-func TestVerify_SavefieldClaimsEnter(t *testing.T) {
+// 7.3: the savefield is a valueless placeholder that does NOT claim enter,
+// so the form's "Enter on the last visible field submits" rule receives the
+// gesture instead of the field. A plain inputfield likewise does not claim
+// enter (the form may advance or, at the end, submit).
+func TestVerify_SavefieldDoesNotClaimEnter(t *testing.T) {
 	sf := savefield.New("save")
 	var fld form.Field = sf
 	fld, _ = fld.Focus()
-	assert.True(t, keymap.Handles(fld, tea.KeyPressMsg{Code: tea.KeyEnter}),
-		"savefield must claim enter so the form forwards it")
+	assert.False(t, keymap.Handles(fld, tea.KeyPressMsg{Code: tea.KeyEnter}),
+		"savefield must not claim enter; the form owns Enter-to-submit")
 
-	// A plain inputfield does NOT claim enter — the form may advance.
 	var in form.Field = inputfield.New("title", "Title")
 	in, _ = in.Focus()
 	assert.False(t, keymap.Handles(in, tea.KeyPressMsg{Code: tea.KeyEnter}),

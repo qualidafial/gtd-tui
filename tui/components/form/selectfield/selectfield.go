@@ -25,9 +25,9 @@ var (
 	)
 	// filterKey advertises and claims the list's filter trigger.
 	filterKey = key.NewBinding(key.WithKeys("/"), key.WithHelp("/", "filter"))
-	// submitKey is claimed only when WithSubmitOnEnter is set, so Enter
-	// routes to the field (committing the selection) instead of advancing
-	// form focus.
+	// submitKey is claimed only while the list is filtering, so Enter routes
+	// to the list (accepting the filter) instead of submitting the form via
+	// its last-field rule.
 	submitKey = key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "select"))
 )
 
@@ -70,7 +70,6 @@ type Model[T comparable] struct {
 	validator     func(T) error
 	visible       func(form.Values) bool
 	focused       bool
-	submitOnEnter bool
 	hideWhenEmpty bool
 	initialMatch  func(T) bool
 
@@ -118,16 +117,6 @@ func WithHeight[T comparable](rows int) FieldOption[T] {
 		m.list.SetHeight(rows)
 		m.explicitHeight = true
 	}
-}
-
-// WithSubmitOnEnter makes Enter on a non-filtering list commit the
-// selection by emitting [form.SubmitRequestMsg]. Useful when the
-// selectfield is the only field of a single-pick overlay where there is
-// no trailing savefield. While the list is in the Filtering state Enter
-// is left to the list (it accepts the filter); once the filter is
-// applied or unfiltered, Enter submits.
-func WithSubmitOnEnter[T comparable]() FieldOption[T] {
-	return func(m *Model[T]) { m.submitOnEnter = true }
 }
 
 // WithInitialValue selects the option whose Value equals v at
@@ -281,13 +270,6 @@ func (m Model[T]) Update(msg tea.Msg) (form.Field, tea.Cmd) {
 	if !m.focused {
 		return m, nil
 	}
-	if m.submitOnEnter {
-		if km, ok := msg.(tea.KeyPressMsg); ok &&
-			km.Code == tea.KeyEnter && km.Mod == 0 &&
-			m.list.FilterState() != list.Filtering {
-			return m, func() tea.Msg { return form.SubmitRequestMsg{} }
-		}
-	}
 	var cmd tea.Cmd
 	m.list, cmd = m.list.Update(msg)
 	if m.err != nil && m.currentValue() != m.lastVal {
@@ -352,10 +334,11 @@ func (m Model[T]) Keys() []keymap.Group {
 		{Binding: moveKey, Show: []string{"up", "down"}, Vis: keymap.Short},
 		{Binding: filterKey, Vis: keymap.Short},
 	}
-	if m.submitOnEnter {
-		// Claim Enter so the form forwards it to Update, which commits the
-		// selection (when not filtering) or applies the filter (when
-		// filtering) — instead of the form treating Enter as next-field.
+	if m.list.FilterState() == list.Filtering {
+		// While typing a filter, claim Enter so the form forwards it to the
+		// list (which accepts the filter) instead of treating it as
+		// next-field. When not filtering, Enter is left unclaimed so the
+		// form's last-field rule can submit a terminal selectfield.
 		g = append(g, keymap.Binding{Binding: submitKey, Vis: keymap.Short})
 	}
 	return []keymap.Group{g}
