@@ -90,7 +90,7 @@ Inbox:
 
 | Key            | Action                       |
 | -------------- | ---------------------------- |
-| `+` / `insert` | Capture new item             |
+| `c` / `insert` | Capture new item             |
 | `enter`        | Clarify selected item        |
 
 Items are write-once on capture; refinement happens inside the clarify wizard,
@@ -101,13 +101,13 @@ Task list:
 
 | Key        | Action            |
 | ---------- | ----------------- |
-| `+` / `insert` | New task      |
+| `c` / `insert` | New task      |
 | `enter`    | Open task view    |
 | `e`        | Edit task         |
-| `space`    | Toggle complete   |
+| `s`        | Status (picks open / done / dropped) |
 | `delete`   | Drop task         |
 | `p`        | Jump to project   |
-| `c`        | Convert to project (standalone tasks only) |
+| `shift+c`  | Convert to project (standalone tasks only) |
 | `shift+↑/↓`| Reorder (within current filter) |
 | `shift+home/end` | Move first / last (within current filter) |
 | `/`        | Filter            |
@@ -117,13 +117,12 @@ Project list:
 
 | Key        | Action            |
 | ---------- | ----------------- |
-| `+` / `insert` | New project   |
+| `c` / `insert` | New project   |
 | `e`        | Edit project      |
 | `enter`    | Open project view |
-| `c`        | Convert to task (empty open projects only) |
-| `space`    | Toggle complete   |
+| `shift+c`  | Convert to task (empty open projects only) |
+| `s`        | Status (picks open / someday / done / dropped) |
 | `delete`   | Drop project      |
-| `s`        | Park (set someday)|
 | `shift+↑/↓`| Reorder (within current filter) |
 | `shift+home/end` | Move first / last (within current filter) |
 | `/`        | Filter            |
@@ -136,17 +135,18 @@ Project view:
 | `enter` | Open the selected task's view               |
 | `e`     | Edit project                                |
 | `l`     | Link an existing standalone task into the project |
-| `c`     | Convert to task (empty open projects only)  |
+| `shift+c` | Convert to task (empty open projects only)  |
+| `s`     | Change the selected task's status (falls through to the embedded task list) |
 
 Task view:
 
 | Key      | Action                                      |
 | -------- | ------------------------------------------- |
 | `e`      | Edit task                                   |
-| `space`  | Toggle complete                             |
+| `s`      | Status (picks open / done / dropped)        |
 | `delete` | Drop task                                   |
 | `p`      | Assign to project                           |
-| `c`      | Convert to project (standalone tasks only)  |
+| `shift+c`| Convert to project (standalone tasks only)  |
 | `g`      | Go to linked project (tasks in a project)   |
 
 Linking a task into a `someday` project removes it from the default task views

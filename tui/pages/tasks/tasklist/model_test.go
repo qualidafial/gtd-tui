@@ -193,7 +193,7 @@ func TestModel_NewTaskKey_OpensEditor(t *testing.T) {
 		name string
 		key  tea.KeyPressMsg
 	}{
-		{name: "plus", key: tea.KeyPressMsg{Code: '+', Text: "+"}},
+		{name: "c", key: tea.KeyPressMsg{Code: 'c', Text: "c"}},
 		{name: "insert", key: tea.KeyPressMsg{Code: tea.KeyInsert}},
 	}
 
@@ -250,25 +250,20 @@ func overlayTransition(t *testing.T, cmd tea.Cmd) (taskstatus.Transition, bool) 
 	return ov.Transition(), true
 }
 
-func TestModel_Toggle_ResolvesTransition(t *testing.T) {
-	tests := []struct {
-		status gtd.TaskStatus
-		want   taskstatus.Transition
-	}{
-		{gtd.TaskStatusOpen, taskstatus.Complete},
-		{gtd.TaskStatusDone, taskstatus.Reopen},
-		{gtd.TaskStatusDropped, taskstatus.Reopen},
-	}
-	for _, tt := range tests {
-		t.Run(string(tt.status), func(t *testing.T) {
-			m := loadOne(tt.status)
-			_, cmd := m.Update(tea.KeyPressMsg{Code: ' ', Text: " "})
-			got, ok := overlayTransition(t, cmd)
+func TestModel_Status_PushesPickerSeeded(t *testing.T) {
+	for _, status := range []gtd.TaskStatus{gtd.TaskStatusOpen, gtd.TaskStatusDone, gtd.TaskStatusDropped} {
+		t.Run(string(status), func(t *testing.T) {
+			m := loadOne(status)
+			_, cmd := m.Update(tea.KeyPressMsg{Code: 's', Text: "s"})
+			ov, ok := pushedScreen(t, cmd).(taskstatus.Model)
 			if !ok {
-				t.Fatal("space did not open a transition overlay")
+				t.Fatalf("s should push the status picker, got %T", pushedScreen(t, cmd))
 			}
-			if got != tt.want {
-				t.Fatalf("transition = %v, want %v", got, tt.want)
+			if !ov.Picking() {
+				t.Fatal("s should open the picker, not a fixed-transition confirmation")
+			}
+			if ov.Current() != status {
+				t.Fatalf("picker seeded with %v, want %v", ov.Current(), status)
 			}
 		})
 	}

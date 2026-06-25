@@ -1,7 +1,7 @@
 ## ADDED Requirements
 
 ### Requirement: Status picker lists the entity's statuses with the current one preselected
-The status picker overlay SHALL present a single-choice selectfield listing the statuses available for the subject entity, with the entity's **current** status preselected (highlighted). The list SHALL include the current status plus every status reachable from it by a valid transition; statuses not reachable from the current status SHALL be omitted. The picker SHALL be reusable for both tasks and projects, parameterized by the supplied status set.
+The status picker overlay SHALL present a single-choice selectfield listing the statuses available for the subject entity, with the entity's **current** status preselected (highlighted). The list SHALL include the current status plus every status reachable from it by a valid transition; statuses not reachable from the current status SHALL be omitted. The same picker behavior SHALL be available for both tasks and projects.
 
 #### Scenario: Open task offers done and dropped, open preselected
 - **WHEN** the picker opens for an open task
@@ -20,7 +20,7 @@ The status picker overlay SHALL present a single-choice selectfield listing the 
 - **AND** open SHALL be the preselected option
 
 ### Requirement: Selecting a different status applies that transition
-Choosing a status other than the current one and confirming SHALL route to the matching service transition through the existing confirmation overlay with an editable timestamp. The mapping SHALL be: open→done = Complete, open→dropped = Drop, done/dropped→open = Reopen; for projects additionally open→someday = Park and someday→open = ReopenProject, someday→dropped = Drop. Project Complete and Drop SHALL continue to show task cascade information in the confirmation.
+Choosing a status other than the current one and confirming SHALL apply the matching service transition with an editable timestamp. The timestamp is captured by a `When` field shown in the same overlay, which appears once the selection differs from the current status; `ctrl+s` saves from anywhere. The mapping SHALL be: open→done = Complete, open→dropped = Drop, done/dropped→open = Reopen; for projects additionally open→someday = Park and someday→open = ReopenProject, someday→dropped = Drop. Project Complete and Drop SHALL cascade to the project's tasks (cascade=true).
 
 #### Scenario: Complete an open task via the picker
 - **WHEN** the user opens the picker on an open task, arrows to done, and confirms

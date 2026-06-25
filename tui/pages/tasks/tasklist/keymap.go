@@ -8,8 +8,8 @@ import (
 
 // KeyMap holds the task list's action bindings as a stable instance on the
 // Model and also satisfies help.KeyMap. Bindings whose availability depends on
-// the selected task (drop, move) are toggled in Model.updateKeybindings via
-// SetEnabled; the toggle binding's label is updated via SetHelp. Both help
+// the selected task (status, drop, move) are toggled in Model.updateKeybindings
+// via SetEnabled. The status binding carries a fixed help label. Both help
 // rendering and key.Matches honor the enabled flag, so a disabled binding is
 // hidden from the help bar and inert when pressed — one source of truth for
 // "is this action available now".
@@ -24,7 +24,7 @@ type KeyMap struct {
 	Edit             key.Binding
 	AssignToProject  key.Binding
 	ConvertToProject key.Binding
-	ToggleComplete   key.Binding
+	Status           key.Binding
 	Drop             key.Binding
 	MoveUp           key.Binding
 	MoveDown         key.Binding
@@ -36,12 +36,12 @@ type KeyMap struct {
 
 func DefaultKeyMap() KeyMap {
 	return KeyMap{
-		New:              key.NewBinding(key.WithKeys("+", "insert"), key.WithHelp("+/insert", "new task")),
+		New:              key.NewBinding(key.WithKeys("c", "insert"), key.WithHelp("c", "new task")),
 		View:             key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "view")),
 		Edit:             key.NewBinding(key.WithKeys("e"), key.WithHelp("e", "edit")),
 		AssignToProject:  key.NewBinding(key.WithKeys("p"), key.WithHelp("p", "assign to project")),
-		ConvertToProject: key.NewBinding(key.WithKeys("c"), key.WithHelp("c", "convert to project")),
-		ToggleComplete:   key.NewBinding(key.WithKeys("space"), key.WithHelp("space", "complete")),
+		ConvertToProject: key.NewBinding(key.WithKeys("shift+c"), key.WithHelp("shift+c", "convert to project")),
+		Status:           key.NewBinding(key.WithKeys("s"), key.WithHelp("s", "status")),
 		Drop:             key.NewBinding(key.WithKeys("delete"), key.WithHelp("delete", "drop task")),
 		MoveUp:           key.NewBinding(key.WithKeys("shift+up"), key.WithHelp("shift+↑", "move up")),
 		MoveDown:         key.NewBinding(key.WithKeys("shift+down"), key.WithHelp("shift+↓", "move down")),
@@ -68,7 +68,7 @@ func (k KeyMap) Keys() []keymap.Group {
 			{Binding: k.Edit, Vis: keymap.Short},
 			{Binding: k.AssignToProject, Vis: keymap.Short},
 			{Binding: k.ConvertToProject, Vis: keymap.Short},
-			{Binding: k.ToggleComplete, Vis: keymap.Short},
+			{Binding: k.Status, Vis: keymap.Short},
 			{Binding: k.Drop, Vis: keymap.Short},
 		},
 		{

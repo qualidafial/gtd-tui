@@ -235,13 +235,9 @@ func (m Model) Update(msg tea.Msg) (screen.Screen, tea.Cmd) {
 			if ti, ok := m.list.SelectedItem().(Item); ok && m.convertFn != nil {
 				return m, screen.Push(m.convertFn(ti.task))
 			}
-		case key.Matches(msg, m.KeyMap.ToggleComplete):
+		case key.Matches(msg, m.KeyMap.Status):
 			if ti, ok := m.list.SelectedItem().(Item); ok {
-				transition := taskstatus.Complete
-				if ti.task.Status != gtd.TaskStatusOpen {
-					transition = taskstatus.Reopen
-				}
-				return m, screen.Push(taskstatus.New(ti.task, m.svc, transition))
+				return m, screen.Push(taskstatus.NewPicker(ti.task, m.svc))
 			}
 		case key.Matches(msg, m.KeyMap.Drop):
 			// Drop is enabled only for pending tasks, so a match implies pending.
@@ -317,15 +313,8 @@ func (m *Model) updateKeybindings() {
 	}
 	pending := selected && status == gtd.TaskStatusOpen
 
-	label := "toggle"
-	switch {
-	case !selected:
-	case status == gtd.TaskStatusOpen:
-		label = "complete"
-	default:
-		label = "reopen"
-	}
-	m.KeyMap.ToggleComplete.SetHelp("space", label)
+	// Status is available whenever a task is selected; its label is fixed.
+	m.KeyMap.Status.SetEnabled(selected)
 	m.KeyMap.AssignToProject.SetEnabled(selected && m.pickerFn != nil)
 
 	// Convert-to-Project promotes a standalone task into a new project, so it is

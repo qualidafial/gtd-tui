@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/qualidafial/gtd-tui/tui/components/screen"
 	"github.com/qualidafial/gtd-tui/tui/components/screen/screentest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -14,6 +15,7 @@ import (
 	"github.com/qualidafial/gtd-tui"
 	"github.com/qualidafial/gtd-tui/service"
 	"github.com/qualidafial/gtd-tui/sqlite"
+	"github.com/qualidafial/gtd-tui/tui/pages/tasks/taskstatus"
 )
 
 type env struct {
@@ -86,6 +88,35 @@ func TestTaskScoping(t *testing.T) {
 	view := m.View()
 	assert.Contains(t, view, "In project")
 	assert.NotContains(t, view, "Standalone")
+}
+
+// TestStatusKey_OperatesOnSelectedTask proves the project view does not
+// intercept `s`: it falls through to the embedded task list and opens the
+// status picker for the selected *task* (not the project).
+func TestStatusKey_OperatesOnSelectedTask(t *testing.T) {
+	e := setup(t)
+	ctx := t.Context()
+
+	p, err := e.projectSvc.CreateProject(ctx, gtd.Project{Title: "P1", Status: gtd.ProjectStatusOpen})
+	require.NoError(t, err)
+	_, err = e.taskSvc.CreateTask(ctx, gtd.Task{Title: "In project", Status: gtd.TaskStatusOpen, ProjectID: &p.ID})
+	require.NoError(t, err)
+
+	m := New(p, e.taskSvc, e.projectSvc, nil, nil)
+	s := screentest.Init(t, m)
+	s = screentest.Send(t, s, tea.WindowSizeMsg{Width: 80, Height: 24})
+
+	var pushed screen.Screen
+	for _, msg := range screentest.PumpSend(t, s, tea.KeyPressMsg{Code: 's', Text: "s"}) {
+		if push, ok := msg.(screen.PushMsg); ok {
+			pushed = push.Screen
+		}
+	}
+
+	require.NotNil(t, pushed, "s should push an overlay")
+	ov, ok := pushed.(taskstatus.Model)
+	require.True(t, ok, "s should open the task status picker (operating on the selected task), got %T", pushed)
+	assert.True(t, ov.Picking(), "the pushed overlay should be the task status picker")
 }
 
 func TestCreateInheritsProject(t *testing.T) {

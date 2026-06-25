@@ -10,7 +10,6 @@ Status changes today are spread across three keys with state-dependent meaning: 
 - **Linear-aligned key remaps** (secondary, bundled for muscle-memory consistency):
   - Create: `+`/`insert` → `c` (insert kept as alias).
   - Convert task↔project: `c` → `shift+c` (freed by create move).
-  - Filter: `/` → `f`; `/` reserved for a future search.
   - Add `a` (assign to person) and `i` (assign to me), exposing the existing `Assignee` field outside the clarify wizard.
   - Add `j`/`k` as down/up navigation aliases.
 - **Out of scope** (deferred to later changes): a tabbed project view (Overview/Activity/Issues) and changing project status from the project view; `g`-chord navigation; `ctrl+k` command palette; `x` multi-select.
@@ -18,13 +17,12 @@ Status changes today are spread across three keys with state-dependent meaning: 
 ## Capabilities
 
 ### New Capabilities
-- `status-picker-overlay`: a generalized status-selection overlay that lists the valid target statuses for a task or project and applies the chosen transition via the confirmation overlay; generalizes today's per-transition `taskstatus`/`projectstatus` overlays.
+- `status-picker-overlay`: a status-selection overlay that lists the valid target statuses for a task or project and applies the chosen transition with an inline editable timestamp (the `When` field appears once the selection differs from the current status). Implemented as a picker mode on the existing `taskstatus`/`projectstatus` overlays rather than a separate component.
 
 ### Modified Capabilities
 - `task-status-ui`: replace the `space` toggle with `s` → status picker; `delete` drop is retained unchanged.
 - `task-view-screen`: replace the `space` status key with `s` → status picker; `delete` drop is retained unchanged.
-- `project-list-ui`: replace the `space` toggle and `s` park with `s` → status picker; `delete` drop is retained; rebind quick-create from `+`/`insert` to `c` (insert alias kept); rebind filter focus from `/` to `f`.
-- `task-list-query-ui`: rebind filter focus from `/` to `f`; reserve `/` for future search.
+- `project-list-ui`: replace the `space` toggle and `s` park with `s` → status picker; `delete` drop is retained; rebind quick-create from `+`/`insert` to `c` (insert alias kept).
 
 (`project-view-screen` is intentionally unchanged: `s` falls through to the embedded task list with no project-view interception, so there is no spec-level requirement change there.)
 
@@ -32,6 +30,6 @@ The remaining Linear-aligned remaps — convert `c`→`shift+c`, assign `a`/`i`,
 
 ## Impact
 
-- Code: `tui/pages/tasks/taskstatus`, `tui/pages/projects/projectstatus` (generalize into a shared status picker), `tui/pages/tasks/tasklist`, `tui/pages/tasks/taskview`, `tui/pages/projects/projectlist`, `tui/pages/projects/projectview`, and the corresponding `keymap.go` files; `tui/pages/inbox` create-key alias.
+- Code: `tui/pages/tasks/taskstatus`, `tui/pages/projects/projectstatus` (add a status-picker mode with an inline editable timestamp), `tui/pages/tasks/tasklist`, `tui/pages/tasks/taskview`, `tui/pages/projects/projectlist`, `tui/pages/projects/projectview`, and the corresponding `keymap.go` files; `tui/pages/inbox` create-key alias.
 - Behavior: no domain/service changes — all transitions reuse existing `CompleteTask`/`ReopenTask`/`DropTask`/`ParkProject`/`ReopenProject`. Purely TUI keybinding and overlay restructuring.
 - Docs: README keybindings table and any keymap-resolution references.

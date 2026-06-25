@@ -70,46 +70,45 @@ func TestModel_Load_AppliesItems(t *testing.T) {
 	}
 }
 
-func TestModel_PlusKey_PushesCreateOverlay(t *testing.T) {
-	m := New(openTestSvc(t), nil, nil, nil)
-	_, cmd := sendKey(m, tea.KeyPressMsg{Code: '+', Text: "+"})
-	s := pushScreen(t, cmd)
-	if _, ok := s.(projectedit.Model); !ok {
-		t.Fatalf("expected projectedit.Model, got %T", s)
-	}
-}
-
-func TestModel_Space_CompletePushesConfirmation(t *testing.T) {
-	svc := openTestSvc(t)
-	p := seedProject(t, svc, gtd.Project{Title: "P", Status: gtd.ProjectStatusOpen})
-
-	m := loadProjects(New(svc, nil, nil, nil), []gtd.Project{p})
-	_, cmd := sendKey(m, tea.KeyPressMsg{Code: ' ', Text: " "})
-
-	s := pushScreen(t, cmd)
-	ps, ok := s.(projectstatus.Model)
-	if !ok {
-		t.Fatalf("expected projectstatus.Model, got %T", s)
-	}
-	if ps.Transition() != projectstatus.Complete {
-		t.Fatalf("transition = %v, want Complete", ps.Transition())
-	}
-}
-
-func TestModel_Space_ReopenIsImmediate(t *testing.T) {
-	svc := openTestSvc(t)
-	p := seedProject(t, svc, gtd.Project{Title: "P", Status: gtd.ProjectStatusSomeday})
-
-	m := loadProjects(New(svc, nil, nil, nil), []gtd.Project{p})
-	_, cmd := sendKey(m, tea.KeyPressMsg{Code: ' ', Text: " "})
-
-	if cmd == nil {
-		t.Fatal("expected a reload cmd after reopen")
-	}
-	if msg := cmd(); msg != nil {
-		if _, ok := msg.(screen.PushMsg); ok {
-			t.Fatal("reopen should not push a confirmation overlay")
+func TestModel_CreateKey_PushesCreateOverlay(t *testing.T) {
+	for _, key := range []tea.KeyPressMsg{
+		{Code: 'c', Text: "c"},
+		{Code: tea.KeyInsert},
+	} {
+		m := New(openTestSvc(t), nil, nil, nil)
+		_, cmd := sendKey(m, key)
+		s := pushScreen(t, cmd)
+		if _, ok := s.(projectedit.Model); !ok {
+			t.Fatalf("expected projectedit.Model, got %T", s)
 		}
+	}
+}
+
+func TestModel_Status_PushesPickerSeeded(t *testing.T) {
+	for _, status := range []gtd.ProjectStatus{
+		gtd.ProjectStatusOpen,
+		gtd.ProjectStatusSomeday,
+		gtd.ProjectStatusDone,
+		gtd.ProjectStatusDropped,
+	} {
+		t.Run(string(status), func(t *testing.T) {
+			svc := openTestSvc(t)
+			p := seedProject(t, svc, gtd.Project{Title: "P", Status: status})
+
+			m := loadProjects(New(svc, nil, nil, nil), []gtd.Project{p})
+			_, cmd := sendKey(m, tea.KeyPressMsg{Code: 's', Text: "s"})
+
+			ov, ok := pushScreen(t, cmd).(projectstatus.Model)
+			if !ok {
+				t.Fatalf("s should push the status picker, got %T", pushScreen(t, cmd))
+			}
+			if !ov.Picking() {
+				t.Fatal("s should open the picker, not a fixed-transition confirmation")
+			}
+			if ov.Current() != status {
+				t.Fatalf("picker seeded with %v, want %v", ov.Current(), status)
+			}
+		})
 	}
 }
 
@@ -143,21 +142,6 @@ func TestModel_Delete_DisabledForDone(t *testing.T) {
 				t.Fatal("delete on done project should not push an overlay")
 			}
 		}
-	}
-}
-
-func TestModel_S_ParkIsImmediate(t *testing.T) {
-	svc := openTestSvc(t)
-	p := seedProject(t, svc, gtd.Project{Title: "P", Status: gtd.ProjectStatusOpen})
-
-	m := loadProjects(New(svc, nil, nil, nil), []gtd.Project{p})
-	_, cmd := sendKey(m, tea.KeyPressMsg{Code: 's', Text: "s"})
-
-	if cmd == nil {
-		t.Fatal("expected a park cmd")
-	}
-	if _, ok := cmd().(screen.PushMsg); ok {
-		t.Fatal("park should not push an overlay")
 	}
 }
 

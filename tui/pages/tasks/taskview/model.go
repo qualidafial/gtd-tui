@@ -106,12 +106,8 @@ func (m Model) Update(msg tea.Msg) (screen.Screen, tea.Cmd) {
 		case key.Matches(msg, m.KeyMap.Edit):
 			return m, screen.Push(taskedit.New(m.task, m.taskSvc, m.resolveProjectName(), nil))
 
-		case key.Matches(msg, m.KeyMap.ToggleComplete):
-			transition := taskstatus.Complete
-			if m.task.Status != gtd.TaskStatusOpen {
-				transition = taskstatus.Reopen
-			}
-			return m, screen.Push(taskstatus.New(m.task, m.taskSvc, transition))
+		case key.Matches(msg, m.KeyMap.Status):
+			return m, screen.Push(taskstatus.NewPicker(m.task, m.taskSvc))
 
 		case key.Matches(msg, m.KeyMap.Drop):
 			return m, screen.Push(taskstatus.New(m.task, m.taskSvc, taskstatus.Drop))
@@ -145,16 +141,11 @@ func (m Model) resolveProjectName() string {
 }
 
 // updateKeybindings reconciles per-task action availability: drop only for an
-// open task, convert-to-project only for a standalone task, go-to-project only
-// for a task with a project, and the toggle label tracks the current status.
+// open task, convert-to-project only for a standalone task, and go-to-project
+// only for a task with a project. Status (s) is always available.
 func (m *Model) updateKeybindings() {
 	open := m.task.Status == gtd.TaskStatusOpen
 
-	label := "complete"
-	if !open {
-		label = "reopen"
-	}
-	m.KeyMap.ToggleComplete.SetHelp("space", label)
 	m.KeyMap.Drop.SetEnabled(open)
 	m.KeyMap.AssignToProject.SetEnabled(m.pickerFn != nil)
 	m.KeyMap.ConvertToProject.SetEnabled(gtd.IsStandalone(m.task) && m.convertFn != nil)

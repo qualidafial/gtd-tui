@@ -23,8 +23,8 @@ func DefaultKeyMap() KeyMap {
 			key.WithHelp("l", "link task"),
 		),
 		ConvertToTask: key.NewBinding(
-			key.WithKeys("c"),
-			key.WithHelp("c", "convert to task"),
+			key.WithKeys("shift+c"),
+			key.WithHelp("shift+c", "convert to task"),
 		),
 	}
 }

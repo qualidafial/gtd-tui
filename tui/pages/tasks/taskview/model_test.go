@@ -105,12 +105,12 @@ func TestKeybindings_Guards(t *testing.T) {
 	assert.False(t, standaloneDone.KeyMap.GoToProject.Enabled(), "go-to-project disabled for standalone task")
 }
 
-func TestToggleLabel_TracksStatus(t *testing.T) {
-	open := newView(gtd.Task{ID: 1, Status: gtd.TaskStatusOpen})
-	assert.Equal(t, "complete", open.KeyMap.ToggleComplete.Help().Desc)
-
-	done := newView(gtd.Task{ID: 1, Status: gtd.TaskStatusDone})
-	assert.Equal(t, "reopen", done.KeyMap.ToggleComplete.Help().Desc)
+func TestStatusLabel_IsFixed(t *testing.T) {
+	for _, status := range []gtd.TaskStatus{gtd.TaskStatusOpen, gtd.TaskStatusDone, gtd.TaskStatusDropped} {
+		m := newView(gtd.Task{ID: 1, Status: status})
+		assert.Equal(t, "status", m.KeyMap.Status.Help().Desc,
+			"status label should be fixed for %s", status)
+	}
 }
 
 func TestEdit_PushesEditor(t *testing.T) {
@@ -120,21 +120,15 @@ func TestEdit_PushesEditor(t *testing.T) {
 	assert.True(t, ok, "e should push the task editor")
 }
 
-func TestToggle_ResolvesTransition(t *testing.T) {
-	for _, tt := range []struct {
-		status gtd.TaskStatus
-		want   taskstatus.Transition
-	}{
-		{gtd.TaskStatusOpen, taskstatus.Complete},
-		{gtd.TaskStatusDone, taskstatus.Reopen},
-		{gtd.TaskStatusDropped, taskstatus.Reopen},
-	} {
-		t.Run(string(tt.status), func(t *testing.T) {
-			m := newView(gtd.Task{ID: 1, Status: tt.status})
-			_, cmd := m.Update(tea.KeyPressMsg{Code: ' ', Text: " "})
+func TestStatus_PushesPickerSeeded(t *testing.T) {
+	for _, status := range []gtd.TaskStatus{gtd.TaskStatusOpen, gtd.TaskStatusDone, gtd.TaskStatusDropped} {
+		t.Run(string(status), func(t *testing.T) {
+			m := newView(gtd.Task{ID: 1, Status: status})
+			_, cmd := m.Update(tea.KeyPressMsg{Code: 's', Text: "s"})
 			ov, ok := pushedScreen(t, cmd).(taskstatus.Model)
-			require.True(t, ok, "space should push a status overlay")
-			assert.Equal(t, tt.want, ov.Transition())
+			require.True(t, ok, "s should push the status picker")
+			assert.True(t, ov.Picking(), "s should open the picker, not a fixed confirmation")
+			assert.Equal(t, status, ov.Current(), "picker seeded with the task's current status")
 		})
 	}
 }
@@ -161,7 +155,7 @@ func TestAssignAndConvert_PushFactories(t *testing.T) {
 		assert.Equal(t, "picker", s.name)
 	}
 
-	_, cmd = standalone.Update(tea.KeyPressMsg{Code: 'c', Text: "c"})
+	_, cmd = standalone.Update(tea.KeyPressMsg{Code: 'c', Mod: tea.ModShift})
 	if s, ok := pushedScreen(t, cmd).(stubScreen); assert.True(t, ok) {
 		assert.Equal(t, "convert", s.name)
 	}

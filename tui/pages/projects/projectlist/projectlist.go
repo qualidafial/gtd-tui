@@ -211,26 +211,15 @@ func (m Model) Update(msg tea.Msg) (screen.Screen, tea.Cmd) {
 				return m, screen.Push(projectconvert.New(it.project))
 			}
 
-		case key.Matches(msg, m.KeyMap.ToggleComplete):
-			it, ok := m.list.SelectedItem().(Item)
-			if !ok {
-				break
-			}
-			switch it.project.Status {
-			case gtd.ProjectStatusOpen:
-				return m, screen.Push(projectstatus.New(it.project, it.counts.Total-it.counts.Complete, m.svc, projectstatus.Complete))
-			default:
-				return m, m.reopenCmd(it.project.ID)
+		case key.Matches(msg, m.KeyMap.Status):
+			if it, ok := m.list.SelectedItem().(Item); ok {
+				pending := it.counts.Total - it.counts.Complete
+				return m, screen.Push(projectstatus.NewPicker(it.project, pending, m.svc))
 			}
 
 		case key.Matches(msg, m.KeyMap.Drop):
 			if it, ok := m.list.SelectedItem().(Item); ok {
 				return m, screen.Push(projectstatus.New(it.project, it.counts.Total-it.counts.Complete, m.svc, projectstatus.Drop))
-			}
-
-		case key.Matches(msg, m.KeyMap.Park):
-			if it, ok := m.list.SelectedItem().(Item); ok {
-				return m, m.parkCmd(it.project.ID)
 			}
 
 		case key.Matches(msg, m.KeyMap.MoveUp):
@@ -268,42 +257,12 @@ func (m Model) Update(msg tea.Msg) (screen.Screen, tea.Cmd) {
 	return m, cmd
 }
 
-func (m Model) reopenCmd(id int64) tea.Cmd {
-	svc := m.svc
-	filter := m.filter
-	return func() tea.Msg {
-		if _, err := svc.ReopenProject(context.Background(), id, time.Now()); err != nil {
-			return fmt.Errorf("reopen project: %w", err)
-		}
-		projects, err := svc.ListProjects(context.Background(), filter)
-		if err != nil {
-			return fmt.Errorf("reload projects: %w", err)
-		}
-		return projectsLoadedMsg{projects: projects}
-	}
-}
-
 func (m Model) convertToTaskCmd(id int64) tea.Cmd {
 	svc := m.svc
 	filter := m.filter
 	return func() tea.Msg {
 		if _, err := svc.ConvertProjectToTask(context.Background(), id); err != nil {
 			return fmt.Errorf("convert project to task: %w", err)
-		}
-		projects, err := svc.ListProjects(context.Background(), filter)
-		if err != nil {
-			return fmt.Errorf("reload projects: %w", err)
-		}
-		return projectsLoadedMsg{projects: projects}
-	}
-}
-
-func (m Model) parkCmd(id int64) tea.Cmd {
-	svc := m.svc
-	filter := m.filter
-	return func() tea.Msg {
-		if _, err := svc.ParkProject(context.Background(), id, time.Now()); err != nil {
-			return fmt.Errorf("park project: %w", err)
 		}
 		projects, err := svc.ListProjects(context.Background(), filter)
 		if err != nil {
@@ -383,20 +342,11 @@ func (m *Model) updateKeybindings() {
 	// the service guard rejects it with an error if it slips through.
 	m.KeyMap.ConvertToTask.SetEnabled(selected && gtd.CanConvertProjectToTask(selectedItem.project, selectedItem.counts.Total))
 
-	label := "toggle"
-	switch {
-	case !selected:
-	case status == gtd.ProjectStatusOpen:
-		label = "complete"
-	default:
-		label = "reopen"
-	}
-	m.KeyMap.ToggleComplete.SetHelp("space", label)
+	// Status is available whenever a project is selected; its label is fixed.
+	m.KeyMap.Status.SetEnabled(selected)
 	m.KeyMap.Edit.SetEnabled(selected)
 	m.KeyMap.View.SetEnabled(selected)
-	m.KeyMap.ToggleComplete.SetEnabled(selected)
 	m.KeyMap.Drop.SetEnabled(open || someday)
-	m.KeyMap.Park.SetEnabled(open)
 
 	// Revert-to-default is offered only when the live query differs from the
 	// default; at the default it is a no-op and hidden.

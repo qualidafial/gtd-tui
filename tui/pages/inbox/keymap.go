@@ -16,7 +16,7 @@ type KeyMap struct {
 
 func DefaultKeyMap() KeyMap {
 	return KeyMap{
-		New:     key.NewBinding(key.WithKeys("+", "insert"), key.WithHelp("+/insert", "new item")),
+		New:     key.NewBinding(key.WithKeys("c", "insert"), key.WithHelp("c", "new item")),
 		Clarify: key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "clarify")),
 	}
 }

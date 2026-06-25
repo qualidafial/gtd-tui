@@ -1,7 +1,7 @@
 ## ADDED Requirements
 
 ### Requirement: Change project status with s key
-Pressing `s` on the selected project SHALL open the status picker overlay seeded with the project's current status and its reachable statuses (open → someday/done/dropped; someday → open/dropped; done/dropped → open). The picker applies the chosen transition through the existing confirmation overlay, which SHALL continue to show task cascade information for Complete and Drop. The keymap field SHALL be named `Status` with the fixed help label `status`. The binding SHALL be enabled whenever a project is selected.
+Pressing `s` on the selected project SHALL open the status picker overlay seeded with the project's current status and its reachable statuses (open → someday/done/dropped; someday → open/dropped; done/dropped → open). The picker applies the chosen transition with an editable timestamp; Complete and Drop cascade to the project's tasks as before. The keymap field SHALL be named `Status` with the fixed help label `status`. The binding SHALL be enabled whenever a project is selected.
 
 #### Scenario: Open the status picker on a project
 - **WHEN** a project is selected and the user presses `s`
@@ -11,9 +11,9 @@ Pressing `s` on the selected project SHALL open the status picker overlay seeded
 - **WHEN** an open project is selected, the user presses `s`, arrows to someday, and confirms
 - **THEN** ParkProject SHALL be called and the list SHALL reload
 
-#### Scenario: Complete an open project shows cascade
+#### Scenario: Complete an open project cascades to its tasks
 - **WHEN** an open project is selected, the user presses `s`, arrows to done, and confirms
-- **THEN** the confirmation SHALL show task cascade info and CompleteProject SHALL be called with cascade=true
+- **THEN** CompleteProject SHALL be called with cascade=true
 
 ## RENAMED Requirements
 
@@ -37,17 +37,6 @@ The system SHALL allow creating a new project by pressing "c" or "insert", which
 - **WHEN** user presses "c" or "insert" to open the editor
 - **AND** user presses escape
 - **THEN** the overlay SHALL be dismissed without creating a project
-
-### Requirement: Focus and edit the project query
-Pressing `f` SHALL focus the query bar for editing. The list's built-in filter keybinding SHALL be disabled so the query bar is the only filtering mechanism. The `/` key SHALL NOT focus the query bar; it is reserved for a future search feature.
-
-#### Scenario: Focus query bar
-- **WHEN** the user presses `f`
-- **THEN** the query bar becomes focused and editable
-
-#### Scenario: Slash does not focus the query bar
-- **WHEN** the user presses `/` while the list is focused
-- **THEN** the query bar SHALL NOT become focused
 
 ### Requirement: Keybindings reflect selected project state
 The system SHALL enable/disable action keybindings based on the selected project's status. Status change (`s`) SHALL be enabled whenever a project is selected, with the fixed label `status` (no per-status relabeling). The `delete` drop shortcut SHALL be enabled only for open and someday projects. Reorder SHALL remain conditionally enabled by status and position.
